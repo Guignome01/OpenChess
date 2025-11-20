@@ -277,9 +277,22 @@ void BoardDriver::updateSetupDisplay(const char initialBoard[8][8]) {
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
             int pixelIndex = getPixelIndex(row, col);
-            if (initialBoard[row][col] != ' ' && sensorState[row][col]) {
-                strip.setPixelColor(pixelIndex, strip.Color(0, 0, 0, 255));
+            
+            // Check if a piece is detected on this square
+            if (sensorState[row][col]) {
+                // Determine color based on where the piece is placed
+                if (row <= 1) {
+                    // Black side (top, rows 0-1) - White LED for black pieces
+                    strip.setPixelColor(pixelIndex, strip.Color(0, 0, 0, 255)); // White
+                } else if (row >= 6) {
+                    // White side (bottom, rows 6-7) - Blue LED for white pieces
+                    strip.setPixelColor(pixelIndex, strip.Color(0, 0, 255)); // Blue
+                } else {
+                    // Middle rows (rows 2-5) - Red to indicate error (piece shouldn't be here)
+                    strip.setPixelColor(pixelIndex, strip.Color(255, 0, 0)); // Red
+                }
             } else {
+                // No piece detected - turn off LED
                 strip.setPixelColor(pixelIndex, 0);
             }
         }
