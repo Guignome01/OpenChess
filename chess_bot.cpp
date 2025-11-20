@@ -148,7 +148,7 @@ void ChessBot::update() {
                             _chessEngine->getPossibleMoves(board, row, col, moveCount, moves);
                             
                             for (int i = 0; i < moveCount; i++) {
-                                _boardDriver->setSquareLED(moves[i][0], moves[i][1], 255, 255, 255); // White
+                                _boardDriver->setSquareLED(moves[i][0], moves[i][1], 0, 0, 0, 255); // Bright white using W channel
                             }
                             _boardDriver->showLEDs();
                             break;
@@ -238,7 +238,7 @@ void ChessBot::update() {
                             _chessEngine->getPossibleMoves(board, selectedRow, selectedCol, moveCount, moves);
                             
                             for (int i = 0; i < moveCount; i++) {
-                                _boardDriver->setSquareLED(moves[i][0], moves[i][1], 255, 255, 255); // White
+                                _boardDriver->setSquareLED(moves[i][0], moves[i][1], 0, 0, 0, 255); // Bright white using W channel
                             }
                             _boardDriver->showLEDs();
                             
@@ -955,10 +955,11 @@ void ChessBot::showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toC
     _boardDriver->clearAllLEDs();
     
     // Show source square flashing (where to pick up from)
-    _boardDriver->setSquareLED(fromRow, fromCol, 255, 255, 255); // White flashing
+    // Use white channel (W) for much brighter display
+    _boardDriver->setSquareLED(fromRow, fromCol, 0, 0, 0, 255); // Bright white using W channel
     
     // Show destination square solid (where to place)
-    _boardDriver->setSquareLED(toRow, toCol, 255, 255, 255);     // White solid
+    _boardDriver->setSquareLED(toRow, toCol, 0, 0, 0, 255);     // Bright white using W channel
     
     _boardDriver->showLEDs();
 }
@@ -978,9 +979,9 @@ void ChessBot::waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int
         if (millis() - lastBlink > 500) {
             _boardDriver->clearAllLEDs();
             if (blinkState && !piecePickedUp) {
-                _boardDriver->setSquareLED(fromRow, fromCol, 255, 255, 255); // Flash source
+                _boardDriver->setSquareLED(fromRow, fromCol, 255, 255,  255, 255); // Flash source - bright white using W channel
             }
-            _boardDriver->setSquareLED(toRow, toCol, 255, 255, 255);         // Always show destination
+            _boardDriver->setSquareLED(toRow, toCol, 0, 0, 0, 255);         // Always show destination - bright white using W channel
             _boardDriver->showLEDs();
             
             blinkState = !blinkState;
@@ -994,7 +995,7 @@ void ChessBot::waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int
             
             // Stop blinking source, just show destination
             _boardDriver->clearAllLEDs();
-            _boardDriver->setSquareLED(toRow, toCol, 255, 255, 255);
+            _boardDriver->setSquareLED(toRow, toCol, 0, 0, 0, 255); // Bright white using W channel
             _boardDriver->showLEDs();
         }
         
