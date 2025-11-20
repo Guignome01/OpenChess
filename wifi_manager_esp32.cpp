@@ -308,6 +308,10 @@ String WiFiManagerESP32::generateGameSelectionPage() {
     html += ".game-mode:hover { background-color: #ec8703; transform: translateY(-2px); }";
     html += ".game-mode.available { border-color: #4CAF50; }";
     html += ".game-mode.coming-soon { border-color: #888; opacity: 0.6; }";
+    html += ".game-mode.mode-1 { border-color: #2196F3; background: linear-gradient(135deg, #444 0%, #2196F3 100%); }";
+    html += ".game-mode.mode-2 { border-color: #4CAF50; background: linear-gradient(135deg, #444 0%, #4CAF50 100%); }";
+    html += ".game-mode.mode-3 { border-color: #FFC800; background: linear-gradient(135deg, #444 0%, #FFC800 100%); }";
+    html += ".game-mode.mode-4 { border-color: #F44336; background: linear-gradient(135deg, #444 0%, #F44336 100%); }";
     html += ".game-mode h3 { margin: 0 0 10px 0; font-size: 18px; }";
     html += ".game-mode p { margin: 0; font-size: 14px; opacity: 0.8; }";
     html += ".status { font-size: 12px; padding: 5px 10px; border-radius: 15px; margin-top: 10px; display: inline-block; }";
@@ -322,25 +326,25 @@ String WiFiManagerESP32::generateGameSelectionPage() {
     html += "<h2>GAME SELECTION</h2>";
     html += "<div class=\"game-grid\">";
     
-    html += "<div class=\"game-mode available\" onclick=\"selectGame(1)\">";
+    html += "<div class=\"game-mode available mode-1\" onclick=\"selectGame(1)\">";
     html += "<h3>Chess Moves</h3>";
     html += "<p>Full chess game with move validation and animations</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
     
-    html += "<div class=\"game-mode coming-soon\">";
-    html += "<h3>Game Mode 2</h3>";
-    html += "<p>Future game mode placeholder</p>";
-    html += "<span class=\"status\">Coming Soon</span>";
+    html += "<div class=\"game-mode available mode-2\" onclick=\"selectGame(2)\">";
+    html += "<h3>Chess Bot</h3>";
+    html += "<p>Play against Stockfish AI engine</p>";
+    html += "<span class=\"status\">Available</span>";
     html += "</div>";
     
-    html += "<div class=\"game-mode coming-soon\">";
+    html += "<div class=\"game-mode coming-soon mode-3\">";
     html += "<h3>Game Mode 3</h3>";
     html += "<p>Future game mode placeholder</p>";
     html += "<span class=\"status\">Coming Soon</span>";
     html += "</div>";
     
-    html += "<div class=\"game-mode available\" onclick=\"selectGame(4)\">";
+    html += "<div class=\"game-mode available mode-4\" onclick=\"selectGame(4)\">";
     html += "<h3>Sensor Test</h3>";
     html += "<p>Test and calibrate board sensors</p>";
     html += "<span class=\"status\">Available</span>";
@@ -353,7 +357,7 @@ String WiFiManagerESP32::generateGameSelectionPage() {
     
     html += "<script>";
     html += "function selectGame(mode) {";
-    html += "if (mode === 1 || mode === 4) {";
+    html += "if (mode === 1 || mode === 2 || mode === 4) {";
     html += "fetch('/gameselect', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'gamemode=' + mode })";
     html += ".then(response => response.text())";
     html += ".then(data => { alert('Game mode ' + mode + ' selected! Check your chess board.'); })";

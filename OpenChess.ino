@@ -222,6 +222,9 @@ void loop() {
       case 1:
         currentMode = MODE_CHESS_MOVES;
         break;
+      case 2:
+        currentMode = MODE_CHESS_BOT;
+        break;
       case 4:
         currentMode = MODE_SENSOR_TEST;
         break;
@@ -302,18 +305,18 @@ void showGameSelection() {
   boardDriver.clearAllLEDs();
   
   // Light up the 4 selector positions in the middle of the board
-  // All positions now use bright white for better visibility
-  // Position 1: Chess Moves (row 3, col 3) - White
-  boardDriver.setSquareLED(3, 3, 0, 0, 0, 255);
+  // Each mode has a different color for easy identification
+  // Position 1: Chess Moves (row 3, col 3) - Blue
+  boardDriver.setSquareLED(3, 3, 0, 0, 255);
   
-  // Position 2: Game Mode 2 (row 3, col 4) - White
-  boardDriver.setSquareLED(3, 4, 0, 0, 0, 255);
+  // Position 2: Chess Bot (row 3, col 4) - Green
+  boardDriver.setSquareLED(3, 4, 0, 255, 0);
   
-  // Position 3: Game Mode 3 (row 4, col 3) - White
-  boardDriver.setSquareLED(4, 3, 0, 0, 0, 255);
+  // Position 3: Game Mode 3 (row 4, col 3) - Yellow/Orange
+  boardDriver.setSquareLED(4, 3, 255, 200, 0);
   
-  // Position 4: Sensor Test (row 4, col 4) - White
-  boardDriver.setSquareLED(4, 4, 0, 0, 0, 255);
+  // Position 4: Sensor Test (row 4, col 4) - Red
+  boardDriver.setSquareLED(4, 4, 255, 0, 0);
   
   boardDriver.showLEDs();
 }
