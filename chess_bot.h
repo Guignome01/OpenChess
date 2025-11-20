@@ -5,8 +5,21 @@
 #include "chess_engine.h"
 #include "stockfish_settings.h"
 #include "arduino_secrets.h"
-#include <WiFiNINA.h>
-#include <WiFiSSLClient.h>
+
+// Platform-specific WiFi includes
+#if defined(ESP32) || defined(ESP8266)
+  // ESP32/ESP8266 use built-in WiFi libraries
+  #include <WiFi.h>
+  #include <WiFiClientSecure.h>
+  #define WiFiSSLClient WiFiClientSecure
+#elif defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_NANO_RP2040_CONNECT)
+  // Boards with WiFiNINA module
+  #include <WiFiNINA.h>
+  #include <WiFiSSLClient.h>
+#else
+  // Other boards - WiFi not supported
+  #warning "WiFi not supported on this board - Chess Bot will not work"
+#endif
 
 class ChessBot {
 private:

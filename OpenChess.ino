@@ -8,7 +8,10 @@
 #define ENABLE_WIFI  // Currently disabled - RP2040 boards use local mode only
 #ifdef ENABLE_WIFI
   // Use different WiFi manager based on board type
-  #if defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_NANO_RP2040_CONNECT)
+  #if defined(ESP32) || defined(ESP8266)
+    #include "wifi_manager_esp32.h"  // Full WiFi implementation for ESP32/ESP8266
+    #define WiFiManager WiFiManagerESP32
+  #elif defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_NANO_RP2040_CONNECT)
     #include "wifi_manager.h"  // Full WiFi implementation for boards with WiFiNINA
   #else
     #include "wifi_manager_rp2040.h"  // Placeholder for RP2040 and other boards
@@ -78,7 +81,11 @@ void setup() {
   
   // Debug board type detection
   Serial.println("DEBUG: Board type detection:");
-  #if defined(ARDUINO_SAMD_MKRWIFI1010)
+  #if defined(ESP32)
+  Serial.println("  - Detected: ESP32");
+  #elif defined(ESP8266)
+  Serial.println("  - Detected: ESP8266");
+  #elif defined(ARDUINO_SAMD_MKRWIFI1010)
   Serial.println("  - Detected: ARDUINO_SAMD_MKRWIFI1010");
   #elif defined(ARDUINO_SAMD_NANO_33_IOT)
   Serial.println("  - Detected: ARDUINO_SAMD_NANO_33_IOT");

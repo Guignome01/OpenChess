@@ -6,7 +6,14 @@
 // ---------------------------
 // Hardware Configuration
 // ---------------------------
-#define LED_PIN     17       // Pin for NeoPixels
+
+// if ESP32 use pin D8, otherwise 17
+#if defined(ESP32)
+    #define LED_PIN D8
+#else
+    #define LED_PIN     17       // Pin for NeoPixels
+#endif
+
 #define NUM_ROWS    8
 #define NUM_COLS    8
 #define LED_COUNT   (NUM_ROWS * NUM_COLS)

@@ -1,16 +1,19 @@
-#ifndef WIFI_MANAGER_H
-#define WIFI_MANAGER_H
+#ifndef WIFI_MANAGER_ESP32_H
+#define WIFI_MANAGER_ESP32_H
 
-// This WiFi manager is only for boards with WiFiNINA module
-#if !defined(ESP32) && !defined(ESP8266) && (defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_NANO_RP2040_CONNECT))
-  #include <WiFiNINA.h>
-  #include <WiFiUdp.h>
-  
-  // Only define the class for WiFiNINA boards
-  #define WIFI_MANAGER_WIFININA_ENABLED
+#if !defined(ESP32) && !defined(ESP8266)
+  #error "wifi_manager_esp32.h is only for ESP32/ESP8266 boards"
 #endif
 
-#ifdef WIFI_MANAGER_WIFININA_ENABLED
+// Include Arduino.h first to set up ESP32 environment
+#include <Arduino.h>
+
+// ESP32 uses built-in WiFi library from the core
+// Note: If you get WiFiNINA errors, ensure:
+// 1. You're compiling for ESP32 board (Tools -> Board -> ESP32)
+// 2. WiFiNINA library is not interfering (you may need to temporarily remove it)
+#include <WiFi.h>
+#include <WebServer.h>
 
 // ---------------------------
 // WiFi Configuration
@@ -20,11 +23,11 @@
 #define AP_PORT 80
 
 // ---------------------------
-// WiFi Manager Class
+// WiFi Manager Class for ESP32
 // ---------------------------
-class WiFiManager {
+class WiFiManagerESP32 {
 private:
-    WiFiServer server;
+    WebServer server;
     bool apMode;
     bool clientConnected;
     
@@ -38,13 +41,14 @@ private:
     // Web interface methods
     String generateWebPage();
     String generateGameSelectionPage();
-    void handleConfigSubmit(WiFiClient& client, String request);
-    void handleGameSelection(WiFiClient& client, String request);
-    void sendResponse(WiFiClient& client, String content, String contentType = "text/html");
+    void handleRoot();
+    void handleGameSelection();
+    void handleConfigSubmit();
+    void sendResponse(String content, String contentType = "text/html");
     void parseFormData(String data);
     
 public:
-    WiFiManager();
+    WiFiManagerESP32();
     void begin();
     void handleClient();
     bool isClientConnected();
@@ -61,6 +65,5 @@ public:
     void resetGameSelection();
 };
 
-#endif // WIFI_MANAGER_WIFININA_ENABLED
+#endif // WIFI_MANAGER_ESP32_H
 
-#endif // WIFI_MANAGER_H

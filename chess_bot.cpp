@@ -254,6 +254,36 @@ void ChessBot::update() {
 }
 
 bool ChessBot::connectToWiFi() {
+#if defined(ESP32) || defined(ESP8266)
+    // ESP32/ESP8266 WiFi connection
+    Serial.print("Attempting to connect to SSID: ");
+    Serial.println(SECRET_SSID);
+    
+    WiFi.mode(WIFI_STA);  // Set WiFi to station mode
+    WiFi.begin(SECRET_SSID, SECRET_PASS);
+    
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
+        attempts++;
+        
+        Serial.print("Connection attempt ");
+        Serial.print(attempts);
+        Serial.print("/20 - Status: ");
+        Serial.println(WiFi.status());
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Connected to WiFi!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        return true;
+    } else {
+        Serial.println("Failed to connect to WiFi");
+        return false;
+    }
+#elif defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT) || defined(ARDUINO_NANO_RP2040_CONNECT)
+    // WiFiNINA boards
     // Check for WiFi module
     if (WiFi.status() == WL_NO_MODULE) {
         Serial.println("WiFi module not found!");
@@ -284,10 +314,20 @@ bool ChessBot::connectToWiFi() {
         Serial.println("Failed to connect to WiFi");
         return false;
     }
+#else
+    Serial.println("WiFi not supported on this board");
+    return false;
+#endif
 }
 
 String ChessBot::makeStockfishRequest(String fen) {
     WiFiSSLClient client;
+    
+#if defined(ESP32) || defined(ESP8266)
+    // ESP32/ESP8266: Set insecure mode for SSL (or add proper certificate validation)
+    // For production, you should validate certificates properly
+    client.setInsecure();
+#endif
     
     Serial.println("Making API request to Stockfish...");
     Serial.print("FEN: ");

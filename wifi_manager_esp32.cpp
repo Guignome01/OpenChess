@@ -1,11 +1,7 @@
-#include "wifi_manager.h"
-
-// Only compile this file for WiFiNINA boards
-#ifdef WIFI_MANAGER_WIFININA_ENABLED
-
+#include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-WiFiManager::WiFiManager() : server(AP_PORT) {
+WiFiManagerESP32::WiFiManagerESP32() : server(AP_PORT) {
     apMode = true;
     clientConnected = false;
     wifiSSID = "";
@@ -15,38 +11,9 @@ WiFiManager::WiFiManager() : server(AP_PORT) {
     startupType = "WiFi";
 }
 
-void WiFiManager::begin() {
-    Serial.println("!!! WIFI MANAGER BEGIN FUNCTION CALLED !!!");
-    Serial.println("=== Starting OpenChess WiFi Manager ===");
+void WiFiManagerESP32::begin() {
+    Serial.println("=== Starting OpenChess WiFi Manager (ESP32) ===");
     Serial.println("Debug: WiFi Manager begin() called");
-    
-    // Check if WiFi is available
-    Serial.println("Debug: Checking WiFi module...");
-    
-    // Try to get WiFi status - this often fails on incompatible boards
-    Serial.println("Debug: Attempting to get WiFi status...");
-    int initialStatus = WiFi.status();
-    Serial.print("Debug: Initial WiFi status: ");
-    Serial.println(initialStatus);
-    
-    // Initialize WiFi module
-    Serial.println("Debug: Checking for WiFi module presence...");
-    if (initialStatus == WL_NO_MODULE) {
-        Serial.println("ERROR: WiFi module not detected!");
-        Serial.println("Board type: Arduino Nano RP2040 - WiFi not supported with WiFiNINA");
-        Serial.println("This is expected behavior for RP2040 boards.");
-        Serial.println("Use physical board selectors for game mode selection.");
-        return;
-    }
-    
-    Serial.println("Debug: WiFi module appears to be present");
-    
-    Serial.println("Debug: WiFi module detected");
-    
-    // Check firmware version
-    String fv = WiFi.firmwareVersion();
-    Serial.print("Debug: WiFi firmware version: ");
-    Serial.println(fv);
     
     // Start Access Point
     Serial.print("Debug: Creating Access Point with SSID: ");
@@ -54,66 +21,25 @@ void WiFiManager::begin() {
     Serial.print("Debug: Using password: ");
     Serial.println(AP_PASSWORD);
     
-    Serial.println("Debug: Calling WiFi.beginAP()...");
+    Serial.println("Debug: Calling WiFi.softAP()...");
     
-    // First, try without channel specification (like Arduino example)
-    Serial.println("Debug: Attempting AP creation without channel...");
-    int status = WiFi.beginAP(AP_SSID, AP_PASSWORD);
+    // Create Access Point
+    bool apStarted = WiFi.softAP(AP_SSID, AP_PASSWORD);
     
-    if (status != WL_AP_LISTENING) {
-        Serial.println("Debug: First attempt failed, trying with channel 6...");
-        status = WiFi.beginAP(AP_SSID, AP_PASSWORD, 6);
-    }
-    
-    Serial.print("Debug: WiFi.beginAP() returned: ");
-    Serial.println(status);
-    
-    // Print detailed status explanation
-    Serial.print("Debug: Status meaning: ");
-    switch(status) {
-        case WL_IDLE_STATUS: Serial.println("WL_IDLE_STATUS (0) - Temporary status"); break;
-        case WL_NO_SSID_AVAIL: Serial.println("WL_NO_SSID_AVAIL (1) - No SSID available"); break;
-        case WL_SCAN_COMPLETED: Serial.println("WL_SCAN_COMPLETED (2) - Scan completed"); break;
-        case WL_CONNECTED: Serial.println("WL_CONNECTED (3) - Connected to network"); break;
-        case WL_CONNECT_FAILED: Serial.println("WL_CONNECT_FAILED (4) - Connection failed"); break;
-        case WL_CONNECTION_LOST: Serial.println("WL_CONNECTION_LOST (5) - Connection lost"); break;
-        case WL_DISCONNECTED: Serial.println("WL_DISCONNECTED (6) - Disconnected"); break;
-        case WL_AP_LISTENING: Serial.println("WL_AP_LISTENING (7) - AP listening (SUCCESS!)"); break;
-        case WL_AP_CONNECTED: Serial.println("WL_AP_CONNECTED (8) - AP connected"); break;
-        case WL_AP_FAILED: Serial.println("WL_AP_FAILED (9) - AP failed"); break;
-        default: Serial.print("UNKNOWN STATUS ("); Serial.print(status); Serial.println(")"); break;
-    }
-    
-    if (status != WL_AP_LISTENING) {
+    if (!apStarted) {
         Serial.println("ERROR: Failed to create Access Point!");
-        Serial.println("Expected WL_AP_LISTENING (7), but got different status");
         return;
     }
     
-    Serial.println("Debug: Access Point creation initiated");
+    Serial.println("Debug: Access Point created successfully");
     
-    // Wait for AP to start and check status
-    Serial.println("Debug: Waiting for AP to start...");
-    for (int i = 0; i < 10; i++) {
-        delay(1000);
-        status = WiFi.status();
-        Serial.print("Debug: WiFi status check ");
-        Serial.print(i + 1);
-        Serial.print("/10 - Status: ");
-        Serial.println(status);
-        
-        if (status == WL_AP_LISTENING) {
-            Serial.println("Debug: AP is now listening!");
-            break;
-        }
-    }
+    // Wait a moment for AP to stabilize
+    delay(100);
     
-    // Print AP information and verify it's actually working
-    IPAddress ip = WiFi.localIP();
+    // Print AP information
+    IPAddress ip = WiFi.softAPIP();
     Serial.println("=== WiFi Access Point Information ===");
     Serial.print("SSID: ");
-    Serial.println(WiFi.SSID());  // Get actual SSID from WiFi module
-    Serial.print("Expected SSID: ");
     Serial.println(AP_SSID);
     Serial.print("Password: ");
     Serial.println(AP_PASSWORD);
@@ -121,22 +47,25 @@ void WiFiManager::begin() {
     Serial.println(ip);
     Serial.print("Web Interface: http://");
     Serial.println(ip);
-    
-    // Additional diagnostic information
-    Serial.print("WiFi Status: ");
-    Serial.println(WiFi.status());
-    Serial.print("WiFi Mode: ");
-    // Note: WiFiNINA might not have explicit AP mode check
-    Serial.println("Access Point Mode");
-    
-    // Verify IP is valid
-    if (ip == IPAddress(0, 0, 0, 0)) {
-        Serial.println("WARNING: IP address is 0.0.0.0 - AP might not be working!");
-    } else {
-        Serial.println("IP address looks valid");
-    }
-    
+    Serial.print("MAC Address: ");
+    Serial.println(WiFi.softAPmacAddress());
     Serial.println("=====================================");
+    
+    // Set up web server routes
+    server.on("/", HTTP_GET, [this]() { this->handleRoot(); });
+    server.on("/game", HTTP_GET, [this]() { 
+        String gameSelectionPage = this->generateGameSelectionPage();
+        this->server.send(200, "text/html", gameSelectionPage);
+    });
+    server.on("/submit", HTTP_POST, [this]() { this->handleConfigSubmit(); });
+    server.on("/gameselect", HTTP_POST, [this]() { this->handleGameSelection(); });
+    server.onNotFound([this]() {
+        String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
+        response += "<h2>404 - Page Not Found</h2>";
+        response += "<p><a href='/' style='color:#ec8703;'>Back to Home</a></p>";
+        response += "</body></html>";
+        this->sendResponse(response, "text/html");
+    });
     
     // Start the web server
     Serial.println("Debug: Starting web server...");
@@ -145,91 +74,75 @@ void WiFiManager::begin() {
     Serial.println("WiFi Manager initialization complete!");
 }
 
-void WiFiManager::handleClient() {
-    WiFiClient client = server.available();
-    
-    if (client) {
-        clientConnected = true;
-        Serial.println("New client connected");
-        
-        String request = "";
-        bool currentLineIsBlank = true;
-        bool readingBody = false;
-        String body = "";
-        
-        while (client.connected()) {
-            if (client.available()) {
-                char c = client.read();
-                
-                if (!readingBody) {
-                    request += c;
-                    
-                    if (c == '\n' && currentLineIsBlank) {
-                        // Headers ended, now reading body if POST
-                        if (request.indexOf("POST") >= 0) {
-                            readingBody = true;
-                        } else {
-                            break; // GET request, no body
-                        }
-                    }
-                    
-                    if (c == '\n') {
-                        currentLineIsBlank = true;
-                    } else if (c != '\r') {
-                        currentLineIsBlank = false;
-                    }
-                } else {
-                    // Reading POST body
-                    body += c;
-                    if (body.length() > 1000) break; // Prevent overflow
-                }
-            }
-        }
-        
-        // Handle the request
-        if (request.indexOf("GET / ") >= 0) {
-            // Main configuration page
-            String webpage = generateWebPage();
-            sendResponse(client, webpage);
-        }
-        else if (request.indexOf("GET /game") >= 0) {
-            // Game selection page
-            String gameSelectionPage = generateGameSelectionPage();
-            sendResponse(client, gameSelectionPage);
-        }
-        else if (request.indexOf("POST /submit") >= 0) {
-            // Configuration form submission
-            parseFormData(body);
-            String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
-            response += "<h2>Configuration Saved!</h2>";
-            response += "<p>WiFi SSID: " + wifiSSID + "</p>";
-            response += "<p>Game Mode: " + gameMode + "</p>";
-            response += "<p>Startup Type: " + startupType + "</p>";
-            response += "<p><a href='/game' style='color:#ec8703;'>Go to Game Selection</a></p>";
-            response += "</body></html>";
-            sendResponse(client, response);
-        }
-        else if (request.indexOf("POST /gameselect") >= 0) {
-            // Game selection submission
-            handleGameSelection(client, body);
-        }
-        else {
-            // 404 Not Found
-            String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
-            response += "<h2>404 - Page Not Found</h2>";
-            response += "<p><a href='/' style='color:#ec8703;'>Back to Home</a></p>";
-            response += "</body></html>";
-            sendResponse(client, response, "text/html");
-        }
-        
-        delay(10);
-        client.stop();
-        Serial.println("Client disconnected");
-        clientConnected = false;
-    }
+void WiFiManagerESP32::handleClient() {
+    server.handleClient();
 }
 
-String WiFiManager::generateWebPage() {
+void WiFiManagerESP32::handleRoot() {
+    String webpage = generateWebPage();
+    sendResponse(webpage);
+}
+
+void WiFiManagerESP32::handleConfigSubmit() {
+    if (server.hasArg("plain")) {
+        parseFormData(server.arg("plain"));
+    } else {
+        // Try to get form data from POST body
+        String body = "";
+        while (server.hasArg("ssid") || server.hasArg("password") || server.hasArg("token") || 
+               server.hasArg("gameMode") || server.hasArg("startupType")) {
+            if (server.hasArg("ssid")) wifiSSID = server.arg("ssid");
+            if (server.hasArg("password")) wifiPassword = server.arg("password");
+            if (server.hasArg("token")) lichessToken = server.arg("token");
+            if (server.hasArg("gameMode")) gameMode = server.arg("gameMode");
+            if (server.hasArg("startupType")) startupType = server.arg("startupType");
+            break;
+        }
+    }
+    
+    String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
+    response += "<h2>Configuration Saved!</h2>";
+    response += "<p>WiFi SSID: " + wifiSSID + "</p>";
+    response += "<p>Game Mode: " + gameMode + "</p>";
+    response += "<p>Startup Type: " + startupType + "</p>";
+    response += "<p><a href='/game' style='color:#ec8703;'>Go to Game Selection</a></p>";
+    response += "</body></html>";
+    sendResponse(response);
+}
+
+void WiFiManagerESP32::handleGameSelection() {
+    // Parse game mode selection
+    int mode = 0;
+    
+    if (server.hasArg("gamemode")) {
+        mode = server.arg("gamemode").toInt();
+    } else if (server.hasArg("plain")) {
+        // Try to parse from plain body
+        String body = server.arg("plain");
+        int modeStart = body.indexOf("gamemode=");
+        if (modeStart >= 0) {
+            int modeEnd = body.indexOf("&", modeStart);
+            if (modeEnd < 0) modeEnd = body.length();
+            String selectedMode = body.substring(modeStart + 9, modeEnd);
+            mode = selectedMode.toInt();
+        }
+    }
+    
+    Serial.print("Game mode selected via web: ");
+    Serial.println(mode);
+    
+    // Store the selected game mode
+    gameMode = String(mode);
+    
+    String response = "{\"status\":\"success\",\"message\":\"Game mode selected\",\"mode\":" + String(mode) + "}";
+    sendResponse(response, "application/json");
+}
+
+void WiFiManagerESP32::sendResponse(String content, String contentType) {
+    server.send(200, contentType, content);
+}
+
+String WiFiManagerESP32::generateWebPage() {
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -317,7 +230,7 @@ String WiFiManager::generateWebPage() {
     return html;
 }
 
-String WiFiManager::generateGameSelectionPage() {
+String WiFiManagerESP32::generateGameSelectionPage() {
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -391,36 +304,7 @@ String WiFiManager::generateGameSelectionPage() {
     return html;
 }
 
-void WiFiManager::handleGameSelection(WiFiClient& client, String body) {
-    // Parse game mode selection
-    int modeStart = body.indexOf("gamemode=");
-    if (modeStart >= 0) {
-        int modeEnd = body.indexOf("&", modeStart);
-        if (modeEnd < 0) modeEnd = body.length();
-        
-        String selectedMode = body.substring(modeStart + 9, modeEnd);
-        int mode = selectedMode.toInt();
-        
-        Serial.print("Game mode selected via web: ");
-        Serial.println(mode);
-        
-        // Store the selected game mode (you'll access this from main code)
-        gameMode = String(mode);
-        
-        String response = R"({"status":"success","message":"Game mode selected","mode":)" + String(mode) + "}";
-        sendResponse(client, response, "application/json");
-    }
-}
-
-void WiFiManager::sendResponse(WiFiClient& client, String content, String contentType) {
-    client.println("HTTP/1.1 200 OK");
-    client.println("Content-Type: " + contentType);
-    client.println("Connection: close");
-    client.println();
-    client.println(content);
-}
-
-void WiFiManager::parseFormData(String data) {
+void WiFiManagerESP32::parseFormData(String data) {
     // Parse URL-encoded form data
     int ssidStart = data.indexOf("ssid=");
     if (ssidStart >= 0) {
@@ -428,6 +312,7 @@ void WiFiManager::parseFormData(String data) {
         if (ssidEnd < 0) ssidEnd = data.length();
         wifiSSID = data.substring(ssidStart + 5, ssidEnd);
         wifiSSID.replace("+", " ");
+        wifiSSID.replace("%20", " ");
     }
     
     int passStart = data.indexOf("password=");
@@ -435,6 +320,8 @@ void WiFiManager::parseFormData(String data) {
         int passEnd = data.indexOf("&", passStart);
         if (passEnd < 0) passEnd = data.length();
         wifiPassword = data.substring(passStart + 9, passEnd);
+        wifiPassword.replace("+", " ");
+        wifiPassword.replace("%20", " ");
     }
     
     int tokenStart = data.indexOf("token=");
@@ -442,6 +329,8 @@ void WiFiManager::parseFormData(String data) {
         int tokenEnd = data.indexOf("&", tokenStart);
         if (tokenEnd < 0) tokenEnd = data.length();
         lichessToken = data.substring(tokenStart + 6, tokenEnd);
+        lichessToken.replace("+", " ");
+        lichessToken.replace("%20", " ");
     }
     
     int gameModeStart = data.indexOf("gameMode=");
@@ -450,6 +339,7 @@ void WiFiManager::parseFormData(String data) {
         if (gameModeEnd < 0) gameModeEnd = data.length();
         gameMode = data.substring(gameModeStart + 9, gameModeEnd);
         gameMode.replace("+", " ");
+        gameMode.replace("%20", " ");
     }
     
     int startupStart = data.indexOf("startupType=");
@@ -465,16 +355,15 @@ void WiFiManager::parseFormData(String data) {
     Serial.println("Startup Type: " + startupType);
 }
 
-bool WiFiManager::isClientConnected() {
-    return clientConnected;
+bool WiFiManagerESP32::isClientConnected() {
+    return WiFi.softAPgetStationNum() > 0;
 }
 
-int WiFiManager::getSelectedGameMode() {
+int WiFiManagerESP32::getSelectedGameMode() {
     return gameMode.toInt();
 }
 
-void WiFiManager::resetGameSelection() {
+void WiFiManagerESP32::resetGameSelection() {
     gameMode = "0";
 }
 
-#endif // WIFI_MANAGER_WIFININA_ENABLED
