@@ -2,7 +2,8 @@
 #include <Arduino.h>
 #include "arduino_secrets.h"
 
-WiFiManagerESP32::WiFiManagerESP32() : server(AP_PORT) {
+WiFiManagerESP32::WiFiManagerESP32() : server(AP_PORT)
+{
     apMode = true;
     clientConnected = false;
     wifiSSID = "";
@@ -13,107 +14,125 @@ WiFiManagerESP32::WiFiManagerESP32() : server(AP_PORT) {
     boardStateValid = false;
     hasPendingEdit = false;
     boardEvaluation = 0.0;
-    
+
     // Initialize board state to empty
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             boardState[row][col] = ' ';
             pendingBoardEdit[row][col] = ' ';
         }
     }
 }
 
-void WiFiManagerESP32::begin() {
+void WiFiManagerESP32::begin()
+{
     Serial.println("=== Starting OpenChess WiFi Manager (ESP32) ===");
     Serial.println("Debug: WiFi Manager begin() called");
-    
+
     // ESP32 can run both AP and Station modes simultaneously
     // Start Access Point first (always available)
     Serial.print("Debug: Creating Access Point with SSID: ");
     Serial.println(AP_SSID);
     Serial.print("Debug: Using password: ");
     Serial.println(AP_PASSWORD);
-    
+
     Serial.println("Debug: Calling WiFi.softAP()...");
-    
+
     // Create Access Point
     bool apStarted = WiFi.softAP(AP_SSID, AP_PASSWORD);
-    
-    if (!apStarted) {
+
+    if (!apStarted)
+    {
         Serial.println("ERROR: Failed to create Access Point!");
         return;
     }
-    
+
     Serial.println("Debug: Access Point created successfully");
-    
+
     // Try to connect to existing WiFi (if credentials available)
     bool connected = false;
-    
-    if (wifiSSID.length() > 0 || strlen(SECRET_SSID) > 0) {
+
+    if (wifiSSID.length() > 0 || strlen(SECRET_SSID) > 0)
+    {
         String ssidToUse = wifiSSID.length() > 0 ? wifiSSID : String(SECRET_SSID);
         String passToUse = wifiPassword.length() > 0 ? wifiPassword : String(SECRET_PASS);
-        
+
         Serial.println("=== Attempting to connect to WiFi network ===");
         Serial.print("SSID: ");
         Serial.println(ssidToUse);
-        
+
         connected = connectToWiFi(ssidToUse, passToUse);
-        
-        if (connected) {
+
+        if (connected)
+        {
             Serial.println("Successfully connected to WiFi network!");
-        } else {
+        }
+        else
+        {
             Serial.println("Failed to connect to WiFi. Access Point mode still available.");
         }
     }
-    
+
     // Wait a moment for everything to stabilize
     delay(100);
-    
+
     // Print connection information
     Serial.println("=== WiFi Connection Information ===");
     Serial.print("Access Point SSID: ");
     Serial.println(AP_SSID);
     Serial.print("Access Point IP: ");
     Serial.println(WiFi.softAPIP());
-    if (connected) {
+    if (connected)
+    {
         Serial.print("Connected to WiFi: ");
         Serial.println(WiFi.SSID());
         Serial.print("Station IP: ");
         Serial.println(WiFi.localIP());
         Serial.print("Access board via: http://");
         Serial.println(WiFi.localIP());
-    } else {
+    }
+    else
+    {
         Serial.print("Access board via: http://");
         Serial.println(WiFi.softAPIP());
     }
     Serial.print("MAC Address: ");
     Serial.println(WiFi.softAPmacAddress());
     Serial.println("=====================================");
-    
+
     // Set up web server routes
-    server.on("/", HTTP_GET, [this]() { this->handleRoot(); });
-    server.on("/game", HTTP_GET, [this]() { 
+    server.on("/", HTTP_GET, [this]()
+              { this->handleRoot(); });
+    server.on("/game", HTTP_GET, [this]()
+              { 
         String gameSelectionPage = this->generateGameSelectionPage();
-        this->server.send(200, "text/html", gameSelectionPage);
-    });
-    server.on("/board", HTTP_GET, [this]() { this->handleBoard(); });
-    server.on("/board-view", HTTP_GET, [this]() { this->handleBoardView(); });
-    server.on("/board-edit", HTTP_GET, [this]() { 
+        this->server.send(200, "text/html", gameSelectionPage); });
+    server.on("/board", HTTP_GET, [this]()
+              { this->handleBoard(); });
+    server.on("/board-view", HTTP_GET, [this]()
+              { this->handleBoardView(); });
+    server.on("/board-edit", HTTP_GET, [this]()
+              { 
         String boardEditPage = this->generateBoardEditPage();
-        this->server.send(200, "text/html", boardEditPage);
-    });
-    server.on("/board-edit", HTTP_POST, [this]() { this->handleBoardEdit(); });
-    server.on("/connect-wifi", HTTP_POST, [this]() { this->handleConnectWiFi(); });
-    server.on("/submit", HTTP_POST, [this]() { this->handleConfigSubmit(); });
-    server.on("/gameselect", HTTP_POST, [this]() { this->handleGameSelection(); });
-    server.onNotFound([this]() {
+        this->server.send(200, "text/html", boardEditPage); });
+    server.on("/board-edit", HTTP_POST, [this]()
+              { this->handleBoardEdit(); });
+    server.on("/connect-wifi", HTTP_POST, [this]()
+              { this->handleConnectWiFi(); });
+    server.on("/submit", HTTP_POST, [this]()
+              { this->handleConfigSubmit(); });
+    server.on("/gameselect", HTTP_POST, [this]()
+              { this->handleGameSelection(); });
+    server.onNotFound([this]()
+                      {
         String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
         response += "<h2>404 - Page Not Found</h2>";
         response += "<p><a href='/' style='color:#ec8703;'>Back to Home</a></p>";
         response += "</body></html>";
-        this->sendResponse(response, "text/html");
-    });
-    
+        this->sendResponse(response, "text/html"); });
+
     // Start the web server
     Serial.println("Debug: Starting web server...");
     server.begin();
@@ -121,32 +140,44 @@ void WiFiManagerESP32::begin() {
     Serial.println("WiFi Manager initialization complete!");
 }
 
-void WiFiManagerESP32::handleClient() {
+void WiFiManagerESP32::handleClient()
+{
     server.handleClient();
 }
 
-void WiFiManagerESP32::handleRoot() {
+void WiFiManagerESP32::handleRoot()
+{
     String webpage = generateWebPage();
     sendResponse(webpage);
 }
 
-void WiFiManagerESP32::handleConfigSubmit() {
-    if (server.hasArg("plain")) {
+void WiFiManagerESP32::handleConfigSubmit()
+{
+    if (server.hasArg("plain"))
+    {
         parseFormData(server.arg("plain"));
-    } else {
+    }
+    else
+    {
         // Try to get form data from POST body
         String body = "";
-        while (server.hasArg("ssid") || server.hasArg("password") || server.hasArg("token") || 
-               server.hasArg("gameMode") || server.hasArg("startupType")) {
-            if (server.hasArg("ssid")) wifiSSID = server.arg("ssid");
-            if (server.hasArg("password")) wifiPassword = server.arg("password");
-            if (server.hasArg("token")) lichessToken = server.arg("token");
-            if (server.hasArg("gameMode")) gameMode = server.arg("gameMode");
-            if (server.hasArg("startupType")) startupType = server.arg("startupType");
+        while (server.hasArg("ssid") || server.hasArg("password") || server.hasArg("token") ||
+               server.hasArg("gameMode") || server.hasArg("startupType"))
+        {
+            if (server.hasArg("ssid"))
+                wifiSSID = server.arg("ssid");
+            if (server.hasArg("password"))
+                wifiPassword = server.arg("password");
+            if (server.hasArg("token"))
+                lichessToken = server.arg("token");
+            if (server.hasArg("gameMode"))
+                gameMode = server.arg("gameMode");
+            if (server.hasArg("startupType"))
+                startupType = server.arg("startupType");
             break;
         }
     }
-    
+
     String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
     response += "<h2>Configuration Saved!</h2>";
     response += "<p>WiFi SSID: " + wifiSSID + "</p>";
@@ -157,39 +188,47 @@ void WiFiManagerESP32::handleConfigSubmit() {
     sendResponse(response);
 }
 
-void WiFiManagerESP32::handleGameSelection() {
+void WiFiManagerESP32::handleGameSelection()
+{
     // Parse game mode selection
     int mode = 0;
-    
-    if (server.hasArg("gamemode")) {
+
+    if (server.hasArg("gamemode"))
+    {
         mode = server.arg("gamemode").toInt();
-    } else if (server.hasArg("plain")) {
+    }
+    else if (server.hasArg("plain"))
+    {
         // Try to parse from plain body
         String body = server.arg("plain");
         int modeStart = body.indexOf("gamemode=");
-        if (modeStart >= 0) {
+        if (modeStart >= 0)
+        {
             int modeEnd = body.indexOf("&", modeStart);
-            if (modeEnd < 0) modeEnd = body.length();
+            if (modeEnd < 0)
+                modeEnd = body.length();
             String selectedMode = body.substring(modeStart + 9, modeEnd);
             mode = selectedMode.toInt();
         }
     }
-    
+
     Serial.print("Game mode selected via web: ");
     Serial.println(mode);
-    
+
     // Store the selected game mode
     gameMode = String(mode);
-    
+
     String response = "{\"status\":\"success\",\"message\":\"Game mode selected\",\"mode\":" + String(mode) + "}";
     sendResponse(response, "application/json");
 }
 
-void WiFiManagerESP32::sendResponse(String content, String contentType) {
+void WiFiManagerESP32::sendResponse(String content, String contentType)
+{
     server.send(200, contentType, content);
 }
 
-String WiFiManagerESP32::generateWebPage() {
+String WiFiManagerESP32::generateWebPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -212,66 +251,75 @@ String WiFiManagerESP32::generateWebPage() {
     html += "<div class=\"container\">";
     html += "<h2>OPENCHESSBOARD CONFIGURATION</h2>";
     html += "<form action=\"/submit\" method=\"POST\">";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"ssid\">WiFi SSID:</label>";
     html += "<input type=\"text\" name=\"ssid\" id=\"ssid\" value=\"" + wifiSSID + "\" placeholder=\"Enter Your WiFi SSID\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"password\">WiFi Password:</label>";
     html += "<input type=\"password\" name=\"password\" id=\"password\" value=\"\" placeholder=\"Enter Your WiFi Password\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"token\">Lichess Token (Optional):</label>";
     html += "<input type=\"text\" name=\"token\" id=\"token\" value=\"" + lichessToken + "\" placeholder=\"Enter Your Lichess Token (Future Feature)\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"gameMode\">Default Game Mode:</label>";
     html += "<select name=\"gameMode\" id=\"gameMode\">";
     html += "<option value=\"None\"";
-    if (gameMode == "None") html += " selected";
+    if (gameMode == "None")
+        html += " selected";
     html += ">Local Chess Only</option>";
     html += "<option value=\"5+3\"";
-    if (gameMode == "5+3") html += " selected";
+    if (gameMode == "5+3")
+        html += " selected";
     html += ">5+3 (Future)</option>";
     html += "<option value=\"10+5\"";
-    if (gameMode == "10+5") html += " selected";
+    if (gameMode == "10+5")
+        html += " selected";
     html += ">10+5 (Future)</option>";
     html += "<option value=\"15+10\"";
-    if (gameMode == "15+10") html += " selected";
+    if (gameMode == "15+10")
+        html += " selected";
     html += ">15+10 (Future)</option>";
     html += "<option value=\"AI level 1\"";
-    if (gameMode == "AI level 1") html += " selected";
+    if (gameMode == "AI level 1")
+        html += " selected";
     html += ">AI level 1 (Future)</option>";
     html += "<option value=\"AI level 2\"";
-    if (gameMode == "AI level 2") html += " selected";
+    if (gameMode == "AI level 2")
+        html += " selected";
     html += ">AI level 2 (Future)</option>";
     html += "</select>";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"startupType\">Default Startup Type:</label>";
     html += "<select name=\"startupType\" id=\"startupType\">";
     html += "<option value=\"WiFi\"";
-    if (startupType == "WiFi") html += " selected";
+    if (startupType == "WiFi")
+        html += " selected";
     html += ">WiFi Mode</option>";
     html += "<option value=\"Local\"";
-    if (startupType == "Local") html += " selected";
+    if (startupType == "Local")
+        html += " selected";
     html += ">Local Mode</option>";
     html += "</select>";
     html += "</div>";
-    
+
     html += "<input type=\"submit\" value=\"Save Configuration\">";
     html += "</form>";
-    
+
     // WiFi Connection Status
     html += "<div class=\"form-group\" style=\"margin-top: 30px; padding: 15px; background-color: #444; border-radius: 5px;\">";
     html += "<h3 style=\"color: #ec8703; margin-top: 0;\">WiFi Connection</h3>";
     html += "<p style=\"color: #ec8703;\">Status: " + getConnectionStatus() + "</p>";
-    if (!isConnectedToWiFi() || wifiSSID.length() > 0) {
+    if (!isConnectedToWiFi() || wifiSSID.length() > 0)
+    {
         html += "<form action=\"/connect-wifi\" method=\"POST\" style=\"margin-top: 15px;\">";
         html += "<input type=\"hidden\" name=\"ssid\" value=\"" + wifiSSID + "\">";
         html += "<input type=\"hidden\" name=\"password\" value=\"" + wifiPassword + "\">";
@@ -280,7 +328,7 @@ String WiFiManagerESP32::generateWebPage() {
         html += "<p style=\"font-size: 12px; color: #ec8703; margin-top: 10px;\">Enter WiFi credentials above and click 'Connect to WiFi' to join your network.</p>";
     }
     html += "</div>";
-    
+
     html += "<a href=\"/game\" class=\"button\">Game Selection Interface</a>";
     html += "<a href=\"/board-view\" class=\"button\">View Chess Board</a>";
     html += "<div class=\"note\">";
@@ -289,11 +337,12 @@ String WiFiManagerESP32::generateWebPage() {
     html += "</div>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-String WiFiManagerESP32::generateGameSelectionPage() {
+String WiFiManagerESP32::generateGameSelectionPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -326,36 +375,36 @@ String WiFiManagerESP32::generateGameSelectionPage() {
     html += "<div class=\"container\">";
     html += "<h2>GAME SELECTION</h2>";
     html += "<div class=\"game-grid\">";
-    
+
     html += "<div class=\"game-mode available mode-1\" onclick=\"selectGame(1)\">";
     html += "<h3>Chess Moves</h3>";
     html += "<p>Full chess game with move validation and animations</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-2\" onclick=\"selectGame(2)\">";
     html += "<h3>Chess Bot</h3>";
     html += "<p>Player White vs AI Black (Medium)</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-3\" onclick=\"selectGame(3)\">";
     html += "<h3>Black AI Stockfish</h3>";
     html += "<p>Player Black vs AI White</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-4\" onclick=\"selectGame(4)\">";
     html += "<h3>Sensor Test</h3>";
     html += "<p>Test and calibrate board sensors</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "</div>";
     html += "<a href=\"/board-view\" class=\"button\">View Chess Board</a>";
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "function selectGame(mode) {";
     html += "if (mode === 1 || mode === 2 || mode === 3 || mode === 4) {";
@@ -368,80 +417,98 @@ String WiFiManagerESP32::generateGameSelectionPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-void WiFiManagerESP32::parseFormData(String data) {
+void WiFiManagerESP32::parseFormData(String data)
+{
     // Parse URL-encoded form data
     int ssidStart = data.indexOf("ssid=");
-    if (ssidStart >= 0) {
+    if (ssidStart >= 0)
+    {
         int ssidEnd = data.indexOf("&", ssidStart);
-        if (ssidEnd < 0) ssidEnd = data.length();
+        if (ssidEnd < 0)
+            ssidEnd = data.length();
         wifiSSID = data.substring(ssidStart + 5, ssidEnd);
         wifiSSID.replace("+", " ");
         wifiSSID.replace("%20", " ");
     }
-    
+
     int passStart = data.indexOf("password=");
-    if (passStart >= 0) {
+    if (passStart >= 0)
+    {
         int passEnd = data.indexOf("&", passStart);
-        if (passEnd < 0) passEnd = data.length();
+        if (passEnd < 0)
+            passEnd = data.length();
         wifiPassword = data.substring(passStart + 9, passEnd);
         wifiPassword.replace("+", " ");
         wifiPassword.replace("%20", " ");
     }
-    
+
     int tokenStart = data.indexOf("token=");
-    if (tokenStart >= 0) {
+    if (tokenStart >= 0)
+    {
         int tokenEnd = data.indexOf("&", tokenStart);
-        if (tokenEnd < 0) tokenEnd = data.length();
+        if (tokenEnd < 0)
+            tokenEnd = data.length();
         lichessToken = data.substring(tokenStart + 6, tokenEnd);
         lichessToken.replace("+", " ");
         lichessToken.replace("%20", " ");
     }
-    
+
     int gameModeStart = data.indexOf("gameMode=");
-    if (gameModeStart >= 0) {
+    if (gameModeStart >= 0)
+    {
         int gameModeEnd = data.indexOf("&", gameModeStart);
-        if (gameModeEnd < 0) gameModeEnd = data.length();
+        if (gameModeEnd < 0)
+            gameModeEnd = data.length();
         gameMode = data.substring(gameModeStart + 9, gameModeEnd);
         gameMode.replace("+", " ");
         gameMode.replace("%20", " ");
     }
-    
+
     int startupStart = data.indexOf("startupType=");
-    if (startupStart >= 0) {
+    if (startupStart >= 0)
+    {
         int startupEnd = data.indexOf("&", startupStart);
-        if (startupEnd < 0) startupEnd = data.length();
+        if (startupEnd < 0)
+            startupEnd = data.length();
         startupType = data.substring(startupStart + 12, startupEnd);
     }
-    
+
     Serial.println("Configuration updated:");
     Serial.println("SSID: " + wifiSSID);
     Serial.println("Game Mode: " + gameMode);
     Serial.println("Startup Type: " + startupType);
 }
 
-bool WiFiManagerESP32::isClientConnected() {
+bool WiFiManagerESP32::isClientConnected()
+{
     return WiFi.softAPgetStationNum() > 0;
 }
 
-int WiFiManagerESP32::getSelectedGameMode() {
+int WiFiManagerESP32::getSelectedGameMode()
+{
     return gameMode.toInt();
 }
 
-void WiFiManagerESP32::resetGameSelection() {
+void WiFiManagerESP32::resetGameSelection()
+{
     gameMode = "0";
 }
 
-void WiFiManagerESP32::updateBoardState(char newBoardState[8][8]) {
+void WiFiManagerESP32::updateBoardState(char newBoardState[8][8])
+{
     updateBoardState(newBoardState, 0.0);
 }
 
-void WiFiManagerESP32::updateBoardState(char newBoardState[8][8], float evaluation) {
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+void WiFiManagerESP32::updateBoardState(char newBoardState[8][8], float evaluation)
+{
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             boardState[row][col] = newBoardState[row][col];
         }
     }
@@ -449,46 +516,57 @@ void WiFiManagerESP32::updateBoardState(char newBoardState[8][8], float evaluati
     boardEvaluation = evaluation;
 }
 
-String WiFiManagerESP32::generateBoardJSON() {
+String WiFiManagerESP32::generateBoardJSON()
+{
     String json = "{";
     json += "\"board\":[";
-    
-    for (int row = 0; row < 8; row++) {
+
+    for (int row = 0; row < 8; row++)
+    {
         json += "[";
-        for (int col = 0; col < 8; col++) {
+        for (int col = 0; col < 8; col++)
+        {
             char piece = boardState[row][col];
-            if (piece == ' ') {
+            if (piece == ' ')
+            {
                 json += "\"\"";
-            } else {
+            }
+            else
+            {
                 json += "\"";
                 json += String(piece);
                 json += "\"";
             }
-            if (col < 7) json += ",";
+            if (col < 7)
+                json += ",";
         }
         json += "]";
-        if (row < 7) json += ",";
+        if (row < 7)
+            json += ",";
     }
-    
+
     json += "],";
     json += "\"valid\":" + String(boardStateValid ? "true" : "false");
     json += ",\"evaluation\":" + String(boardEvaluation, 2);
     json += "}";
-    
+
     return json;
 }
 
-void WiFiManagerESP32::handleBoard() {
+void WiFiManagerESP32::handleBoard()
+{
     String boardJSON = generateBoardJSON();
     sendResponse(boardJSON, "application/json");
 }
 
-void WiFiManagerESP32::handleBoardView() {
+void WiFiManagerESP32::handleBoardView()
+{
     String boardViewPage = generateBoardViewPage();
     sendResponse(boardViewPage, "text/html");
 }
 
-String WiFiManagerESP32::generateBoardViewPage() {
+String WiFiManagerESP32::generateBoardViewPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -517,18 +595,23 @@ String WiFiManagerESP32::generateBoardViewPage() {
     html += "<body>";
     html += "<div class=\"container\">";
     html += "<h2>CHESS BOARD</h2>";
-    
-    if (boardStateValid) {
+
+    if (boardStateValid)
+    {
         html += "<div class=\"status\">Board state: Active</div>";
         // Show evaluation if available (for Chess Bot mode)
-        if (boardEvaluation != 0.0) {
+        if (boardEvaluation != 0.0)
+        {
             float evalInPawns = boardEvaluation / 100.0;
             String evalColor = "#ec8703";
             String evalText = "";
-            if (boardEvaluation > 0) {
+            if (boardEvaluation > 0)
+            {
                 evalText = "+" + String(evalInPawns, 2) + " (White advantage)";
                 evalColor = "#4CAF50";
-            } else {
+            }
+            else
+            {
                 evalText = String(evalInPawns, 2) + " (Black advantage)";
                 evalColor = "#F44336";
             }
@@ -538,32 +621,37 @@ String WiFiManagerESP32::generateBoardViewPage() {
         }
         html += "<div class=\"board-container\">";
         html += "<div class=\"board\">";
-        
+
         // Generate board squares
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
+        for (int row = 0; row < 8; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
                 bool isLight = (row + col) % 2 == 0;
                 char piece = boardState[row][col];
-                
+
                 html += "<div class=\"square " + String(isLight ? "light" : "dark") + "\">";
-                
-                if (piece != ' ') {
+
+                if (piece != ' ')
+                {
                     bool isWhite = (piece >= 'A' && piece <= 'Z');
                     String pieceSymbol = getPieceSymbol(piece);
                     html += "<span class=\"piece " + String(isWhite ? "white" : "black") + "\">" + pieceSymbol + "</span>";
                 }
-                
+
                 html += "</div>";
             }
         }
-        
+
         html += "</div>";
         html += "</div>";
-    } else {
+    }
+    else
+    {
         html += "<div class=\"status\">Board state: Not available</div>";
         html += "<p style=\"text-align: center; color: #ec8703;\">No active game detected. Start a game to view the board.</p>";
     }
-    
+
     html += "<div class=\"info\">";
     html += "<p>Auto-refreshing every 2 seconds</p>";
     html += "<div id=\"evaluation\" style=\"margin-top: 15px; padding: 15px; background-color: #444; border-radius: 5px;\">";
@@ -579,7 +667,7 @@ String WiFiManagerESP32::generateBoardViewPage() {
     html += "<a href=\"/board-edit\" class=\"button\">Edit Board</a>";
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "// Fetch board state via AJAX for smoother updates";
     html += "function updateBoard() {";
@@ -659,29 +747,45 @@ String WiFiManagerESP32::generateBoardViewPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-String WiFiManagerESP32::getPieceSymbol(char piece) {
-    switch(piece) {
-        case 'R': return "♖";  // White Rook
-        case 'N': return "♘";  // White Knight
-        case 'B': return "♗";  // White Bishop
-        case 'Q': return "♕";  // White Queen
-        case 'K': return "♔";  // White King
-        case 'P': return "♙";  // White Pawn
-        case 'r': return "♜";  // Black Rook
-        case 'n': return "♞";  // Black Knight
-        case 'b': return "♝";  // Black Bishop
-        case 'q': return "♛";  // Black Queen
-        case 'k': return "♚";  // Black King
-        case 'p': return "♟";  // Black Pawn
-        default: return String(piece);
+String WiFiManagerESP32::getPieceSymbol(char piece)
+{
+    switch (piece)
+    {
+    case 'R':
+        return "♖"; // White Rook
+    case 'N':
+        return "♘"; // White Knight
+    case 'B':
+        return "♗"; // White Bishop
+    case 'Q':
+        return "♕"; // White Queen
+    case 'K':
+        return "♔"; // White King
+    case 'P':
+        return "♙"; // White Pawn
+    case 'r':
+        return "♜"; // Black Rook
+    case 'n':
+        return "♞"; // Black Knight
+    case 'b':
+        return "♝"; // Black Bishop
+    case 'q':
+        return "♛"; // Black Queen
+    case 'k':
+        return "♚"; // Black King
+    case 'p':
+        return "♟"; // Black Pawn
+    default:
+        return String(piece);
     }
 }
 
-String WiFiManagerESP32::generateBoardEditPage() {
+String WiFiManagerESP32::generateBoardEditPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -715,17 +819,19 @@ String WiFiManagerESP32::generateBoardEditPage() {
     html += "<div class=\"container\">";
     html += "<h2>EDIT CHESS BOARD</h2>";
     html += "<div class=\"status\">Click on any square to change the piece. Empty = no piece.</div>";
-    
+
     html += "<form id=\"boardForm\" method=\"POST\" action=\"/board-edit\">";
     html += "<div class=\"board-container\">";
     html += "<div class=\"board\">";
-    
+
     // Generate editable board squares
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             bool isLight = (row + col) % 2 == 0;
             char piece = boardState[row][col];
-            
+
             html += "<div class=\"square " + String(isLight ? "light" : "dark") + "\">";
             html += "<select name=\"r" + String(row) + "c" + String(col) + "\" id=\"r" + String(row) + "c" + String(col) + "\">";
             html += "<option value=\"\"" + String(piece == ' ' ? " selected" : "") + "></option>";
@@ -745,17 +851,17 @@ String WiFiManagerESP32::generateBoardEditPage() {
             html += "</div>";
         }
     }
-    
+
     html += "</div>";
     html += "</div>";
-    
+
     html += "<div class=\"controls\">";
     html += "<button type=\"submit\" class=\"button\">Apply Changes</button>";
     html += "<button type=\"button\" class=\"button secondary\" onclick=\"loadCurrentBoard()\">Reload Current Board</button>";
     html += "<button type=\"button\" class=\"button secondary\" onclick=\"clearBoard()\">Clear All</button>";
     html += "</div>";
     html += "</form>";
-    
+
     html += "<div class=\"info\">";
     html += "<p><strong>Instructions:</strong></p>";
     html += "<p>• Uppercase letters (R,N,B,Q,K,P) = White pieces</p>";
@@ -763,11 +869,11 @@ String WiFiManagerESP32::generateBoardEditPage() {
     html += "<p>• Empty = No piece on that square</p>";
     html += "<p>• Click 'Apply Changes' to update the physical board</p>";
     html += "</div>";
-    
+
     html += "<a href=\"/board-view\" class=\"back-button\">View Board</a>";
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "function loadCurrentBoard() {";
     html += "fetch('/board')";
@@ -796,13 +902,14 @@ String WiFiManagerESP32::generateBoardEditPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-void WiFiManagerESP32::handleBoardEdit() {
+void WiFiManagerESP32::handleBoardEdit()
+{
     parseBoardEditData();
-    
+
     String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
     response += "<h2>Board Updated!</h2>";
     response += "<p>Your board changes have been applied.</p>";
@@ -813,33 +920,46 @@ void WiFiManagerESP32::handleBoardEdit() {
     sendResponse(response);
 }
 
-void WiFiManagerESP32::parseBoardEditData() {
+void WiFiManagerESP32::parseBoardEditData()
+{
     // Parse the form data which contains r0c0, r0c1, etc.
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             String paramName = "r" + String(row) + "c" + String(col);
-            
-            if (server.hasArg(paramName)) {
+
+            if (server.hasArg(paramName))
+            {
                 String value = server.arg(paramName);
-                if (value.length() > 0) {
+                if (value.length() > 0)
+                {
                     pendingBoardEdit[row][col] = value.charAt(0);
-                } else {
+                }
+                else
+                {
                     pendingBoardEdit[row][col] = ' ';
                 }
-            } else {
+            }
+            else
+            {
                 pendingBoardEdit[row][col] = ' ';
             }
         }
     }
-    
+
     hasPendingEdit = true;
     Serial.println("Board edit received and stored");
 }
 
-bool WiFiManagerESP32::getPendingBoardEdit(char editBoard[8][8]) {
-    if (hasPendingEdit) {
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
+bool WiFiManagerESP32::getPendingBoardEdit(char editBoard[8][8])
+{
+    if (hasPendingEdit)
+    {
+        for (int row = 0; row < 8; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
                 editBoard[row][col] = pendingBoardEdit[row][col];
             }
         }
@@ -848,22 +968,25 @@ bool WiFiManagerESP32::getPendingBoardEdit(char editBoard[8][8]) {
     return false;
 }
 
-void WiFiManagerESP32::clearPendingEdit() {
+void WiFiManagerESP32::clearPendingEdit()
+{
     hasPendingEdit = false;
 }
 
-bool WiFiManagerESP32::connectToWiFi(String ssid, String password) {
+bool WiFiManagerESP32::connectToWiFi(String ssid, String password)
+{
     Serial.println("=== Connecting to WiFi Network ===");
     Serial.print("SSID: ");
     Serial.println(ssid);
-    
+
     // ESP32 can run both AP and Station modes simultaneously
     WiFi.mode(WIFI_AP_STA); // Enable both AP and Station modes
-    
+
     WiFi.begin(ssid.c_str(), password.c_str());
-    
+
     int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    while (WiFi.status() != WL_CONNECTED && attempts < 20)
+    {
         delay(500);
         attempts++;
         Serial.print("Connection attempt ");
@@ -871,70 +994,90 @@ bool WiFiManagerESP32::connectToWiFi(String ssid, String password) {
         Serial.print("/20 - Status: ");
         Serial.println(WiFi.status());
     }
-    
-    if (WiFi.status() == WL_CONNECTED) {
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
         Serial.println("Connected to WiFi!");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
         apMode = false; // We're connected, but AP is still running
         return true;
-    } else {
+    }
+    else
+    {
         Serial.println("Failed to connect to WiFi");
         // AP mode is still available
         return false;
     }
 }
 
-bool WiFiManagerESP32::startAccessPoint() {
+bool WiFiManagerESP32::startAccessPoint()
+{
     // AP is already started in begin(), this is just for compatibility
     return WiFi.softAP(AP_SSID, AP_PASSWORD);
 }
 
-IPAddress WiFiManagerESP32::getIPAddress() {
+IPAddress WiFiManagerESP32::getIPAddress()
+{
     // Return station IP if connected, otherwise AP IP
-    if (WiFi.status() == WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECTED)
+    {
         return WiFi.localIP();
-    } else {
+    }
+    else
+    {
         return WiFi.softAPIP();
     }
 }
 
-bool WiFiManagerESP32::isConnectedToWiFi() {
+bool WiFiManagerESP32::isConnectedToWiFi()
+{
     return WiFi.status() == WL_CONNECTED;
 }
 
-String WiFiManagerESP32::getConnectionStatus() {
+String WiFiManagerESP32::getConnectionStatus()
+{
     String status = "";
-    if (WiFi.status() == WL_CONNECTED) {
+    if (WiFi.status() == WL_CONNECTED)
+    {
         status = "Connected to: " + WiFi.SSID() + " (IP: " + WiFi.localIP().toString() + ")";
         status += " | AP also available at: " + WiFi.softAPIP().toString();
-    } else {
+    }
+    else
+    {
         status = "Access Point Mode - SSID: " + String(AP_SSID) + " (IP: " + WiFi.softAPIP().toString() + ")";
     }
     return status;
 }
 
-void WiFiManagerESP32::handleConnectWiFi() {
+void WiFiManagerESP32::handleConnectWiFi()
+{
     // Parse WiFi credentials from POST
-    if (server.hasArg("ssid")) {
+    if (server.hasArg("ssid"))
+    {
         wifiSSID = server.arg("ssid");
     }
-    if (server.hasArg("password")) {
+    if (server.hasArg("password"))
+    {
         wifiPassword = server.arg("password");
     }
-    
-    if (wifiSSID.length() > 0) {
+
+    if (wifiSSID.length() > 0)
+    {
         Serial.println("Attempting to connect to WiFi from web interface...");
         bool connected = connectToWiFi(wifiSSID, wifiPassword);
-        
+
         String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
-        if (connected) {
+        if (connected)
+        {
             response += "<h2>WiFi Connected!</h2>";
             response += "<p>Successfully connected to: " + wifiSSID + "</p>";
             response += "<p>Station IP Address: " + WiFi.localIP().toString() + "</p>";
             response += "<p>Access Point still available at: " + WiFi.softAPIP().toString() + "</p>";
             response += "<p>You can access the board at either IP address.</p>";
-        } else {
+        }
+        else
+        {
             response += "<h2>WiFi Connection Failed</h2>";
             response += "<p>Could not connect to: " + wifiSSID + "</p>";
             response += "<p>Please check your credentials and try again.</p>";
@@ -943,7 +1086,9 @@ void WiFiManagerESP32::handleConnectWiFi() {
         response += "<p><a href='/' style='color:#ec8703;'>Back to Configuration</a></p>";
         response += "</body></html>";
         sendResponse(response);
-    } else {
+    }
+    else
+    {
         String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
         response += "<h2>Error</h2>";
         response += "<p>No WiFi SSID provided.</p>";
@@ -952,4 +1097,3 @@ void WiFiManagerESP32::handleConnectWiFi() {
         sendResponse(response);
     }
 }
-

@@ -6,15 +6,16 @@
 // ---------------------------
 // Sensor Test Mode Class
 // ---------------------------
-class SensorTest {
+class SensorTest
+{
 private:
-    BoardDriver* boardDriver;
-    
+    BoardDriver *boardDriver;
+
     // Expected initial configuration for testing
     static const char INITIAL_BOARD[8][8];
 
 public:
-    SensorTest(BoardDriver* bd);
+    SensorTest(BoardDriver *bd);
     void begin();
     void update();
     bool isActive();

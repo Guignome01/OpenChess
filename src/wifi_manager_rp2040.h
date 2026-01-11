@@ -9,24 +9,25 @@
 // ---------------------------
 // WiFi Manager Class for RP2040
 // ---------------------------
-class WiFiManagerRP2040 {
+class WiFiManagerRP2040
+{
 private:
     bool wifiEnabled;
     String gameMode;
-    
+
 public:
     WiFiManagerRP2040();
     void begin();
     void handleClient();
     bool isClientConnected();
-    
+
     // Configuration getters
     String getWiFiSSID() { return ""; }
     String getWiFiPassword() { return ""; }
     String getLichessToken() { return ""; }
     String getGameMode() { return gameMode; }
     String getStartupType() { return "Local"; }
-    
+
     // Game selection via web
     int getSelectedGameMode();
     void resetGameSelection();

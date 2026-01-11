@@ -7,17 +7,18 @@
 // ---------------------------
 // Chess Game Mode Class
 // ---------------------------
-class ChessMoves {
+class ChessMoves
+{
 private:
-    BoardDriver* boardDriver;
-    ChessEngine* chessEngine;
-    
+    BoardDriver *boardDriver;
+    ChessEngine *chessEngine;
+
     // Expected initial configuration
     static const char INITIAL_BOARD[8][8];
-    
+
     // Internal board state for gameplay
     char board[8][8];
-    
+
     // Helper functions
     void initializeBoard();
     void waitForBoardSetup();
@@ -26,15 +27,15 @@ private:
     void handlePromotion(int targetRow, int targetCol, char piece);
 
 public:
-    ChessMoves(BoardDriver* bd, ChessEngine* ce);
+    ChessMoves(BoardDriver *bd, ChessEngine *ce);
     void begin();
     void update();
     bool isActive();
     void reset();
-    
+
     // Get current board state for WiFi display
     void getBoardState(char boardState[8][8]);
-    
+
     // Set board state for editing/corrections
     void setBoardState(char newBoardState[8][8]);
 };

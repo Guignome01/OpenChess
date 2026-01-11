@@ -6,7 +6,8 @@
 #include <Arduino.h>
 #include "arduino_secrets.h"
 
-WiFiManager::WiFiManager() : server(AP_PORT) {
+WiFiManager::WiFiManager() : server(AP_PORT)
+{
     apMode = true;
     clientConnected = false;
     wifiSSID = "";
@@ -17,85 +18,97 @@ WiFiManager::WiFiManager() : server(AP_PORT) {
     boardStateValid = false;
     hasPendingEdit = false;
     boardEvaluation = 0.0;
-    
+
     // Initialize board state to empty
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             boardState[row][col] = ' ';
             pendingBoardEdit[row][col] = ' ';
         }
     }
 }
 
-void WiFiManager::begin() {
+void WiFiManager::begin()
+{
     Serial.println("!!! WIFI MANAGER BEGIN FUNCTION CALLED !!!");
     Serial.println("=== Starting OpenChess WiFi Manager ===");
     Serial.println("Debug: WiFi Manager begin() called");
-    
+
     // Check if WiFi is available
     Serial.println("Debug: Checking WiFi module...");
-    
+
     // Try to get WiFi status - this often fails on incompatible boards
     Serial.println("Debug: Attempting to get WiFi status...");
     int initialStatus = WiFi.status();
     Serial.print("Debug: Initial WiFi status: ");
     Serial.println(initialStatus);
-    
+
     // Initialize WiFi module
     Serial.println("Debug: Checking for WiFi module presence...");
-    if (initialStatus == WL_NO_MODULE) {
+    if (initialStatus == WL_NO_MODULE)
+    {
         Serial.println("ERROR: WiFi module not detected!");
         Serial.println("Board type: Arduino Nano RP2040 - WiFi not supported with WiFiNINA");
         Serial.println("This is expected behavior for RP2040 boards.");
         Serial.println("Use physical board selectors for game mode selection.");
         return;
     }
-    
+
     Serial.println("Debug: WiFi module appears to be present");
-    
+
     Serial.println("Debug: WiFi module detected");
-    
+
     // Check firmware version
     String fv = WiFi.firmwareVersion();
     Serial.print("Debug: WiFi firmware version: ");
     Serial.println(fv);
-    
+
     // Try to connect to existing WiFi first (if credentials are available)
     bool connected = false;
-    
-    if (wifiSSID.length() > 0 || strlen(SECRET_SSID) > 0) {
+
+    if (wifiSSID.length() > 0 || strlen(SECRET_SSID) > 0)
+    {
         String ssidToUse = wifiSSID.length() > 0 ? wifiSSID : String(SECRET_SSID);
         String passToUse = wifiPassword.length() > 0 ? wifiPassword : String(SECRET_PASS);
-        
+
         Serial.println("=== Attempting to connect to WiFi network ===");
         Serial.print("SSID: ");
         Serial.println(ssidToUse);
-        
+
         connected = connectToWiFi(ssidToUse, passToUse);
-        
-        if (connected) {
+
+        if (connected)
+        {
             Serial.println("Successfully connected to WiFi network!");
             apMode = false;
-        } else {
+        }
+        else
+        {
             Serial.println("Failed to connect to WiFi. Starting Access Point mode...");
         }
     }
-    
+
     // If not connected, start Access Point
-    if (!connected) {
+    if (!connected)
+    {
         startAccessPoint();
     }
-    
+
     // Print connection information
     IPAddress ip = getIPAddress();
     Serial.println("=== WiFi Connection Information ===");
-    if (apMode) {
+    if (apMode)
+    {
         Serial.print("Mode: Access Point");
         Serial.print("SSID: ");
         Serial.println(AP_SSID);
         Serial.print("Password: ");
         Serial.println(AP_PASSWORD);
-    } else {
+    }
+    else
+    {
         Serial.println("Mode: Connected to WiFi Network");
         Serial.print("Connected to: ");
         Serial.println(WiFi.SSID());
@@ -105,7 +118,7 @@ void WiFiManager::begin() {
     Serial.print("Web Interface: http://");
     Serial.println(ip);
     Serial.println("=====================================");
-    
+
     // Start the web server
     Serial.println("Debug: Starting web server...");
     server.begin();
@@ -113,82 +126,105 @@ void WiFiManager::begin() {
     Serial.println("WiFi Manager initialization complete!");
 }
 
-void WiFiManager::handleClient() {
+void WiFiManager::handleClient()
+{
     WiFiClient client = server.available();
-    
-    if (client) {
+
+    if (client)
+    {
         clientConnected = true;
         Serial.println("New client connected");
-        
+
         String request = "";
         bool currentLineIsBlank = true;
         bool readingBody = false;
         String body = "";
-        
-        while (client.connected()) {
-            if (client.available()) {
+
+        while (client.connected())
+        {
+            if (client.available())
+            {
                 char c = client.read();
-                
-                if (!readingBody) {
+
+                if (!readingBody)
+                {
                     request += c;
-                    
-                    if (c == '\n' && currentLineIsBlank) {
+
+                    if (c == '\n' && currentLineIsBlank)
+                    {
                         // Headers ended, now reading body if POST
-                        if (request.indexOf("POST") >= 0) {
+                        if (request.indexOf("POST") >= 0)
+                        {
                             readingBody = true;
-                        } else {
+                        }
+                        else
+                        {
                             break; // GET request, no body
                         }
                     }
-                    
-                    if (c == '\n') {
+
+                    if (c == '\n')
+                    {
                         currentLineIsBlank = true;
-                    } else if (c != '\r') {
+                    }
+                    else if (c != '\r')
+                    {
                         currentLineIsBlank = false;
                     }
-                } else {
+                }
+                else
+                {
                     // Reading POST body
                     body += c;
-                    if (body.length() > 1000) break; // Prevent overflow
+                    if (body.length() > 1000)
+                        break; // Prevent overflow
                 }
             }
         }
-        
+
         // Handle the request
-        if (request.indexOf("GET / ") >= 0) {
+        if (request.indexOf("GET / ") >= 0)
+        {
             // Main configuration page
             String webpage = generateWebPage();
             sendResponse(client, webpage);
         }
-        else if (request.indexOf("GET /game") >= 0) {
+        else if (request.indexOf("GET /game") >= 0)
+        {
             // Game selection page
             String gameSelectionPage = generateGameSelectionPage();
             sendResponse(client, gameSelectionPage);
         }
-        else if (request.indexOf("GET /board") >= 0) {
+        else if (request.indexOf("GET /board") >= 0)
+        {
             // Board state JSON API
             String boardJSON = generateBoardJSON();
             sendResponse(client, boardJSON, "application/json");
         }
-        else if (request.indexOf("GET /board-view") >= 0) {
+        else if (request.indexOf("GET /board-view") >= 0)
+        {
             // Board visual display page
             String boardViewPage = generateBoardViewPage();
             sendResponse(client, boardViewPage);
         }
-        else if (request.indexOf("GET /board-edit") >= 0) {
+        else if (request.indexOf("GET /board-edit") >= 0)
+        {
             // Board edit page
             String boardEditPage = generateBoardEditPage();
             sendResponse(client, boardEditPage);
         }
-        else if (request.indexOf("POST /board-edit") >= 0) {
+        else if (request.indexOf("POST /board-edit") >= 0)
+        {
             // Board edit submission
             handleBoardEdit(client, request, body);
         }
-        else if (request.indexOf("POST /connect-wifi") >= 0) {
+        else if (request.indexOf("POST /connect-wifi") >= 0)
+        {
             // WiFi connection request
             handleConnectWiFi(client, request, body);
         }
-        else if (request.indexOf("POST /submit") >= 0) {
+        else if (request.indexOf("POST /submit") >= 0)
+        {
             // Configuration form submission
             parseFormData(body);
             String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
@@ -200,11 +236,13 @@ void WiFiManager::handleClient() {
             response += "</body></html>";
             sendResponse(client, response);
         }
-        else if (request.indexOf("POST /gameselect") >= 0) {
+        else if (request.indexOf("POST /gameselect") >= 0)
+        {
             // Game selection submission
             handleGameSelection(client, body);
         }
-        else {
+        else
+        {
             // 404 Not Found
             String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
             response += "<h2>404 - Page Not Found</h2>";
@@ -212,7 +250,7 @@ void WiFiManager::handleClient() {
             response += "</body></html>";
             sendResponse(client, response, "text/html");
         }
-        
+
         delay(10);
         client.stop();
         Serial.println("Client disconnected");
@@ -220,7 +258,8 @@ void WiFiManager::handleClient() {
     }
 }
 
-String WiFiManager::generateWebPage() {
+String WiFiManager::generateWebPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -243,66 +282,75 @@ String WiFiManager::generateWebPage() {
     html += "<div class=\"container\">";
     html += "<h2>OPENCHESSBOARD CONFIGURATION</h2>";
     html += "<form action=\"/submit\" method=\"POST\">";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"ssid\">WiFi SSID:</label>";
     html += "<input type=\"text\" name=\"ssid\" id=\"ssid\" value=\"" + wifiSSID + "\" placeholder=\"Enter Your WiFi SSID\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"password\">WiFi Password:</label>";
     html += "<input type=\"password\" name=\"password\" id=\"password\" value=\"\" placeholder=\"Enter Your WiFi Password\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"token\">Lichess Token (Optional):</label>";
     html += "<input type=\"text\" name=\"token\" id=\"token\" value=\"" + lichessToken + "\" placeholder=\"Enter Your Lichess Token (Future Feature)\">";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"gameMode\">Default Game Mode:</label>";
     html += "<select name=\"gameMode\" id=\"gameMode\">";
     html += "<option value=\"None\"";
-    if (gameMode == "None") html += " selected";
+    if (gameMode == "None")
+        html += " selected";
     html += ">Local Chess Only</option>";
     html += "<option value=\"5+3\"";
-    if (gameMode == "5+3") html += " selected";
+    if (gameMode == "5+3")
+        html += " selected";
     html += ">5+3 (Future)</option>";
     html += "<option value=\"10+5\"";
-    if (gameMode == "10+5") html += " selected";
+    if (gameMode == "10+5")
+        html += " selected";
     html += ">10+5 (Future)</option>";
     html += "<option value=\"15+10\"";
-    if (gameMode == "15+10") html += " selected";
+    if (gameMode == "15+10")
+        html += " selected";
     html += ">15+10 (Future)</option>";
     html += "<option value=\"AI level 1\"";
-    if (gameMode == "AI level 1") html += " selected";
+    if (gameMode == "AI level 1")
+        html += " selected";
     html += ">AI level 1 (Future)</option>";
     html += "<option value=\"AI level 2\"";
-    if (gameMode == "AI level 2") html += " selected";
+    if (gameMode == "AI level 2")
+        html += " selected";
     html += ">AI level 2 (Future)</option>";
     html += "</select>";
     html += "</div>";
-    
+
     html += "<div class=\"form-group\">";
     html += "<label for=\"startupType\">Default Startup Type:</label>";
     html += "<select name=\"startupType\" id=\"startupType\">";
     html += "<option value=\"WiFi\"";
-    if (startupType == "WiFi") html += " selected";
+    if (startupType == "WiFi")
+        html += " selected";
     html += ">WiFi Mode</option>";
     html += "<option value=\"Local\"";
-    if (startupType == "Local") html += " selected";
+    if (startupType == "Local")
+        html += " selected";
     html += ">Local Mode</option>";
     html += "</select>";
     html += "</div>";
-    
+
     html += "<input type=\"submit\" value=\"Save Configuration\">";
     html += "</form>";
-    
+
     // WiFi Connection Status
     html += "<div class=\"form-group\" style=\"margin-top: 30px; padding: 15px; background-color: #444; border-radius: 5px;\">";
     html += "<h3 style=\"color: #ec8703; margin-top: 0;\">WiFi Connection</h3>";
     html += "<p style=\"color: #ec8703;\">Status: " + getConnectionStatus() + "</p>";
-    if (apMode) {
+    if (apMode)
+    {
         html += "<form action=\"/connect-wifi\" method=\"POST\" style=\"margin-top: 15px;\">";
         html += "<input type=\"hidden\" name=\"ssid\" value=\"" + wifiSSID + "\">";
         html += "<input type=\"hidden\" name=\"password\" value=\"" + wifiPassword + "\">";
@@ -311,7 +359,7 @@ String WiFiManager::generateWebPage() {
         html += "<p style=\"font-size: 12px; color: #ec8703; margin-top: 10px;\">Enter WiFi credentials above and click 'Connect to WiFi' to join your network.</p>";
     }
     html += "</div>";
-    
+
     html += "<a href=\"/game\" class=\"button\">Game Selection Interface</a>";
     html += "<a href=\"/board-view\" class=\"button\">View Chess Board</a>";
     html += "<div class=\"note\">";
@@ -320,11 +368,12 @@ String WiFiManager::generateWebPage() {
     html += "</div>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-String WiFiManager::generateGameSelectionPage() {
+String WiFiManager::generateGameSelectionPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -357,36 +406,36 @@ String WiFiManager::generateGameSelectionPage() {
     html += "<div class=\"container\">";
     html += "<h2>GAME SELECTION</h2>";
     html += "<div class=\"game-grid\">";
-    
+
     html += "<div class=\"game-mode available mode-1\" onclick=\"selectGame(1)\">";
     html += "<h3>Chess Moves</h3>";
     html += "<p>Full chess game with move validation and animations</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-2\" onclick=\"selectGame(2)\">";
     html += "<h3>Chess Bot</h3>";
     html += "<p>Player White vs AI Black (Medium)</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-3\" onclick=\"selectGame(3)\">";
     html += "<h3>Black AI Stockfish</h3>";
     html += "<p>Player Black vs AI White</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "<div class=\"game-mode available mode-4\" onclick=\"selectGame(4)\">";
     html += "<h3>Sensor Test</h3>";
     html += "<p>Test and calibrate board sensors</p>";
     html += "<span class=\"status\">Available</span>";
     html += "</div>";
-    
+
     html += "</div>";
     html += "<a href=\"/board-view\" class=\"button\">View Chess Board</a>";
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "function selectGame(mode) {";
     html += "if (mode === 1 || mode === 2 || mode === 3 || mode === 4) {";
@@ -399,32 +448,36 @@ String WiFiManager::generateGameSelectionPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-void WiFiManager::handleGameSelection(WiFiClient& client, String body) {
+void WiFiManager::handleGameSelection(WiFiClient &client, String body)
+{
     // Parse game mode selection
     int modeStart = body.indexOf("gamemode=");
-    if (modeStart >= 0) {
+    if (modeStart >= 0)
+    {
         int modeEnd = body.indexOf("&", modeStart);
-        if (modeEnd < 0) modeEnd = body.length();
-        
+        if (modeEnd < 0)
+            modeEnd = body.length();
+
         String selectedMode = body.substring(modeStart + 9, modeEnd);
         int mode = selectedMode.toInt();
-        
+
         Serial.print("Game mode selected via web: ");
         Serial.println(mode);
-        
+
         // Store the selected game mode (you'll access this from main code)
         gameMode = String(mode);
-        
+
         String response = R"({"status":"success","message":"Game mode selected","mode":)" + String(mode) + "}";
         sendResponse(client, response, "application/json");
     }
 }
 
-void WiFiManager::sendResponse(WiFiClient& client, String content, String contentType) {
+void WiFiManager::sendResponse(WiFiClient &client, String content, String contentType)
+{
     client.println("HTTP/1.1 200 OK");
     client.println("Content-Type: " + contentType);
     client.println("Connection: close");
@@ -432,70 +485,88 @@ void WiFiManager::sendResponse(WiFiClient& client, String content, String conten
     client.println(content);
 }
 
-void WiFiManager::parseFormData(String data) {
+void WiFiManager::parseFormData(String data)
+{
     // Parse URL-encoded form data
     int ssidStart = data.indexOf("ssid=");
-    if (ssidStart >= 0) {
+    if (ssidStart >= 0)
+    {
         int ssidEnd = data.indexOf("&", ssidStart);
-        if (ssidEnd < 0) ssidEnd = data.length();
+        if (ssidEnd < 0)
+            ssidEnd = data.length();
         wifiSSID = data.substring(ssidStart + 5, ssidEnd);
         wifiSSID.replace("+", " ");
     }
-    
+
     int passStart = data.indexOf("password=");
-    if (passStart >= 0) {
+    if (passStart >= 0)
+    {
         int passEnd = data.indexOf("&", passStart);
-        if (passEnd < 0) passEnd = data.length();
+        if (passEnd < 0)
+            passEnd = data.length();
         wifiPassword = data.substring(passStart + 9, passEnd);
     }
-    
+
     int tokenStart = data.indexOf("token=");
-    if (tokenStart >= 0) {
+    if (tokenStart >= 0)
+    {
         int tokenEnd = data.indexOf("&", tokenStart);
-        if (tokenEnd < 0) tokenEnd = data.length();
+        if (tokenEnd < 0)
+            tokenEnd = data.length();
         lichessToken = data.substring(tokenStart + 6, tokenEnd);
     }
-    
+
     int gameModeStart = data.indexOf("gameMode=");
-    if (gameModeStart >= 0) {
+    if (gameModeStart >= 0)
+    {
         int gameModeEnd = data.indexOf("&", gameModeStart);
-        if (gameModeEnd < 0) gameModeEnd = data.length();
+        if (gameModeEnd < 0)
+            gameModeEnd = data.length();
         gameMode = data.substring(gameModeStart + 9, gameModeEnd);
         gameMode.replace("+", " ");
     }
-    
+
     int startupStart = data.indexOf("startupType=");
-    if (startupStart >= 0) {
+    if (startupStart >= 0)
+    {
         int startupEnd = data.indexOf("&", startupStart);
-        if (startupEnd < 0) startupEnd = data.length();
+        if (startupEnd < 0)
+            startupEnd = data.length();
         startupType = data.substring(startupStart + 12, startupEnd);
     }
-    
+
     Serial.println("Configuration updated:");
     Serial.println("SSID: " + wifiSSID);
     Serial.println("Game Mode: " + gameMode);
     Serial.println("Startup Type: " + startupType);
 }
 
-bool WiFiManager::isClientConnected() {
+bool WiFiManager::isClientConnected()
+{
     return clientConnected;
 }
 
-int WiFiManager::getSelectedGameMode() {
+int WiFiManager::getSelectedGameMode()
+{
     return gameMode.toInt();
 }
 
-void WiFiManager::resetGameSelection() {
+void WiFiManager::resetGameSelection()
+{
     gameMode = "0";
 }
 
-void WiFiManager::updateBoardState(char newBoardState[8][8]) {
+void WiFiManager::updateBoardState(char newBoardState[8][8])
+{
     updateBoardState(newBoardState, 0.0);
 }
 
-void WiFiManager::updateBoardState(char newBoardState[8][8], float evaluation) {
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+void WiFiManager::updateBoardState(char newBoardState[8][8], float evaluation)
+{
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             boardState[row][col] = newBoardState[row][col];
         }
     }
@@ -503,36 +574,45 @@ void WiFiManager::updateBoardState(char newBoardState[8][8], float evaluation) {
     boardEvaluation = evaluation;
 }
 
-String WiFiManager::generateBoardJSON() {
+String WiFiManager::generateBoardJSON()
+{
     String json = "{";
     json += "\"board\":[";
-    
-    for (int row = 0; row < 8; row++) {
+
+    for (int row = 0; row < 8; row++)
+    {
         json += "[";
-        for (int col = 0; col < 8; col++) {
+        for (int col = 0; col < 8; col++)
+        {
             char piece = boardState[row][col];
-            if (piece == ' ') {
+            if (piece == ' ')
+            {
                 json += "\"\"";
-            } else {
+            }
+            else
+            {
                 json += "\"";
                 json += String(piece);
                 json += "\"";
             }
-            if (col < 7) json += ",";
+            if (col < 7)
+                json += ",";
         }
         json += "]";
-        if (row < 7) json += ",";
+        if (row < 7)
+            json += ",";
     }
-    
+
     json += "],";
     json += "\"valid\":" + String(boardStateValid ? "true" : "false");
     json += ",\"evaluation\":" + String(boardEvaluation, 2);
     json += "}";
-    
+
     return json;
 }
 
-String WiFiManager::generateBoardViewPage() {
+String WiFiManager::generateBoardViewPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -561,18 +641,23 @@ String WiFiManager::generateBoardViewPage() {
     html += "<body>";
     html += "<div class=\"container\">";
     html += "<h2>CHESS BOARD</h2>";
-    
-    if (boardStateValid) {
+
+    if (boardStateValid)
+    {
         html += "<div class=\"status\">Board state: Active</div>";
         // Show evaluation if available (for Chess Bot mode)
-        if (boardEvaluation != 0.0) {
+        if (boardEvaluation != 0.0)
+        {
             float evalInPawns = boardEvaluation / 100.0;
             String evalColor = "#ec8703";
             String evalText = "";
-            if (boardEvaluation > 0) {
+            if (boardEvaluation > 0)
+            {
                 evalText = "+" + String(evalInPawns, 2) + " (White advantage)";
                 evalColor = "#4CAF50";
-            } else {
+            }
+            else
+            {
                 evalText = String(evalInPawns, 2) + " (Black advantage)";
                 evalColor = "#F44336";
             }
@@ -582,32 +667,37 @@ String WiFiManager::generateBoardViewPage() {
         }
         html += "<div class=\"board-container\">";
         html += "<div class=\"board\">";
-        
+
         // Generate board squares
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
+        for (int row = 0; row < 8; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
                 bool isLight = (row + col) % 2 == 0;
                 char piece = boardState[row][col];
-                
+
                 html += "<div class=\"square " + String(isLight ? "light" : "dark") + "\">";
-                
-                if (piece != ' ') {
+
+                if (piece != ' ')
+                {
                     bool isWhite = (piece >= 'A' && piece <= 'Z');
                     String pieceSymbol = getPieceSymbol(piece);
                     html += "<span class=\"piece " + String(isWhite ? "white" : "black") + "\">" + pieceSymbol + "</span>";
                 }
-                
+
                 html += "</div>";
             }
         }
-        
+
         html += "</div>";
         html += "</div>";
-    } else {
+    }
+    else
+    {
         html += "<div class=\"status\">Board state: Not available</div>";
         html += "<p style=\"text-align: center; color: #ec8703;\">No active game detected. Start a game to view the board.</p>";
     }
-    
+
     html += "<div class=\"info\">";
     html += "<p>Auto-refreshing every 2 seconds</p>";
     html += "<div id=\"evaluation\" style=\"margin-top: 15px; padding: 15px; background-color: #444; border-radius: 5px;\">";
@@ -624,7 +714,7 @@ String WiFiManager::generateBoardViewPage() {
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "<a href=\"/game\" class=\"back-button\">Game Selection</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "// Fetch board state via AJAX for smoother updates";
     html += "function updateBoard() {";
@@ -704,29 +794,45 @@ String WiFiManager::generateBoardViewPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-String WiFiManager::getPieceSymbol(char piece) {
-    switch(piece) {
-        case 'R': return "♖";  // White Rook
-        case 'N': return "♘";  // White Knight
-        case 'B': return "♗";  // White Bishop
-        case 'Q': return "♕";  // White Queen
-        case 'K': return "♔";  // White King
-        case 'P': return "♙";  // White Pawn
-        case 'r': return "♜";  // Black Rook
-        case 'n': return "♞";  // Black Knight
-        case 'b': return "♝";  // Black Bishop
-        case 'q': return "♛";  // Black Queen
-        case 'k': return "♚";  // Black King
-        case 'p': return "♟";  // Black Pawn
-        default: return String(piece);
+String WiFiManager::getPieceSymbol(char piece)
+{
+    switch (piece)
+    {
+    case 'R':
+        return "♖"; // White Rook
+    case 'N':
+        return "♘"; // White Knight
+    case 'B':
+        return "♗"; // White Bishop
+    case 'Q':
+        return "♕"; // White Queen
+    case 'K':
+        return "♔"; // White King
+    case 'P':
+        return "♙"; // White Pawn
+    case 'r':
+        return "♜"; // Black Rook
+    case 'n':
+        return "♞"; // Black Knight
+    case 'b':
+        return "♝"; // Black Bishop
+    case 'q':
+        return "♛"; // Black Queen
+    case 'k':
+        return "♚"; // Black King
+    case 'p':
+        return "♟"; // Black Pawn
+    default:
+        return String(piece);
     }
 }
 
-String WiFiManager::generateBoardEditPage() {
+String WiFiManager::generateBoardEditPage()
+{
     String html = "<!DOCTYPE html>";
     html += "<html lang=\"en\">";
     html += "<head>";
@@ -760,17 +866,19 @@ String WiFiManager::generateBoardEditPage() {
     html += "<div class=\"container\">";
     html += "<h2>EDIT CHESS BOARD</h2>";
     html += "<div class=\"status\">Click on any square to change the piece. Empty = no piece.</div>";
-    
+
     html += "<form id=\"boardForm\" method=\"POST\" action=\"/board-edit\">";
     html += "<div class=\"board-container\">";
     html += "<div class=\"board\">";
-    
+
     // Generate editable board squares
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             bool isLight = (row + col) % 2 == 0;
             char piece = boardState[row][col];
-            
+
             html += "<div class=\"square " + String(isLight ? "light" : "dark") + "\">";
             html += "<select name=\"r" + String(row) + "c" + String(col) + "\" id=\"r" + String(row) + "c" + String(col) + "\">";
             html += "<option value=\"\"" + String(piece == ' ' ? " selected" : "") + "></option>";
@@ -790,17 +898,17 @@ String WiFiManager::generateBoardEditPage() {
             html += "</div>";
         }
     }
-    
+
     html += "</div>";
     html += "</div>";
-    
+
     html += "<div class=\"controls\">";
     html += "<button type=\"submit\" class=\"button\">Apply Changes</button>";
     html += "<button type=\"button\" class=\"button secondary\" onclick=\"loadCurrentBoard()\">Reload Current Board</button>";
     html += "<button type=\"button\" class=\"button secondary\" onclick=\"clearBoard()\">Clear All</button>";
     html += "</div>";
     html += "</form>";
-    
+
     html += "<div class=\"info\">";
     html += "<p><strong>Instructions:</strong></p>";
     html += "<p>• Uppercase letters (R,N,B,Q,K,P) = White pieces</p>";
@@ -808,11 +916,11 @@ String WiFiManager::generateBoardEditPage() {
     html += "<p>• Empty = No piece on that square</p>";
     html += "<p>• Click 'Apply Changes' to update the physical board</p>";
     html += "</div>";
-    
+
     html += "<a href=\"/board-edit\" class=\"button\">Edit Board</a>";
     html += "<a href=\"/\" class=\"back-button\">Back to Configuration</a>";
     html += "</div>";
-    
+
     html += "<script>";
     html += "function loadCurrentBoard() {";
     html += "fetch('/board')";
@@ -841,13 +949,14 @@ String WiFiManager::generateBoardEditPage() {
     html += "</script>";
     html += "</body>";
     html += "</html>";
-    
+
     return html;
 }
 
-void WiFiManager::handleBoardEdit(WiFiClient& client, String request, String body) {
+void WiFiManager::handleBoardEdit(WiFiClient &client, String request, String body)
+{
     parseBoardEditData(body);
-    
+
     String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
     response += "<h2>Board Updated!</h2>";
     response += "<p>Your board changes have been applied.</p>";
@@ -858,41 +967,55 @@ void WiFiManager::handleBoardEdit(WiFiClient& client, String request, String bod
     sendResponse(client, response);
 }
 
-void WiFiManager::parseBoardEditData(String data) {
+void WiFiManager::parseBoardEditData(String data)
+{
     // Parse the form data which contains r0c0, r0c1, etc.
-    for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
+    for (int row = 0; row < 8; row++)
+    {
+        for (int col = 0; col < 8; col++)
+        {
             String paramName = "r" + String(row) + "c" + String(col) + "=";
             int paramStart = data.indexOf(paramName);
-            
-            if (paramStart >= 0) {
+
+            if (paramStart >= 0)
+            {
                 int valueStart = paramStart + paramName.length();
                 int valueEnd = data.indexOf("&", valueStart);
-                if (valueEnd < 0) valueEnd = data.length();
-                
+                if (valueEnd < 0)
+                    valueEnd = data.length();
+
                 String value = data.substring(valueStart, valueEnd);
                 value.replace("+", " ");
                 value.replace("%20", " ");
-                
-                if (value.length() > 0) {
+
+                if (value.length() > 0)
+                {
                     pendingBoardEdit[row][col] = value.charAt(0);
-                } else {
+                }
+                else
+                {
                     pendingBoardEdit[row][col] = ' ';
                 }
-            } else {
+            }
+            else
+            {
                 pendingBoardEdit[row][col] = ' ';
             }
         }
     }
-    
+
     hasPendingEdit = true;
     Serial.println("Board edit received and stored");
 }
 
-bool WiFiManager::getPendingBoardEdit(char editBoard[8][8]) {
-    if (hasPendingEdit) {
-        for (int row = 0; row < 8; row++) {
-            for (int col = 0; col < 8; col++) {
+bool WiFiManager::getPendingBoardEdit(char editBoard[8][8])
+{
+    if (hasPendingEdit)
+    {
+        for (int row = 0; row < 8; row++)
+        {
+            for (int col = 0; col < 8; col++)
+            {
                 editBoard[row][col] = pendingBoardEdit[row][col];
             }
         }
@@ -901,19 +1024,22 @@ bool WiFiManager::getPendingBoardEdit(char editBoard[8][8]) {
     return false;
 }
 
-void WiFiManager::clearPendingEdit() {
+void WiFiManager::clearPendingEdit()
+{
     hasPendingEdit = false;
 }
 
-bool WiFiManager::connectToWiFi(String ssid, String password) {
+bool WiFiManager::connectToWiFi(String ssid, String password)
+{
     Serial.println("=== Connecting to WiFi Network ===");
     Serial.print("SSID: ");
     Serial.println(ssid);
-    
+
     int attempts = 0;
     WiFi.begin(ssid.c_str(), password.c_str());
-    
-    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+
+    while (WiFi.status() != WL_CONNECTED && attempts < 20)
+    {
         delay(500);
         attempts++;
         Serial.print("Connection attempt ");
@@ -921,90 +1047,114 @@ bool WiFiManager::connectToWiFi(String ssid, String password) {
         Serial.print("/20 - Status: ");
         Serial.println(WiFi.status());
     }
-    
-    if (WiFi.status() == WL_CONNECTED) {
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
         Serial.println("Connected to WiFi!");
         Serial.print("IP address: ");
         Serial.println(WiFi.localIP());
         apMode = false;
         return true;
-    } else {
+    }
+    else
+    {
         Serial.println("Failed to connect to WiFi");
         return false;
     }
 }
 
-bool WiFiManager::startAccessPoint() {
+bool WiFiManager::startAccessPoint()
+{
     Serial.println("=== Starting Access Point ===");
     Serial.print("SSID: ");
     Serial.println(AP_SSID);
     Serial.print("Password: ");
     Serial.println(AP_PASSWORD);
-    
+
     int status = WiFi.beginAP(AP_SSID, AP_PASSWORD);
-    
-    if (status != WL_AP_LISTENING) {
+
+    if (status != WL_AP_LISTENING)
+    {
         Serial.println("First attempt failed, trying with channel 6...");
         status = WiFi.beginAP(AP_SSID, AP_PASSWORD, 6);
     }
-    
-    if (status != WL_AP_LISTENING) {
+
+    if (status != WL_AP_LISTENING)
+    {
         Serial.println("ERROR: Failed to create Access Point!");
         return false;
     }
-    
+
     // Wait for AP to start
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++)
+    {
         delay(1000);
-        if (WiFi.status() == WL_AP_LISTENING) {
+        if (WiFi.status() == WL_AP_LISTENING)
+        {
             Serial.println("AP is now listening!");
             break;
         }
     }
-    
+
     apMode = true;
     return true;
 }
 
-IPAddress WiFiManager::getIPAddress() {
-    if (apMode) {
+IPAddress WiFiManager::getIPAddress()
+{
+    if (apMode)
+    {
         return WiFi.localIP(); // In AP mode, localIP() returns AP IP
-    } else {
+    }
+    else
+    {
         return WiFi.localIP(); // In station mode, localIP() returns assigned IP
     }
 }
 
-bool WiFiManager::isConnectedToWiFi() {
+bool WiFiManager::isConnectedToWiFi()
+{
     return !apMode && WiFi.status() == WL_CONNECTED;
 }
 
-String WiFiManager::getConnectionStatus() {
+String WiFiManager::getConnectionStatus()
+{
     String status = "";
-    if (apMode) {
+    if (apMode)
+    {
         status = "Access Point Mode - SSID: " + String(AP_SSID);
-    } else if (WiFi.status() == WL_CONNECTED) {
+    }
+    else if (WiFi.status() == WL_CONNECTED)
+    {
         status = "Connected to: " + WiFi.SSID() + " (IP: " + WiFi.localIP().toString() + ")";
-    } else {
+    }
+    else
+    {
         status = "Not connected";
     }
     return status;
 }
 
-void WiFiManager::handleConnectWiFi(WiFiClient& client, String request, String body) {
+void WiFiManager::handleConnectWiFi(WiFiClient &client, String request, String body)
+{
     // Parse WiFi credentials from POST body
     parseFormData(body);
-    
-    if (wifiSSID.length() > 0) {
+
+    if (wifiSSID.length() > 0)
+    {
         Serial.println("Attempting to connect to WiFi from web interface...");
         bool connected = connectToWiFi(wifiSSID, wifiPassword);
-        
+
         String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
-        if (connected) {
+        if (connected)
+        {
             response += "<h2>WiFi Connected!</h2>";
             response += "<p>Successfully connected to: " + wifiSSID + "</p>";
             response += "<p>IP Address: " + WiFi.localIP().toString() + "</p>";
             response += "<p>You can now access the board at: http://" + WiFi.localIP().toString() + "</p>";
-        } else {
+        }
+        else
+        {
             response += "<h2>WiFi Connection Failed</h2>";
             response += "<p>Could not connect to: " + wifiSSID + "</p>";
             response += "<p>Please check your credentials and try again.</p>";
@@ -1013,7 +1163,9 @@ void WiFiManager::handleConnectWiFi(WiFiClient& client, String request, String b
         response += "<p><a href='/' style='color:#ec8703;'>Back to Configuration</a></p>";
         response += "</body></html>";
         sendResponse(client, response);
-    } else {
+    }
+    else
+    {
         String response = "<html><body style='font-family:Arial;background:#5c5d5e;color:#ec8703;text-align:center;padding:50px;'>";
         response += "<h2>Error</h2>";
         response += "<p>No WiFi SSID provided.</p>";
