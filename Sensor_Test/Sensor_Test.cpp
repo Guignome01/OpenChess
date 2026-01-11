@@ -29,9 +29,9 @@ Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 int rowPins[NUM_ROWS] = {23, 22, 21, 19, 18, 17, 16, 4};
 
 // ---------------------------
-// LED Strip Col/Row to Pixel index Map
+// LED Strip Col/Row to Pixel index mapping
 // ---------------------------
-int LEDStripRowColMap[NUM_ROWS][NUM_COLS] = {
+int RowColToLEDindexMap[NUM_ROWS][NUM_COLS] = {
     {0, 1, 2, 3, 4, 5, 6, 7},
     {15, 14, 13, 12, 11, 10, 9, 8},
     {16, 17, 18, 19, 20, 21, 22, 23},
@@ -73,7 +73,7 @@ void setup()
   Serial.println("Starting up...");
   // NeoPixel setup
   strip.begin();
-  strip.show(); // Initialize all pixels to 'off'
+  strip.show(); // turn off all pixels
   strip.setBrightness(BRIGHTNESS);
   // Shift register pins as outputs
   pinMode(SR_SER_DATA_PIN, OUTPUT);
@@ -98,7 +98,7 @@ void loop()
     {
       if (digitalRead(rowPins[row]) == LOW)
       {
-        int pixelIndex = LEDStripRowColMap[row][col];
+        int pixelIndex = RowColToLEDindexMap[row][col];
         uint32_t color;
         if (pixelIndex % 2 == 0)
           color = strip.Color(0, 130, 0);

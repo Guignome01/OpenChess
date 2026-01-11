@@ -7,22 +7,16 @@
 // Hardware Configuration
 // ---------------------------
 
-// if ESP32 use pin GPIO 32, otherwise 17
+// // WS2812B LED Data IN GPIO pin (if ESP32 use pin GPIO 32, otherwise 17)
 #if defined(ESP32)
-    #define LED_PIN 32
+#define LED_PIN 32
 #else
-    #define LED_PIN     17       // Pin for NeoPixels
+#define LED_PIN 17
 #endif
-
-#define NUM_ROWS    8
-#define NUM_COLS    8
-#define LED_COUNT   (NUM_ROWS * NUM_COLS)
-#define BRIGHTNESS  255  // LED brightness: 0-255 (0=off, 255=max). Current: 255 (100% max brightness)
-
-// Shift Register (74HC594) Pins
-#define SR_SER_DATA_PIN     2   // Serial data input (74HC594 pin 14)
-#define SR_CLK_PIN   3   // Shift register clock (pin 11)
-#define SR_LATCH_PIN    4   // Latch clock (pin 12)
+#define NUM_ROWS 8
+#define NUM_COLS 8
+#define LED_COUNT (NUM_ROWS * NUM_COLS)
+#define BRIGHTNESS 255 // LED brightness: 0-255 (0=off, 255=max). Current: 255 (100% max brightness)
 
 // ---------------------------
 // Shift Register (74HC595) Pins
@@ -36,21 +30,36 @@
 // Pin 14 (SER) GPIO = Serial data input
 #define SR_SER_DATA_PIN 33
 
-// Column Input Pins (D6..D13)
-#define COL_PINS {6, 7, 8, 9, 10, 11, 12, 13}
-
 // ---------------------------
 // Board Driver Class
 // ---------------------------
-class BoardDriver {
+class BoardDriver
+{
 private:
     Adafruit_NeoPixel strip;
-    int colPins[NUM_COLS];
-    byte rowPatterns[8];
-    bool sensorState[8][8];
-    bool sensorPrev[8][8];
-    
+    // ---------------------------
+    // Row Input Pins (Safe pins for ESP32: 4, 13, 14, [16-17], 18, 19, 21, 22, 23, 25, 26, 27, 32, 33)
+    // ---------------------------
+    static constexpr int rowPins[NUM_ROWS] = {23, 22, 21, 19, 18, 17, 16, 4};
+    // ---------------------------
+    // LED Strip Col/Row to Pixel index mapping
+    // ---------------------------
+    static constexpr int RowColToLEDindexMap[NUM_ROWS][NUM_COLS] = {
+        {0, 1, 2, 3, 4, 5, 6, 7},
+        {15, 14, 13, 12, 11, 10, 9, 8},
+        {16, 17, 18, 19, 20, 21, 22, 23},
+        {31, 30, 29, 28, 27, 26, 25, 24},
+        {32, 33, 34, 35, 36, 37, 38, 39},
+        {47, 46, 45, 44, 43, 42, 41, 40},
+        {48, 49, 50, 51, 52, 53, 54, 55},
+        {63, 62, 61, 60, 59, 58, 57, 56},
+    };
+    bool sensorState[NUM_ROWS][NUM_COLS];
+    bool sensorPrev[NUM_ROWS][NUM_COLS];
+
     void loadShiftRegister(byte data);
+    void disableAllCols();
+    void enableCol(int col);
     int getPixelIndex(int row, int col);
 
 public:
@@ -60,20 +69,20 @@ public:
     bool getSensorState(int row, int col);
     bool getSensorPrev(int row, int col);
     void updateSensorPrev();
-    
+
     // LED Control
     void clearAllLEDs();
     void setSquareLED(int row, int col, uint32_t color);
     void setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0);
     void showLEDs();
-    
+
     // Animation Functions
     void fireworkAnimation();
     void captureAnimation();
     void promotionAnimation(int col);
     void blinkSquare(int row, int col, int times = 3);
     void highlightSquare(int row, int col, uint32_t color);
-    
+
     // Setup Functions
     bool checkInitialBoard(const char initialBoard[8][8]);
     void updateSetupDisplay(const char initialBoard[8][8]);
