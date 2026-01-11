@@ -121,7 +121,7 @@ void BoardDriver::clearAllLEDs()
     strip.show();
 }
 
-void BoardDriver::setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0)
+void BoardDriver::setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w)
 {
     uint32_t color;
     float multiplier = 1.0f;

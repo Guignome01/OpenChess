@@ -1060,8 +1060,8 @@ void ChessBot::showConnectionStatus()
     // Show WiFi connection attempt with animated LEDs
     for (int i = 0; i < 8; i++)
     {
-        _boardDriver->setSquareLED(3, i, 0, 0, 255); // Blue 
-        _boardDriver->setSquareLED(4, i, 0, 0, 255); // Blue row
+        _boardDriver->setSquareLED(3, i, 0, 0, 255);
+        _boardDriver->setSquareLED(4, i, 0, 0, 255);
         _boardDriver->showLEDs();
         delay(100);
     }
