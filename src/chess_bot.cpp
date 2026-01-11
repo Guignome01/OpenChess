@@ -65,7 +65,6 @@ void ChessBot::begin()
 
     // Connect to WiFi
     Serial.println("Connecting to WiFi...");
-    showConnectionStatus();
 
     if (connectToWiFi())
     {
@@ -359,7 +358,7 @@ bool ChessBot::connectToWiFi()
     int attempts = 0;
     while (WiFi.status() != WL_CONNECTED && attempts < 20)
     {
-        delay(500);
+        showConnectionStatus();
         attempts++;
 
         Serial.print("Connection attempt ");
@@ -1061,10 +1060,12 @@ void ChessBot::showConnectionStatus()
     // Show WiFi connection attempt with animated LEDs
     for (int i = 0; i < 8; i++)
     {
-        _boardDriver->setSquareLED(3, i, 0, 0, 255); // Blue row
+        _boardDriver->setSquareLED(3, i, 0, 0, 255); // Blue 
+        _boardDriver->setSquareLED(4, i, 0, 0, 255); // Blue row
         _boardDriver->showLEDs();
-        delay(200);
+        delay(100);
     }
+    _boardDriver->clearAllLEDs();
 }
 
 void ChessBot::initializeBoard()
