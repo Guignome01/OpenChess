@@ -62,7 +62,7 @@ public:
     void fireworkAnimation();
     void captureAnimation();
     void promotionAnimation(int col);
-    void blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times = 4);
+    void blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times = 3);
     void showConnectingAnimation();
 
     // Setup Functions

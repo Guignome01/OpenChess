@@ -956,6 +956,7 @@ void ChessBot::executeBotMove(int fromRow, int fromCol, int toRow, int toCol)
 
 void ChessBot::showBotThinking()
 {
+    _boardDriver->clearAllLEDs();
     _boardDriver->setSquareLED(0, 0, 0, 0, 255); // Corner LEDs blue
     _boardDriver->setSquareLED(0, 7, 0, 0, 255);
     _boardDriver->setSquareLED(7, 0, 0, 0, 255);

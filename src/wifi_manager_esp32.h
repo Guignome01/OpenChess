@@ -53,6 +53,7 @@ private:
 
     // Web interface methods
     String indexHTML();
+    String stylesCSS();
     String gameModeSelectHTML();
     String boardUpdateJSON();
     String boardViewHTML();
