@@ -1,8 +1,8 @@
 #include "board_driver.h"
+#include "chess_bot.h"
 #include "chess_engine.h"
 #include "chess_moves.h"
 #include "sensor_test.h"
-#include "chess_bot.h"
 
 // Uncomment the next line to enable WiFi features (requires compatible board)
 #define ENABLE_WIFI
@@ -19,8 +19,7 @@
 // ---------------------------
 
 // Game Mode Definitions
-enum GameMode
-{
+enum GameMode {
   MODE_SELECTION = 0,
   MODE_CHESS_MOVES = 1,
   MODE_BLACK_BOT_MEDIUM = 2,
@@ -53,15 +52,13 @@ void initializeSelectedMode(GameMode mode);
 // ---------------------------
 // SETUP
 // ---------------------------
-void setup()
-{
+void setup() {
   // Initialize Serial with extended timeout
   Serial.begin(115200);
 
   // Wait for Serial to be ready (critical for RP2040)
   unsigned long startTime = millis();
-  while (!Serial && (millis() - startTime < 10000))
-  {
+  while (!Serial && (millis() - startTime < 10000)) {
     // Wait up to 10 seconds for Serial connection
     delay(100);
   }
@@ -150,20 +147,17 @@ void setup()
 // ---------------------------
 // MAIN LOOP
 // ---------------------------
-void loop()
-{
+void loop() {
   static unsigned long lastDebugPrint = 0;
   static bool firstLoop = true;
 
-  if (firstLoop)
-  {
+  if (firstLoop) {
     Serial.println("DEBUG: Entered main loop - system is running");
     firstLoop = false;
   }
 
   // Print periodic status every 10 seconds
-  if (millis() - lastDebugPrint > 10000)
-  {
+  if (millis() - lastDebugPrint > 10000) {
     Serial.print("DEBUG: Loop running, uptime: ");
     Serial.print(millis() / 1000);
     Serial.println(" seconds");
@@ -173,27 +167,19 @@ void loop()
 #ifdef ENABLE_WIFI
   // Check for pending board edits from WiFi
   char editBoard[8][8];
-  if (wifiManager.getPendingBoardEdit(editBoard))
-  {
+  if (wifiManager.getPendingBoardEdit(editBoard)) {
     Serial.println("Applying board edit from WiFi interface...");
 
-    if (currentMode == MODE_CHESS_MOVES && modeInitialized)
-    {
+    if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
       chessMoves.setBoardState(editBoard);
       Serial.println("Board edit applied to Chess Moves mode");
-    }
-    else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized)
-    {
+    } else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized) {
       blackBotMedium.setBoardState(editBoard);
       Serial.println("Board edit applied to Chess Bot mode");
-    }
-    else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized)
-    {
+    } else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized) {
       whiteBotMedium.setBoardState(editBoard);
       Serial.println("Board edit applied to Black AI Stockfish mode");
-    }
-    else
-    {
+    } else {
       Serial.println("Warning: Board edit received but no active game mode");
     }
 
@@ -202,32 +188,25 @@ void loop()
 
   // Update board state for WiFi display
   static unsigned long lastBoardUpdate = 0;
-  if (millis() - lastBoardUpdate > 100)
-  { // Update every 100ms (that's really stupid, should immediately upate when there is any change instead of polling)
+  if (millis() - lastBoardUpdate > 100) { // Update every 100ms (that's really stupid, should immediately upate when there is any change instead of polling)
     char currentBoard[8][8];
     bool boardUpdated = false;
 
     float evaluation = 0.0;
-    if (currentMode == MODE_CHESS_MOVES && modeInitialized)
-    {
+    if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
       chessMoves.getBoardState(currentBoard);
       boardUpdated = true;
-    }
-    else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized)
-    {
+    } else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized) {
       blackBotMedium.getBoardState(currentBoard);
       evaluation = blackBotMedium.getEvaluation();
       boardUpdated = true;
-    }
-    else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized)
-    {
+    } else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized) {
       whiteBotMedium.getBoardState(currentBoard);
       evaluation = whiteBotMedium.getEvaluation();
       boardUpdated = true;
     }
 
-    if (boardUpdated)
-    {
+    if (boardUpdated) {
       wifiManager.updateBoardState(currentBoard, evaluation);
     }
 
@@ -236,40 +215,36 @@ void loop()
 
   // Check for WiFi game selection
   int selectedMode = wifiManager.getSelectedGameMode();
-  if (selectedMode > 0)
-  {
+  if (selectedMode > 0) {
     Serial.print("DEBUG: WiFi game selection detected: ");
     Serial.println(selectedMode);
 
-    switch (selectedMode)
-    {
-    case 1:
-      currentMode = MODE_CHESS_MOVES;
-      break;
-    case 2:
-      currentMode = MODE_BLACK_BOT_MEDIUM;
-      break;
-    case 3:
-      currentMode = MODE_WHITE_BOT_MEDIUM;
-      break;
-    case 4:
-      currentMode = MODE_SENSOR_TEST;
-      break;
-    default:
-      Serial.println("Invalid game mode selected via WiFi");
-      selectedMode = 0;
-      break;
+    switch (selectedMode) {
+      case 1:
+        currentMode = MODE_CHESS_MOVES;
+        break;
+      case 2:
+        currentMode = MODE_BLACK_BOT_MEDIUM;
+        break;
+      case 3:
+        currentMode = MODE_WHITE_BOT_MEDIUM;
+        break;
+      case 4:
+        currentMode = MODE_SENSOR_TEST;
+        break;
+      default:
+        Serial.println("Invalid game mode selected via WiFi");
+        selectedMode = 0;
+        break;
     }
 
-    if (selectedMode > 0)
-    {
+    if (selectedMode > 0) {
       modeInitialized = false;
       boardDriver.clearAllLEDs();
       wifiManager.resetGameSelection();
 
       // Brief confirmation animation
-      for (int i = 0; i < 3; i++)
-      {
+      for (int i = 0; i < 3; i++) {
         boardDriver.setSquareLED(3, 3, 0, 255, 0, 0);
         boardDriver.setSquareLED(3, 4, 0, 255, 0, 0);
         boardDriver.setSquareLED(4, 3, 0, 255, 0, 0);
@@ -283,45 +258,39 @@ void loop()
   }
 #endif
 
-  if (currentMode == MODE_SELECTION)
-  {
+  if (currentMode == MODE_SELECTION) {
     handleGameSelection();
-  }
-  else
-  {
+  } else {
     static bool modeChangeLogged = false;
-    if (!modeChangeLogged)
-    {
+    if (!modeChangeLogged) {
       Serial.print("DEBUG: Mode changed to: ");
       Serial.println(currentMode);
       modeChangeLogged = true;
     }
-    if (!modeInitialized)
-    {
+    if (!modeInitialized) {
       initializeSelectedMode(currentMode);
       modeInitialized = true;
     }
 
     // Run the current game mode
-    switch (currentMode)
-    {
-    case MODE_CHESS_MOVES:
-      chessMoves.update();
-      break;
-    case MODE_BLACK_BOT_MEDIUM:
-      blackBotMedium.update();
-      break;
-    case MODE_WHITE_BOT_MEDIUM:
-      whiteBotMedium.update();
-      break;
-    case MODE_SENSOR_TEST:
-      sensorTest.update();
-      break;
-    default:
-      currentMode = MODE_SELECTION;
-      modeInitialized = false;
-      showGameSelection();
-      break;
+    switch (currentMode) {
+      case MODE_CHESS_MOVES:
+        chessMoves.update();
+        break;
+      case MODE_BLACK_BOT_MEDIUM:
+        blackBotMedium.update();
+        break;
+      case MODE_WHITE_BOT_MEDIUM:
+        whiteBotMedium.update();
+        break;
+      case MODE_SENSOR_TEST:
+        sensorTest.update();
+        break;
+      default:
+        currentMode = MODE_SELECTION;
+        modeInitialized = false;
+        showGameSelection();
+        break;
     }
   }
 
@@ -332,8 +301,7 @@ void loop()
 // GAME SELECTION FUNCTIONS
 // ---------------------------
 
-void showGameSelection()
-{
+void showGameSelection() {
   boardDriver.clearAllLEDs();
   // Light up the 4 selector positions in the middle of the board
   // Each mode has a different color for easy identification
@@ -348,37 +316,29 @@ void showGameSelection()
   boardDriver.showLEDs();
 }
 
-void handleGameSelection()
-{
+void handleGameSelection() {
   boardDriver.readSensors();
 
   // Check for piece placement on selector squares
-  if (boardDriver.getSensorState(3, 3))
-  {
+  if (boardDriver.getSensorState(3, 3)) {
     Serial.println("Mode: 'Chess Moves' selected!");
     currentMode = MODE_CHESS_MOVES;
     modeInitialized = false;
     boardDriver.clearAllLEDs();
     delay(500); // Debounce delay (-_- doesn't actually do any debouncing, just arbitrarily delays the selection for no reason)
-  }
-  else if (boardDriver.getSensorState(3, 4))
-  {
+  } else if (boardDriver.getSensorState(3, 4)) {
     Serial.println("Mode: 'Black Bot Medium' Selected!");
     currentMode = MODE_BLACK_BOT_MEDIUM;
     modeInitialized = false;
     boardDriver.clearAllLEDs();
     delay(500);
-  }
-  else if (boardDriver.getSensorState(4, 3))
-  {
+  } else if (boardDriver.getSensorState(4, 3)) {
     Serial.println("Mode: 'White Bot Medium' Selected!");
     currentMode = MODE_WHITE_BOT_MEDIUM;
     modeInitialized = false;
     boardDriver.clearAllLEDs();
     delay(500);
-  }
-  else if (boardDriver.getSensorState(4, 4))
-  {
+  } else if (boardDriver.getSensorState(4, 4)) {
     Serial.println("Mode: 'Sensor Test' Selected!");
     currentMode = MODE_SENSOR_TEST;
     modeInitialized = false;
@@ -389,31 +349,29 @@ void handleGameSelection()
   delay(100);
 }
 
-void initializeSelectedMode(GameMode mode)
-{
-  switch (mode)
-  {
-  case MODE_CHESS_MOVES:
-    Serial.println("Starting 'Chess Moves'...");
-    chessMoves.begin();
-    break;
-  case MODE_BLACK_BOT_MEDIUM:
-    Serial.println("Starting 'Black Bot Medium'...");
-    blackBotMedium.begin();
-    break;
-  case MODE_WHITE_BOT_MEDIUM:
-    Serial.println("Starting 'White Bot Medium'...");
-    whiteBotMedium.begin();
-    break;
-  case MODE_SENSOR_TEST:
-    Serial.println("Starting 'Sensor Test'...");
-    sensorTest.begin();
-    break;
+void initializeSelectedMode(GameMode mode) {
+  switch (mode) {
+    case MODE_CHESS_MOVES:
+      Serial.println("Starting 'Chess Moves'...");
+      chessMoves.begin();
+      break;
+    case MODE_BLACK_BOT_MEDIUM:
+      Serial.println("Starting 'Black Bot Medium'...");
+      blackBotMedium.begin();
+      break;
+    case MODE_WHITE_BOT_MEDIUM:
+      Serial.println("Starting 'White Bot Medium'...");
+      whiteBotMedium.begin();
+      break;
+    case MODE_SENSOR_TEST:
+      Serial.println("Starting 'Sensor Test'...");
+      sensorTest.begin();
+      break;
 
-  default:
-    currentMode = MODE_SELECTION;
-    modeInitialized = false;
-    showGameSelection();
-    break;
+    default:
+      currentMode = MODE_SELECTION;
+      modeInitialized = false;
+      showGameSelection();
+      break;
   }
 }

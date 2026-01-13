@@ -6,23 +6,23 @@
 // ---------------------------
 // if ESP32 use pin D8, otherwise 17
 #if defined(ESP32)
-    #define LED_PIN D8
+#define LED_PIN D8
 #else
-    #define LED_PIN     17       // Pin for NeoPixels
+#define LED_PIN 17 // Pin for NeoPixels
 #endif
-#define NUM_ROWS    8
-#define NUM_COLS    8
-#define LED_COUNT   (NUM_ROWS * NUM_COLS)
-#define BRIGHTNESS  100
+#define NUM_ROWS 8
+#define NUM_COLS 8
+#define LED_COUNT (NUM_ROWS * NUM_COLS)
+#define BRIGHTNESS 100
 
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRBW + NEO_KHZ800);
 
 // ---------------------------
 // Shift Register (74HC594) Pins
 // ---------------------------
-#define SR_SER_DATA_PIN     2   // Serial data input (74HC594 pin 14)
-#define SR_CLK_PIN   3   // Shift register clock (pin 11)
-#define SR_LATCH_PIN    4   // Latch clock (pin 12)
+#define SR_SER_DATA_PIN 2 // Serial data input (74HC594 pin 14)
+#define SR_CLK_PIN 3      // Shift register clock (pin 11)
+#define SR_LATCH_PIN 4    // Latch clock (pin 12)
 // (Pin 13 (OE) must be tied HIGH and Pin 10 (SRCLR) tied HIGH if unused)
 
 // ---------------------------
@@ -34,14 +34,14 @@ int colPins[NUM_COLS] = {6, 7, 8, 9, 10, 11, 12, 13};
 // Row Patterns (LSB-first for shift register)
 // ---------------------------
 byte rowPatterns[8] = {
-  0x01, // row 0
-  0x02, // row 1
-  0x04, // row 2
-  0x08, // row 3
-  0x10, // row 4
-  0x20, // row 5
-  0x40, // row 6
-  0x80  // row 7
+    0x01, // row 0
+    0x02, // row 1
+    0x04, // row 2
+    0x08, // row 3
+    0x10, // row 4
+    0x20, // row 5
+    0x40, // row 6
+    0x80  // row 7
 };
 
 // ---------------------------
@@ -55,14 +55,14 @@ bool sensorPrev[8][8];
 
 // Expected initial configuration (as printed in the grid)
 char initialBoard[8][8] = {
-  {'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'},  // row 0 (rank 1)
-  {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'},  // row 1 (rank 2)
-  {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},    // row 2 (rank 3)
-  {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},    // row 3 (rank 4)
-  {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},    // row 4 (rank 5)
-  {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},    // row 5 (rank 6)
-  {'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'},    // row 6 (rank 7)
-  {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'}     // row 7 (rank 8)
+    {'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'}, // row 0 (rank 1)
+    {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'}, // row 1 (rank 2)
+    {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, // row 2 (rank 3)
+    {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, // row 3 (rank 4)
+    {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, // row 4 (rank 5)
+    {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, // row 5 (rank 6)
+    {'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'}, // row 6 (rank 7)
+    {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'}  // row 7 (rank 8)
 };
 
 // Internal board state for gameplay (initialized from initialBoard)
@@ -84,7 +84,7 @@ void blinkSquare(int row, int col);
 void captureAnimation();
 void promotionAnimation(int col);
 void checkForPromotion(int targetRow, int targetCol, char piece);
-void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]);
+void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]);
 
 // ---------------------------
 // SETUP
@@ -98,9 +98,9 @@ void setup() {
   strip.setBrightness(BRIGHTNESS);
 
   // Setup shift register control pins
-  pinMode(SR_SER_DATA_PIN,   OUTPUT);
+  pinMode(SR_SER_DATA_PIN, OUTPUT);
   pinMode(SR_CLK_PIN, OUTPUT);
-  pinMode(SR_LATCH_PIN,  OUTPUT);
+  pinMode(SR_LATCH_PIN, OUTPUT);
 
   // Setup column input pins
   for (int c = 0; c < NUM_COLS; c++) {
@@ -111,27 +111,27 @@ void setup() {
   loadShiftRegister(0x00);
 
   // Copy expected configuration into our board state
-  for (int row = 0; row < 8; row++){
-    for (int col = 0; col < 8; col++){
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
       board[row][col] = initialBoard[row][col];
     }
   }
 
   // Wait for board setup: repeatedly check sensors and update display until every expected piece is in place.
   Serial.println("Waiting for pieces to be placed...");
-  while(!checkInitialBoard()){
+  while (!checkInitialBoard()) {
     updateSetupDisplay();
     printBoardState();
     delay(500);
   }
-  
+
   Serial.println("Ready to start");
   fireworkAnimation();
 
   // Initialize sensorPrev for move detection
   readSensors();
-  for (int row = 0; row < 8; row++){
-    for (int col = 0; col < 8; col++){
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
       sensorPrev[row][col] = sensorState[row][col];
     }
   }
@@ -148,29 +148,29 @@ void loop() {
     for (int col = 0; col < 8; col++) {
       if (sensorPrev[row][col] && !sensorState[row][col]) {
         char piece = board[row][col];
-        
+
         // Skip empty squares
         if (piece == ' ') continue;
-        
+
         Serial.print("Piece lifted from ");
         Serial.print((char)('a' + col));
         Serial.println(row + 1);
-        
+
         // Generate possible moves
         int moveCount = 0;
         int moves[20][2]; // up to 20 moves
         getPossibleMoves(row, col, moveCount, moves);
-        
+
         // Light up current square and possible move squares
         int currentPixelIndex = col * NUM_COLS + (7 - row);
         strip.setPixelColor(currentPixelIndex, strip.Color(0, 0, 0, 100)); // Dimmer, but solid
-        
+
         // Highlight possible move squares (including captures)
         for (int i = 0; i < moveCount; i++) {
           int r = moves[i][0];
           int c = moves[i][1];
           int movePixelIndex = c * NUM_COLS + (7 - r);
-          
+
           // Different highlighting for empty squares vs capture squares
           if (board[r][c] == ' ') {
             strip.setPixelColor(movePixelIndex, strip.Color(0, 0, 0, 50)); // Soft white for moves
@@ -179,7 +179,7 @@ void loop() {
           }
         }
         strip.show();
-        
+
         // Wait for piece placement - handle both normal moves and captures
         int targetRow = -1, targetCol = -1;
         bool piecePlaced = false;
@@ -188,7 +188,7 @@ void loop() {
         // Wait for a piece placement on any square
         while (!piecePlaced) {
           readSensors();
-          
+
           // First check if the original piece was placed back
           if (sensorState[row][col]) {
             targetRow = row;
@@ -196,13 +196,13 @@ void loop() {
             piecePlaced = true;
             break;
           }
-          
+
           // Then check all squares for a regular move or capture initiation
           for (int r2 = 0; r2 < 8; r2++) {
             for (int c2 = 0; c2 < 8; c2++) {
               // Skip the original square which was already checked
               if (r2 == row && c2 == col) continue;
-              
+
               // Check if this would be a legal move
               bool isLegalMove = false;
               for (int i = 0; i < moveCount; i++) {
@@ -211,26 +211,26 @@ void loop() {
                   break;
                 }
               }
-              
+
               // If not a legal move, no need to check further
               if (!isLegalMove) continue;
-              
+
               // For capture moves: detect when the target piece is removed
               if (board[r2][c2] != ' ' && !sensorState[r2][c2] && sensorPrev[r2][c2]) {
                 Serial.print("Capture initiated at ");
                 Serial.print((char)('a' + c2));
                 Serial.println(r2 + 1);
-                
+
                 // Store the target square and wait for the capturing piece to be placed there
                 targetRow = r2;
                 targetCol = c2;
                 captureInProgress = true;
-                
+
                 // Flash the capture square to indicate waiting for piece placement
                 int capturePixelIndex = c2 * NUM_COLS + (7 - r2);
                 strip.setPixelColor(capturePixelIndex, strip.Color(255, 0, 0, 100));
                 strip.show();
-                
+
                 // Wait for the capturing piece to be placed
                 bool capturePiecePlaced = false;
                 while (!capturePiecePlaced) {
@@ -244,7 +244,7 @@ void loop() {
                 }
                 break;
               }
-              
+
               // For normal non-capture moves: detect when a piece is placed on an empty square
               else if (board[r2][c2] == ' ' && sensorState[r2][c2] && !sensorPrev[r2][c2]) {
                 targetRow = r2;
@@ -255,7 +255,7 @@ void loop() {
             }
             if (piecePlaced || captureInProgress) break;
           }
-          
+
           delay(50);
         }
 
@@ -268,16 +268,16 @@ void loop() {
           delay(200);
           strip.setPixelColor(currentPixelIndex, strip.Color(0, 0, 0, 100));
           strip.show();
-          
+
           // Clear all LED effects
           for (int i = 0; i < LED_COUNT; i++) {
             strip.setPixelColor(i, 0);
           }
           strip.show();
-          
+
           continue; // Skip to next iteration
         }
-        
+
         // Check if move is legal
         bool legalMove = false;
         bool isCapture = false;
@@ -291,25 +291,25 @@ void loop() {
             break;
           }
         }
-        
+
         if (legalMove) {
           Serial.print("Legal move to ");
           Serial.print((char)('a' + targetCol));
           Serial.println(targetRow + 1);
-          
+
           // Play capture animation if needed
           if (board[targetRow][targetCol] != ' ') {
             Serial.println("Performing capture animation");
             captureAnimation();
           }
-          
+
           // Update board state
           board[targetRow][targetCol] = piece;
           board[row][col] = ' ';
-          
+
           // Check for pawn promotion
           checkForPromotion(targetRow, targetCol, piece);
-          
+
           // Confirmation: Double blink destination square
           int newPixelIndex = targetCol * NUM_COLS + (7 - targetRow);
           for (int blink = 0; blink < 2; blink++) {
@@ -323,7 +323,7 @@ void loop() {
         } else {
           Serial.println("Illegal move, reverting");
         }
-        
+
         // Clear any remaining LED effects
         for (int i = 0; i < LED_COUNT; i++) {
           strip.setPixelColor(i, 0);
@@ -332,14 +332,14 @@ void loop() {
       }
     }
   }
-  
+
   // Update previous sensor state
   for (int row = 0; row < 8; row++) {
     for (int col = 0; col < 8; col++) {
       sensorPrev[row][col] = sensorState[row][col];
     }
   }
-  
+
   delay(100);
 }
 
@@ -365,11 +365,11 @@ void loadShiftRegister(byte data) {
 
 // readSensors: Activates each row and reads column sensors.
 // Stores sensorState[row][col] directly (no inversion).
-void readSensors(){
-  for (int row = 0; row < 8; row++){
+void readSensors() {
+  for (int row = 0; row < 8; row++) {
     loadShiftRegister(rowPatterns[row]);
     delayMicroseconds(100);
-    for (int col = 0; col < NUM_COLS; col++){
+    for (int col = 0; col < NUM_COLS; col++) {
       int sensorVal = digitalRead(colPins[col]);
       sensorState[row][col] = (sensorVal == LOW);
     }
@@ -378,12 +378,12 @@ void readSensors(){
 }
 
 // checkInitialBoard: Returns true only when every expected piece (non-space in initialBoard) is detected.
-bool checkInitialBoard(){
+bool checkInitialBoard() {
   readSensors();
   bool allPresent = true;
-  for (int row = 0; row < 8; row++){
-    for (int col = 0; col < 8; col++){
-      if(initialBoard[row][col] != ' ' && !sensorState[row][col]){
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
+      if (initialBoard[row][col] != ' ' && !sensorState[row][col]) {
         allPresent = false;
       }
     }
@@ -392,14 +392,14 @@ bool checkInitialBoard(){
 }
 
 // updateSetupDisplay: Lights up each square (white) if a piece is detected.
-void updateSetupDisplay(){
-  for (int row = 0; row < 8; row++){
-    for (int col = 0; col < 8; col++){
+void updateSetupDisplay() {
+  for (int row = 0; row < 8; row++) {
+    for (int col = 0; col < 8; col++) {
       int pixelIndex = col * NUM_COLS + (7 - row);
-      if(initialBoard[row][col] != ' ' && sensorState[row][col]){
-         strip.setPixelColor(pixelIndex, strip.Color(0, 0, 0, 255));
+      if (initialBoard[row][col] != ' ' && sensorState[row][col]) {
+        strip.setPixelColor(pixelIndex, strip.Color(0, 0, 0, 255));
       } else {
-         strip.setPixelColor(pixelIndex, 0);
+        strip.setPixelColor(pixelIndex, 0);
       }
     }
   }
@@ -407,19 +407,19 @@ void updateSetupDisplay(){
 }
 
 // printBoardState: Prints the board grid to Serial; shows the expected piece if detected, or '-' if missing.
-void printBoardState(){
+void printBoardState() {
   Serial.println("Current Board:");
-  for (int row = 0; row < 8; row++){
+  for (int row = 0; row < 8; row++) {
     Serial.print("{ ");
-    for (int col = 0; col < 8; col++){
+    for (int col = 0; col < 8; col++) {
       char displayChar = ' ';
-      if(initialBoard[row][col] != ' '){
+      if (initialBoard[row][col] != ' ') {
         displayChar = sensorState[row][col] ? initialBoard[row][col] : '-';
       }
       Serial.print("'");
       Serial.print(displayChar);
       Serial.print("'");
-      if(col < 7) Serial.print(", ");
+      if (col < 7) Serial.print(", ");
     }
     Serial.println(" },");
   }
@@ -427,13 +427,13 @@ void printBoardState(){
 }
 
 // fireworkAnimation: A simple firework animation from the center out, contracting back, then out again.
-void fireworkAnimation(){
+void fireworkAnimation() {
   float centerX = 3.5;
   float centerY = 3.5;
   // Expansion phase:
   for (float radius = 0; radius < 6; radius += 0.5) {
-    for (int row = 0; row < 8; row++){
-      for (int col = 0; col < 8; col++){
+    for (int row = 0; row < 8; row++) {
+      for (int col = 0; col < 8; col++) {
         float dx = col - centerX;
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
@@ -449,8 +449,8 @@ void fireworkAnimation(){
   }
   // Contraction phase:
   for (float radius = 6; radius > 0; radius -= 0.5) {
-    for (int row = 0; row < 8; row++){
-      for (int col = 0; col < 8; col++){
+    for (int row = 0; row < 8; row++) {
+      for (int col = 0; col < 8; col++) {
         float dx = col - centerX;
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
@@ -466,8 +466,8 @@ void fireworkAnimation(){
   }
   // Second expansion phase:
   for (float radius = 0; radius < 6; radius += 0.5) {
-    for (int row = 0; row < 8; row++){
-      for (int col = 0; col < 8; col++){
+    for (int row = 0; row < 8; row++) {
+      for (int col = 0; col < 8; col++) {
         float dx = col - centerX;
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
@@ -482,16 +482,16 @@ void fireworkAnimation(){
     delay(100);
   }
   // Clear all LEDs
-  for (int i = 0; i < LED_COUNT; i++){
+  for (int i = 0; i < LED_COUNT; i++) {
     strip.setPixelColor(i, 0);
   }
   strip.show();
 }
 
 // blinkSquare: Blinks the LED at the given square (row, col) three times.
-void blinkSquare(int row, int col){
+void blinkSquare(int row, int col) {
   int pixelIndex = col * NUM_COLS + (7 - row);
-  for (int i = 0; i < 3; i++){
+  for (int i = 0; i < 3; i++) {
     strip.setPixelColor(pixelIndex, strip.Color(0, 0, 0, 255));
     strip.show();
     delay(200);
@@ -504,7 +504,7 @@ void blinkSquare(int row, int col){
 void captureAnimation() {
   float centerX = 3.5;
   float centerY = 3.5;
-  
+
   // Pulsing outward animation
   for (int pulse = 0; pulse < 3; pulse++) {
     for (int row = 0; row < 8; row++) {
@@ -512,16 +512,16 @@ void captureAnimation() {
         float dx = col - centerX;
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
-        
+
         // Create a pulsing effect around the center
         float pulseWidth = 1.5 + pulse;
         int pixelIndex = col * NUM_COLS + (7 - row);
-        
+
         if (dist >= pulseWidth - 0.5 && dist <= pulseWidth + 0.5) {
           // Alternate between red and orange for capture effect
-          uint32_t color = (pulse % 2 == 0) 
-            ? strip.Color(255, 0, 0, 0)   // Red
-            : strip.Color(255, 165, 0, 0); // Orange
+          uint32_t color = (pulse % 2 == 0)
+                               ? strip.Color(255, 0, 0, 0)    // Red
+                               : strip.Color(255, 165, 0, 0); // Orange
           strip.setPixelColor(pixelIndex, color);
         } else {
           strip.setPixelColor(pixelIndex, 0);
@@ -531,7 +531,7 @@ void captureAnimation() {
     strip.show();
     delay(150);
   }
-  
+
   // Clear LEDs
   for (int i = 0; i < LED_COUNT; i++) {
     strip.setPixelColor(i, 0);
@@ -544,7 +544,7 @@ void promotionAnimation(int col) {
   for (int step = 0; step < 16; step++) {
     for (int row = 0; row < 8; row++) {
       int pixelIndex = col * NUM_COLS + (7 - row);
-      
+
       // Create a golden wave moving up and down the column
       if ((step + row) % 8 < 4) {
         strip.setPixelColor(pixelIndex, PROMOTION_COLOR);
@@ -555,7 +555,7 @@ void promotionAnimation(int col) {
     strip.show();
     delay(100);
   }
-  
+
   // Clear the animation
   for (int row = 0; row < 8; row++) {
     int pixelIndex = col * NUM_COLS + (7 - row);
@@ -571,19 +571,19 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
     Serial.print("White pawn promoted to Queen at ");
     Serial.print((char)('a' + targetCol));
     Serial.println("8");
-    
+
     // Play promotion animation
     promotionAnimation(targetCol);
-    
+
     // Promote to queen in board state
     board[targetRow][targetCol] = 'Q';
-    
+
     // Wait for the player to replace the pawn with a queen
     Serial.println("Please replace the pawn with a queen piece");
-    
+
     // Flash the promotion square until the piece is removed and replaced
     int pixelIndex = targetCol * NUM_COLS + (7 - targetRow);
-    
+
     // First wait for the pawn to be removed
     while (sensorState[targetRow][targetCol]) {
       // Blink the square to indicate action needed
@@ -593,13 +593,13 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
       strip.setPixelColor(pixelIndex, 0);
       strip.show();
       delay(250);
-      
+
       // Read sensors
       readSensors();
     }
-    
+
     Serial.println("Pawn removed, please place a queen");
-    
+
     // Then wait for the queen to be placed
     while (!sensorState[targetRow][targetCol]) {
       // Blink the square to indicate action needed
@@ -609,13 +609,13 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
       strip.setPixelColor(pixelIndex, 0);
       strip.show();
       delay(250);
-      
+
       // Read sensors
       readSensors();
     }
-    
+
     Serial.println("Queen placed, promotion complete");
-    
+
     // Final confirmation blink
     for (int i = 0; i < 3; i++) {
       strip.setPixelColor(pixelIndex, PROMOTION_COLOR);
@@ -631,19 +631,19 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
     Serial.print("Black pawn promoted to Queen at ");
     Serial.print((char)('a' + targetCol));
     Serial.println("1");
-    
+
     // Play promotion animation
     promotionAnimation(targetCol);
-    
+
     // Promote to queen in board state
     board[targetRow][targetCol] = 'q';
-    
+
     // Wait for the player to replace the pawn with a queen
     Serial.println("Please replace the pawn with a queen piece");
-    
+
     // Flash the promotion square until the piece is removed and replaced
     int pixelIndex = targetCol * NUM_COLS + (7 - targetRow);
-    
+
     // First wait for the pawn to be removed
     while (sensorState[targetRow][targetCol]) {
       // Blink the square to indicate action needed
@@ -653,13 +653,13 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
       strip.setPixelColor(pixelIndex, 0);
       strip.show();
       delay(250);
-      
+
       // Read sensors
       readSensors();
     }
-    
+
     Serial.println("Pawn removed, please place a queen");
-    
+
     // Then wait for the queen to be placed
     while (!sensorState[targetRow][targetCol]) {
       // Blink the square to indicate action needed
@@ -669,13 +669,13 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
       strip.setPixelColor(pixelIndex, 0);
       strip.show();
       delay(250);
-      
+
       // Read sensors
       readSensors();
     }
-    
+
     Serial.println("Queen placed, promotion complete");
-    
+
     // Final confirmation blink
     for (int i = 0; i < 3; i++) {
       strip.setPixelColor(pixelIndex, PROMOTION_COLOR);
@@ -688,41 +688,41 @@ void checkForPromotion(int targetRow, int targetCol, char piece) {
   }
 }
 // (This does not implement full chess rules.)
-void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
+void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) {
   moveCount = 0;
   char piece = board[row][col];
   char pieceColor = (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
-  
+
   // Convert to uppercase for easier comparison
   piece = (piece >= 'a' && piece <= 'z') ? piece - 32 : piece;
 
-  switch(piece) {
+  switch (piece) {
     case 'P': { // Pawn movement
       int direction = (pieceColor == 'w') ? 1 : -1;
-      
+
       // One square forward
       if (row + direction >= 0 && row + direction < 8 && board[row + direction][col] == ' ') {
         moves[moveCount][0] = row + direction;
         moves[moveCount][1] = col;
         moveCount++;
-        
+
         // Initial two-square move
         if ((pieceColor == 'w' && row == 1) || (pieceColor == 'b' && row == 6)) {
-          if (board[row + 2*direction][col] == ' ') {
-            moves[moveCount][0] = row + 2*direction;
+          if (board[row + 2 * direction][col] == ' ') {
+            moves[moveCount][0] = row + 2 * direction;
             moves[moveCount][1] = col;
             moveCount++;
           }
         }
       }
-      
+
       // Diagonal captures
-      int captureColumns[] = {col-1, col+1};
+      int captureColumns[] = {col - 1, col + 1};
       for (int i = 0; i < 2; i++) {
         if (captureColumns[i] >= 0 && captureColumns[i] < 8) {
           char targetPiece = board[row + direction][captureColumns[i]];
-          if (targetPiece != ' ' && 
-              ((pieceColor == 'w' && targetPiece >= 'a' && targetPiece <= 'z') || 
+          if (targetPiece != ' ' &&
+              ((pieceColor == 'w' && targetPiece >= 'a' && targetPiece <= 'z') ||
                (pieceColor == 'b' && targetPiece >= 'A' && targetPiece <= 'Z'))) {
             moves[moveCount][0] = row + direction;
             moves[moveCount][1] = captureColumns[i];
@@ -732,16 +732,16 @@ void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
       }
       break;
     }
-    
+
     case 'R': { // Rook movement
-      int directions[4][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}};
+      int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
       for (int d = 0; d < 4; d++) {
         for (int step = 1; step < 8; step++) {
           int newRow = row + step * directions[d][0];
           int newCol = col + step * directions[d][1];
-          
+
           if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-          
+
           char targetPiece = board[newRow][newCol];
           if (targetPiece == ' ') {
             moves[moveCount][0] = newRow;
@@ -761,17 +761,16 @@ void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
       }
       break;
     }
-    
+
     case 'N': { // Knight movement
-      int knightMoves[8][2] = {{2,1}, {1,2}, {-1,2}, {-2,1},
-                                {-2,-1}, {-1,-2}, {1,-2}, {2,-1}};
+      int knightMoves[8][2] = {{2, 1}, {1, 2}, {-1, 2}, {-2, 1}, {-2, -1}, {-1, -2}, {1, -2}, {2, -1}};
       for (int i = 0; i < 8; i++) {
         int newRow = row + knightMoves[i][0];
         int newCol = col + knightMoves[i][1];
-        
+
         if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
           char targetPiece = board[newRow][newCol];
-          if (targetPiece == ' ' || 
+          if (targetPiece == ' ' ||
               ((pieceColor == 'w' && targetPiece >= 'a' && targetPiece <= 'z') ||
                (pieceColor == 'b' && targetPiece >= 'A' && targetPiece <= 'Z'))) {
             moves[moveCount][0] = newRow;
@@ -782,16 +781,16 @@ void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
       }
       break;
     }
-    
+
     case 'B': { // Bishop movement
-      int directions[4][2] = {{1,1}, {1,-1}, {-1,1}, {-1,-1}};
+      int directions[4][2] = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
       for (int d = 0; d < 4; d++) {
         for (int step = 1; step < 8; step++) {
           int newRow = row + step * directions[d][0];
           int newCol = col + step * directions[d][1];
-          
+
           if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-          
+
           char targetPiece = board[newRow][newCol];
           if (targetPiece == ' ') {
             moves[moveCount][0] = newRow;
@@ -811,17 +810,16 @@ void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
       }
       break;
     }
-    
+
     case 'Q': { // Queen movement (combination of rook and bishop)
-      int directions[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}, 
-                               {1,1}, {1,-1}, {-1,1}, {-1,-1}};
+      int directions[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
       for (int d = 0; d < 8; d++) {
         for (int step = 1; step < 8; step++) {
           int newRow = row + step * directions[d][0];
           int newCol = col + step * directions[d][1];
-          
+
           if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-          
+
           char targetPiece = board[newRow][newCol];
           if (targetPiece == ' ') {
             moves[moveCount][0] = newRow;
@@ -841,17 +839,16 @@ void getPossibleMoves(int row, int col, int &moveCount, int moves[][2]) {
       }
       break;
     }
-    
+
     case 'K': { // King movement with simple range limitation
-      int kingMoves[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1},
-                              {1,1}, {1,-1}, {-1,1}, {-1,-1}};
+      int kingMoves[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
       for (int i = 0; i < 8; i++) {
         int newRow = row + kingMoves[i][0];
         int newCol = col + kingMoves[i][1];
-        
+
         if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
           char targetPiece = board[newRow][newCol];
-          if (targetPiece == ' ' || 
+          if (targetPiece == ' ' ||
               ((pieceColor == 'w' && targetPiece >= 'a' && targetPiece <= 'z') ||
                (pieceColor == 'b' && targetPiece >= 'A' && targetPiece <= 'Z'))) {
             moves[moveCount][0] = newRow;

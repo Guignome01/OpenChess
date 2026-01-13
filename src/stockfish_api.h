@@ -6,13 +6,13 @@
 // Struct to hold parsed Stockfish API response
 struct StockfishResponse {
   bool success;
-  float evaluation;     // Evaluation in centipawns (or null if mate exists)
-  int mateInMoves;      // Number of moves until mate (null if no forced mate)
-  bool hasMate;         // true if mateInMoves is valid
-  String bestMove;      // Best move in UCI format (e.g., "b1c3")
-  String ponderMove;    // Expected opponent response (e.g., "h7h6")
-  String continuation;  // Top engine line (e.g., "b1c3 h7h6 c3e2")
-  String errorMessage;  // Error message if success is false
+  float evaluation;    // Evaluation in centipawns (or null if mate exists)
+  int mateInMoves;     // Number of moves until mate (null if no forced mate)
+  bool hasMate;        // true if mateInMoves is valid
+  String bestMove;     // Best move in UCI format (e.g., "b1c3")
+  String ponderMove;   // Expected opponent response (e.g., "h7h6")
+  String continuation; // Top engine line (e.g., "b1c3 h7h6 c3e2")
+  String errorMessage; // Error message if success is false
 };
 
 class StockfishAPI {
@@ -25,4 +25,4 @@ class StockfishAPI {
   static String buildRequestURL(const String& fen, int depth);
 };
 
-#endif  // STOCKFISH_API_H
+#endif // STOCKFISH_API_H

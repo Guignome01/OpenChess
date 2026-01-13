@@ -69,7 +69,7 @@ bool StockfishAPI::parseResponse(const String& jsonString, StockfishResponse& re
       // Extract ponder move if it exists
       int ponderStart = bestmoveStr.indexOf("ponder ");
       if (ponderStart != -1) {
-        ponderStart += 7;  // length of "ponder "
+        ponderStart += 7; // length of "ponder "
         int ponderEnd = bestmoveStr.indexOf(" ", ponderStart);
 
         if (ponderEnd != -1) {

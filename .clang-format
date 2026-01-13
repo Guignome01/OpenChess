@@ -6,3 +6,9 @@ AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
 BreakBeforeBraces: Attach
 ColumnLimit: 0
+SortIncludes: true
+IncludeCategories:
+  - Regex: '.*'
+    Priority: 1
+IncludeBlocks: Merge
+SpacesBeforeTrailingComments: 1

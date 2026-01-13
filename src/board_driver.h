@@ -33,42 +33,41 @@
 // ---------------------------
 // Board Driver Class
 // ---------------------------
-class BoardDriver
-{
-private:
-    Adafruit_NeoPixel strip;
-    bool sensorState[NUM_ROWS][NUM_COLS];
-    bool sensorPrev[NUM_ROWS][NUM_COLS];
+class BoardDriver {
+ private:
+  Adafruit_NeoPixel strip;
+  bool sensorState[NUM_ROWS][NUM_COLS];
+  bool sensorPrev[NUM_ROWS][NUM_COLS];
 
-    void loadShiftRegister(byte data);
-    void disableAllCols();
-    void enableCol(int col);
-    int getPixelIndex(int row, int col);
+  void loadShiftRegister(byte data);
+  void disableAllCols();
+  void enableCol(int col);
+  int getPixelIndex(int row, int col);
 
-public:
-    BoardDriver();
-    void begin();
-    void readSensors();
-    bool getSensorState(int row, int col);
-    bool getSensorPrev(int row, int col);
-    void updateSensorPrev();
+ public:
+  BoardDriver();
+  void begin();
+  void readSensors();
+  bool getSensorState(int row, int col);
+  bool getSensorPrev(int row, int col);
+  void updateSensorPrev();
 
-    // LED Control
-    void clearAllLEDs();
-    void setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0);
-    void showLEDs();
+  // LED Control
+  void clearAllLEDs();
+  void setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0);
+  void showLEDs();
 
-    // Animation Functions
-    void fireworkAnimation();
-    void captureAnimation();
-    void promotionAnimation(int col);
-    void blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times = 3);
-    void showConnectingAnimation();
+  // Animation Functions
+  void fireworkAnimation();
+  void captureAnimation();
+  void promotionAnimation(int col);
+  void blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times = 3);
+  void showConnectingAnimation();
 
-    // Setup Functions
-    bool checkInitialBoard(const char initialBoard[8][8]);
-    void updateSetupDisplay(const char initialBoard[8][8]);
-    void printBoardState(const char initialBoard[8][8]);
+  // Setup Functions
+  bool checkInitialBoard(const char initialBoard[8][8]);
+  void updateSetupDisplay(const char initialBoard[8][8]);
+  void printBoardState(const char initialBoard[8][8]);
 };
 
 #endif // BOARD_DRIVER_H

@@ -1,5 +1,5 @@
-#include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
+#include <Arduino.h>
 
 // ---------------------------
 // NeoPixel Setup (WS2812B)
@@ -42,11 +42,9 @@ int RowColToLEDindexMap[NUM_ROWS][NUM_COLS] = {
     {63, 62, 61, 60, 59, 58, 57, 56},
 };
 
-void loadShiftRegister(byte data)
-{
+void loadShiftRegister(byte data) {
   digitalWrite(SR_LATCH_PIN, LOW);
-  for (int i = 7; i >= 0; i--)
-  {
+  for (int i = 7; i >= 0; i--) {
     digitalWrite(SR_SER_DATA_PIN, !!(data & (1 << i)));
     digitalWrite(SR_CLK_PIN, HIGH);
     delayMicroseconds(10);
@@ -57,18 +55,15 @@ void loadShiftRegister(byte data)
   delayMicroseconds(10);
   digitalWrite(SR_LATCH_PIN, LOW);
 }
-void disableAllCols()
-{
+void disableAllCols() {
   loadShiftRegister(0);
 }
-void enableCol(int col)
-{
+void enableCol(int col) {
   loadShiftRegister(((byte)((1 << (col)) & 0xFF)));
   delayMicroseconds(100); // Allow time for the column to stabilize, otherwise random readings occur
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(115200);
   Serial.println("Starting up...");
   // NeoPixel setup
@@ -86,18 +81,14 @@ void setup()
   Serial.println("Setup complete!");
 }
 
-void loop()
-{
+void loop() {
   for (int i = 0; i < LED_COUNT; i++)
     strip.setPixelColor(i, 0);
 
-  for (int col = 0; col < NUM_COLS; col++)
-  {
+  for (int col = 0; col < NUM_COLS; col++) {
     enableCol(col);
-    for (int row = 0; row < NUM_ROWS; row++)
-    {
-      if (digitalRead(rowPins[row]) == LOW)
-      {
+    for (int row = 0; row < NUM_ROWS; row++) {
+      if (digitalRead(rowPins[row]) == LOW) {
         int pixelIndex = RowColToLEDindexMap[row][col];
         uint32_t color;
         if (pixelIndex % 2 == 0)

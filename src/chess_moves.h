@@ -7,37 +7,36 @@
 // ---------------------------
 // Chess Game Mode Class
 // ---------------------------
-class ChessMoves
-{
-private:
-    BoardDriver *boardDriver;
-    ChessEngine *chessEngine;
+class ChessMoves {
+ private:
+  BoardDriver* boardDriver;
+  ChessEngine* chessEngine;
 
-    // Expected initial configuration
-    static const char INITIAL_BOARD[8][8];
+  // Expected initial configuration
+  static const char INITIAL_BOARD[8][8];
 
-    // Internal board state for gameplay
-    char board[8][8];
+  // Internal board state for gameplay
+  char board[8][8];
 
-    // Helper functions
-    void initializeBoard();
-    void waitForBoardSetup();
-    void processMove(int fromRow, int fromCol, int toRow, int toCol, char piece);
-    void checkForPromotion(int targetRow, int targetCol, char piece);
-    void handlePromotion(int targetRow, int targetCol, char piece);
+  // Helper functions
+  void initializeBoard();
+  void waitForBoardSetup();
+  void processMove(int fromRow, int fromCol, int toRow, int toCol, char piece);
+  void checkForPromotion(int targetRow, int targetCol, char piece);
+  void handlePromotion(int targetRow, int targetCol, char piece);
 
-public:
-    ChessMoves(BoardDriver *bd, ChessEngine *ce);
-    void begin();
-    void update();
-    bool isActive();
-    void reset();
+ public:
+  ChessMoves(BoardDriver* bd, ChessEngine* ce);
+  void begin();
+  void update();
+  bool isActive();
+  void reset();
 
-    // Get current board state for WiFi display
-    void getBoardState(char boardState[8][8]);
+  // Get current board state for WiFi display
+  void getBoardState(char boardState[8][8]);
 
-    // Set board state for editing/corrections
-    void setBoardState(char newBoardState[8][8]);
+  // Set board state for editing/corrections
+  void setBoardState(char newBoardState[8][8]);
 };
 
 #endif // CHESS_MOVES_H

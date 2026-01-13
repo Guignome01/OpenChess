@@ -1,10 +1,10 @@
 #ifndef CHESS_BOT_H
 #define CHESS_BOT_H
 
+#include "arduino_secrets.h"
 #include "board_driver.h"
 #include "chess_engine.h"
 #include "stockfish_settings.h"
-#include "arduino_secrets.h"
 #include "wifi_manager_esp32.h"
 
 // Platform-specific WiFi includes
@@ -18,12 +18,11 @@
 #warning "WiFi not supported on this board - Chess Bot will not work"
 #endif
 
-class ChessBot
-{
-private:
-  BoardDriver *_boardDriver;
-  ChessEngine *_chessEngine;
-  WiFiManagerESP32 *_wifiManager;
+class ChessBot {
+ private:
+  BoardDriver* _boardDriver;
+  ChessEngine* _chessEngine;
+  WiFiManagerESP32* _wifiManager;
 
   char board[8][8];
   const char INITIAL_BOARD[8][8] = {
@@ -54,10 +53,10 @@ private:
   // WiFi and API
   bool connectToWiFi();
   String makeStockfishRequest(String fen);
-  bool parseStockfishResponse(String response, String &bestMove, float &evaluation);
+  bool parseStockfishResponse(String response, String& bestMove, float& evaluation);
 
   // Move handling
-  bool parseMove(String move, int &fromRow, int &fromCol, int &toRow, int &toCol);
+  bool parseMove(String move, int& fromRow, int& fromCol, int& toRow, int& toCol);
   void executeBotMove(int fromRow, int fromCol, int toRow, int toCol);
 
   // URL encoding helper
@@ -74,8 +73,8 @@ private:
   void confirmSquareCompletion(int row, int col);
   void printCurrentBoard();
 
-public:
-  ChessBot(BoardDriver *boardDriver, ChessEngine *chessEngine, WiFiManagerESP32 *_wifiManager, BotDifficulty diff = BOT_MEDIUM, bool playerWhite = true);
+ public:
+  ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManagerESP32* _wifiManager, BotDifficulty diff = BOT_MEDIUM, bool playerWhite = true);
   void begin();
   void update();
   void setDifficulty(BotDifficulty diff);
