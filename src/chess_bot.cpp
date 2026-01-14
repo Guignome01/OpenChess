@@ -6,28 +6,11 @@
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessBot::ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManagerESP32* wifiManager, BotDifficulty diff, bool playerWhite) {
+ChessBot::ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManagerESP32* wifiManager, BotConfig config) {
   _boardDriver = boardDriver;
   _chessEngine = chessEngine;
   _wifiManager = wifiManager;
-  difficulty = diff;
-  playerIsWhite = playerWhite;
-
-  // Set difficulty settings
-  switch (difficulty) {
-    case BOT_EASY:
-      settings = StockfishSettings::easy();
-      break;
-    case BOT_MEDIUM:
-      settings = StockfishSettings::medium();
-      break;
-    case BOT_HARD:
-      settings = StockfishSettings::hard();
-      break;
-    case BOT_EXPERT:
-      settings = StockfishSettings::expert();
-      break;
-  }
+  botConfig = config;
   isWhiteTurn = true;
   gameStarted = false;
   gameOver = false;
@@ -38,24 +21,10 @@ ChessBot::ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManag
 
 void ChessBot::begin() {
   Serial.println("=== Starting Chess Bot Mode ===");
-  Serial.printf("Player plays: %s\n", playerIsWhite ? "White" : "Black");
-  Serial.printf("Bot plays: %s\n", playerIsWhite ? "Black" : "White");
-  Serial.print("Bot Difficulty: ");
-
-  switch (difficulty) {
-    case BOT_EASY:
-      Serial.println("Easy (Depth 6)");
-      break;
-    case BOT_MEDIUM:
-      Serial.println("Medium (Depth 10)");
-      break;
-    case BOT_HARD:
-      Serial.println("Hard (Depth 14)");
-      break;
-    case BOT_EXPERT:
-      Serial.println("Expert (Depth 16)");
-      break;
-  }
+  Serial.printf("Player plays: %s\n", botConfig.playerIsWhite ? "White" : "Black");
+  Serial.printf("Bot plays: %s\n", botConfig.playerIsWhite ? "Black" : "White");
+  Serial.printf("Bot Difficulty: Depth %d, Timeout %dms\n", botConfig.stockfishSettings.depth, botConfig.stockfishSettings.timeoutMs);
+  Serial.println("====================================");
 
   _boardDriver->clearAllLEDs();
 
@@ -130,11 +99,11 @@ void ChessBot::update() {
   _boardDriver->readSensors();
 
   // Detect piece movements (player's turn)
-  bool isPlayerTurn = (playerIsWhite && isWhiteTurn) || (!playerIsWhite && !isWhiteTurn);
+  bool isPlayerTurn = (botConfig.playerIsWhite && isWhiteTurn) || (!botConfig.playerIsWhite && !isWhiteTurn);
   if (isPlayerTurn) {
     static unsigned long lastTurnDebug = 0;
     if (millis() - lastTurnDebug > 5000) {
-      Serial.printf("Your turn! Move a %s\n", playerIsWhite ? "WHITE piece (uppercase letters)" : "BLACK piece (lowercase letters)");
+      Serial.printf("Your turn! Move a %s\n", botConfig.playerIsWhite ? "WHITE piece (uppercase letters)" : "BLACK piece (lowercase letters)");
       lastTurnDebug = millis();
     }
     // Look for piece pickups and placements
@@ -151,12 +120,12 @@ void ChessBot::update() {
 
             if (piece != ' ') {
               // Player should only be able to move their own pieces
-              if ((playerIsWhite && piece >= 'A' && piece <= 'Z') || (!playerIsWhite && piece >= 'a' && piece <= 'z')) {
+              if ((botConfig.playerIsWhite && piece >= 'A' && piece <= 'Z') || (!botConfig.playerIsWhite && piece >= 'a' && piece <= 'z')) {
                 selectedRow = row;
                 selectedCol = col;
                 piecePickedUp = true;
 
-                Serial.printf("Player picked up %s piece '%c' at %c%d (array position %d,%d)\n", playerIsWhite ? "WHITE" : "BLACK", board[row][col], (char)('a' + col), 8 - row, row, col);
+                Serial.printf("Player picked up %s piece '%c' at %c%d (array position %d,%d)\n", botConfig.playerIsWhite ? "WHITE" : "BLACK", board[row][col], (char)('a' + col), 8 - row, row, col);
 
                 // Show selected square
                 _boardDriver->setSquareLED(row, col, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
@@ -180,7 +149,7 @@ void ChessBot::update() {
                 break;
               } else {
                 // Player tried to pick up the wrong color piece
-                Serial.printf("ERROR: You tried to pick up %s piece '%c' at %c%d. You can only move %s pieces!\n", (piece >= 'A' && piece <= 'Z') ? "WHITE" : "BLACK", piece, (char)('a' + col), 8 - row, playerIsWhite ? "WHITE" : "BLACK");
+                Serial.printf("ERROR: You tried to pick up %s piece '%c' at %c%d. You can only move %s pieces!\n", (piece >= 'A' && piece <= 'Z') ? "WHITE" : "BLACK", piece, (char)('a' + col), 8 - row, botConfig.playerIsWhite ? "WHITE" : "BLACK");
 
                 // Flash red to indicate error
                 _boardDriver->blinkSquare(row, col, LedColors::ErrorRed.r, LedColors::ErrorRed.g, LedColors::ErrorRed.b); // Blink red
@@ -246,7 +215,7 @@ void ChessBot::update() {
               // Switch to bot's turn
               // If player is White, bot is Black (isWhiteTurn = false)
               // If player is Black, bot is White (isWhiteTurn = true)
-              isWhiteTurn = !playerIsWhite;
+              isWhiteTurn = !botConfig.playerIsWhite;
 
               // After the player's move, check if the bot is checkmated/stalemated (or in check).
               char sideToMove = isWhiteTurn ? 'w' : 'b';
@@ -292,17 +261,9 @@ void ChessBot::update() {
         }
       }
     }
-  } else {
-    // Bot's turn - if player is Black, bot (White) goes first
-    if (!botThinking && !playerIsWhite && isWhiteTurn) {
-      // Bot plays White and it's White's turn
-      botThinking = true;
-      makeBotMove();
-    } else if (!botThinking && playerIsWhite && !isWhiteTurn) {
-      // Bot plays Black and it's Black's turn
-      botThinking = true;
-      makeBotMove();
-    }
+  } else if ((!botThinking && !botConfig.playerIsWhite && isWhiteTurn) || (!botThinking && botConfig.playerIsWhite && !isWhiteTurn)) {
+    botThinking = true;
+    makeBotMove();
   }
 
   _boardDriver->updateSensorPrev();
@@ -314,10 +275,11 @@ String ChessBot::makeStockfishRequest(String fen) {
   // ESP32/ESP8266: Set insecure mode for SSL (or add proper certificate validation)
   client.setInsecure();
 #endif
-  String path = StockfishAPI::buildRequestURL(fen, settings.depth);
+  String path = StockfishAPI::buildRequestURL(fen, botConfig.stockfishSettings.depth);
+  Serial.println("Stockfish request: " STOCKFISH_API_URL + path);
   // Retry logic
-  for (int attempt = 1; attempt <= settings.maxRetries; attempt++) {
-    Serial.println("Attempt: " + String(attempt) + "/" + String(settings.maxRetries));
+  for (int attempt = 1; attempt <= botConfig.stockfishSettings.maxRetries; attempt++) {
+    Serial.println("Attempt: " + String(attempt) + "/" + String(botConfig.stockfishSettings.maxRetries));
     if (client.connect(STOCKFISH_API_URL, STOCKFISH_API_PORT)) {
       client.println("GET " + path + " HTTP/1.1");
       client.println("Host: " STOCKFISH_API_URL);
@@ -327,7 +289,7 @@ String ChessBot::makeStockfishRequest(String fen) {
       unsigned long startTime = millis();
       String response = "";
       bool gotResponse = false;
-      while (client.connected() && (millis() - startTime < settings.timeoutMs)) {
+      while (client.connected() && (millis() - startTime < botConfig.stockfishSettings.timeoutMs)) {
         if (client.available()) {
           response = client.readString();
           gotResponse = true;
@@ -342,7 +304,7 @@ String ChessBot::makeStockfishRequest(String fen) {
     }
 
     Serial.println("API request timeout or empty response");
-    if (attempt < settings.maxRetries) {
+    if (attempt < botConfig.stockfishSettings.maxRetries) {
       Serial.println("Retrying...");
       delay(500);
     }
@@ -375,7 +337,6 @@ void ChessBot::makeBotMove() {
   showBotThinking();
   String rights = ChessUtils::castlingRightsToString(castlingRights);
   String fen = ChessUtils::boardToFEN(board, isWhiteTurn, rights.c_str());
-  Serial.println("Sending FEN to Stockfish: " + fen);
   botThinking = false;
   String bestMove;
   String response = makeStockfishRequest(fen);
@@ -392,7 +353,7 @@ void ChessBot::makeBotMove() {
       Serial.println("\n============================");
       // Verify the move is from the correct color piece
       char piece = board[fromRow][fromCol];
-      bool botPlaysWhite = !playerIsWhite;
+      bool botPlaysWhite = !botConfig.playerIsWhite;
       bool isBotPiece = (botPlaysWhite && piece >= 'A' && piece <= 'Z') || (!botPlaysWhite && piece >= 'a' && piece <= 'z');
       if (!isBotPiece) {
         Serial.printf("ERROR: Bot tried to move a %s piece, but bot plays %s. Piece at source: %c\n", (piece >= 'A' && piece <= 'Z') ? "WHITE" : "BLACK", botPlaysWhite ? "WHITE" : "BLACK", piece);
@@ -404,7 +365,7 @@ void ChessBot::makeBotMove() {
       }
       // Execute the validated bot move
       executeBotMove(fromRow, fromCol, toRow, toCol);
-      isWhiteTurn = playerIsWhite;
+      isWhiteTurn = botConfig.playerIsWhite;
 
       // After the bot's move, check if the player is checkmated/stalemated (or in check).
       {
@@ -654,40 +615,6 @@ void ChessBot::waitForBotCastlingCompletion(int kingFromRow, int kingFromCol, in
   }
 
   _boardDriver->clearAllLEDs();
-}
-
-void ChessBot::setDifficulty(BotDifficulty diff) {
-  difficulty = diff;
-  switch (difficulty) {
-    case BOT_EASY:
-      settings = StockfishSettings::easy();
-      break;
-    case BOT_MEDIUM:
-      settings = StockfishSettings::medium();
-      break;
-    case BOT_HARD:
-      settings = StockfishSettings::hard();
-      break;
-    case BOT_EXPERT:
-      settings = StockfishSettings::expert();
-      break;
-  }
-
-  Serial.print("Bot difficulty changed to: ");
-  switch (difficulty) {
-    case BOT_EASY:
-      Serial.println("Easy");
-      break;
-    case BOT_MEDIUM:
-      Serial.println("Medium");
-      break;
-    case BOT_HARD:
-      Serial.println("Hard");
-      break;
-    case BOT_EXPERT:
-      Serial.println("Expert");
-      break;
-  }
 }
 
 void ChessBot::getBoardState(char boardState[8][8]) {

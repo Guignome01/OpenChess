@@ -194,8 +194,8 @@ bool StockfishAPI::validateUCIMove(const String& move, String& errorMessage, int
 }
 
 String StockfishAPI::buildRequestURL(const String& fen, int depth) {
-  // Validate depth (min 5 max 16)
-  int validDepth = depth > 16 ? 16 : (depth < 5 ? 5 : depth);
+  // Validate depth (min 5 max 15)
+  int validDepth = depth > 15 ? 15 : (depth < 5 ? 5 : depth);
 
   // Build just the path + query (no scheme/host) so callers can reuse host/port constants
   String path = String(STOCKFISH_API_PATH) + "?fen=";

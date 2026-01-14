@@ -7,7 +7,9 @@
 #include "chess_utils.h"
 #include "stockfish_api.h"
 #include "stockfish_settings.h"
-#include "wifi_manager_esp32.h"
+
+// Forward declaration to avoid circular dependency
+class WiFiManagerESP32;
 
 // Platform-specific WiFi includes
 #if defined(ESP32) || defined(ESP8266)
@@ -38,11 +40,9 @@ class ChessBot {
       {'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'}  // row 7 = rank 1 (White pieces, bottom row)
   };
 
-  StockfishSettings settings;
-  BotDifficulty difficulty;
+  BotConfig botConfig;
 
   bool isWhiteTurn;
-  bool playerIsWhite; // true = player plays White, false = player plays Black
   bool gameStarted;
   bool gameOver;
   bool botThinking;
@@ -70,10 +70,9 @@ class ChessBot {
   void waitForBotCastlingCompletion(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol);
 
  public:
-  ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManagerESP32* _wifiManager, BotDifficulty diff = BOT_MEDIUM, bool playerWhite = true);
+  ChessBot(BoardDriver* boardDriver, ChessEngine* chessEngine, WiFiManagerESP32* _wifiManager, BotConfig botConfig);
   void begin();
   void update();
-  void setDifficulty(BotDifficulty diff);
 
   // Get current board state for WiFi display
   void getBoardState(char boardState[8][8]);

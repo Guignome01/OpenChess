@@ -22,10 +22,12 @@
 enum GameMode {
   MODE_SELECTION = 0,
   MODE_CHESS_MOVES = 1,
-  MODE_BLACK_BOT_MEDIUM = 2,
-  MODE_WHITE_BOT_MEDIUM = 3,
-  MODE_SENSOR_TEST = 4
+  MODE_BOT = 2,
+  MODE_SENSOR_TEST = 3
 };
+
+// Bot configuration instance
+BotConfig botConfig = {StockfishSettings::medium(), true};
 
 // Global instances
 BoardDriver boardDriver;
@@ -35,8 +37,7 @@ WiFiManager wifiManager(&boardDriver);
 ChessEngine chessEngine;
 ChessMoves chessMoves(&boardDriver, &chessEngine);
 SensorTest sensorTest(&boardDriver);
-ChessBot blackBotMedium(&boardDriver, &chessEngine, &wifiManager, BOT_MEDIUM, true);
-ChessBot whiteBotMedium(&boardDriver, &chessEngine, &wifiManager, BOT_MEDIUM, false);
+ChessBot* chessBot = nullptr;
 
 // Current game state
 GameMode currentMode = MODE_SELECTION;
@@ -47,6 +48,8 @@ bool modeInitialized = false;
 // ---------------------------
 void showGameSelection();
 void handleGameSelection();
+void showBotConfigSelection();
+void handleBotConfigSelection();
 void initializeSelectedMode(GameMode mode);
 
 // ---------------------------
@@ -131,11 +134,10 @@ void setup() {
   showGameSelection();
 
   Serial.println("DEBUG: Game selection LEDs should now be visible");
-  Serial.println("Four white LEDs should be lit in the center of the board:");
+  Serial.println("Three LEDs should be lit in the center of the board:");
   Serial.println("Position 1 (3,3): Chess Moves (Human vs Human)");
   Serial.println("Position 2 (3,4): Chess Bot (Human vs AI)");
-  Serial.println("Position 3 (4,3): Black AI Stockfish (Hard)");
-  Serial.println("Position 4 (4,4): Sensor Test");
+  Serial.println("Position 3 (4,4): Sensor Test");
   Serial.println();
   Serial.println("Place any chess piece on a white LED to select that mode");
   Serial.println("================================================");
@@ -170,12 +172,9 @@ void loop() {
     if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
       chessMoves.setBoardState(editBoard);
       Serial.println("Board edit applied to Chess Moves mode");
-    } else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized) {
-      blackBotMedium.setBoardState(editBoard);
+    } else if (currentMode == MODE_BOT && modeInitialized && chessBot != nullptr) {
+      chessBot->setBoardState(editBoard);
       Serial.println("Board edit applied to Chess Bot mode");
-    } else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized) {
-      whiteBotMedium.setBoardState(editBoard);
-      Serial.println("Board edit applied to Black AI Stockfish mode");
     } else {
       Serial.println("Warning: Board edit received but no active game mode");
     }
@@ -193,13 +192,9 @@ void loop() {
     if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
       chessMoves.getBoardState(currentBoard);
       boardUpdated = true;
-    } else if (currentMode == MODE_BLACK_BOT_MEDIUM && modeInitialized) {
-      blackBotMedium.getBoardState(currentBoard);
-      evaluation = blackBotMedium.getEvaluation();
-      boardUpdated = true;
-    } else if (currentMode == MODE_WHITE_BOT_MEDIUM && modeInitialized) {
-      whiteBotMedium.getBoardState(currentBoard);
-      evaluation = whiteBotMedium.getEvaluation();
+    } else if (currentMode == MODE_BOT && modeInitialized && chessBot != nullptr) {
+      chessBot->getBoardState(currentBoard);
+      evaluation = chessBot->getEvaluation();
       boardUpdated = true;
     }
 
@@ -220,12 +215,11 @@ void loop() {
         currentMode = MODE_CHESS_MOVES;
         break;
       case 2:
-        currentMode = MODE_BLACK_BOT_MEDIUM;
+        currentMode = MODE_BOT;
+        // Bot config (difficulty and color) should be sent separately
+        botConfig = wifiManager.getBotConfig();
         break;
       case 3:
-        currentMode = MODE_WHITE_BOT_MEDIUM;
-        break;
-      case 4:
         currentMode = MODE_SENSOR_TEST;
         break;
       default:
@@ -272,11 +266,10 @@ void loop() {
       case MODE_CHESS_MOVES:
         chessMoves.update();
         break;
-      case MODE_BLACK_BOT_MEDIUM:
-        blackBotMedium.update();
-        break;
-      case MODE_WHITE_BOT_MEDIUM:
-        whiteBotMedium.update();
+      case MODE_BOT:
+        if (chessBot != nullptr) {
+          chessBot->update();
+        }
         break;
       case MODE_SENSOR_TEST:
         sensorTest.update();
@@ -298,15 +291,13 @@ void loop() {
 
 void showGameSelection() {
   boardDriver.clearAllLEDs();
-  // Light up the 4 selector positions in the middle of the board
+  // Light up the 3 selector positions in the middle of the board
   // Each mode has a different color for easy identification
   // Position 1: Chess Moves (row 3, col 3) - Orange
   boardDriver.setSquareLED(3, 3, 255, 165, 0);
   // Position 2: Chess Bot (row 3, col 4) - White
   boardDriver.setSquareLED(3, 4, 0, 0, 0, 255);
-  // Position 3: Black AI Stockfish (row 4, col 3) - Blue
-  boardDriver.setSquareLED(4, 3, 0, 0, 255);
-  // Position 4: Sensor Test (row 4, col 4) - Red
+  // Position 3: Sensor Test (row 4, col 4) - Red
   boardDriver.setSquareLED(4, 4, 255, 0, 0);
   boardDriver.showLEDs();
 }
@@ -320,19 +311,15 @@ void handleGameSelection() {
     currentMode = MODE_CHESS_MOVES;
     modeInitialized = false;
     boardDriver.clearAllLEDs();
-    delay(500); // Debounce delay (-_- doesn't actually do any debouncing, just arbitrarily delays the selection for no reason)
+    delay(500);
   } else if (boardDriver.getSensorState(3, 4)) {
-    Serial.println("Mode: 'Black Bot Medium' Selected!");
-    currentMode = MODE_BLACK_BOT_MEDIUM;
+    Serial.println("Mode: 'Chess Bot' Selected! Showing bot configuration...");
+    currentMode = MODE_BOT;
     modeInitialized = false;
     boardDriver.clearAllLEDs();
     delay(500);
-  } else if (boardDriver.getSensorState(4, 3)) {
-    Serial.println("Mode: 'White Bot Medium' Selected!");
-    currentMode = MODE_WHITE_BOT_MEDIUM;
-    modeInitialized = false;
-    boardDriver.clearAllLEDs();
-    delay(500);
+    // Show bot configuration selection instead of starting immediately
+    showBotConfigSelection();
   } else if (boardDriver.getSensorState(4, 4)) {
     Serial.println("Mode: 'Sensor Test' Selected!");
     currentMode = MODE_SENSOR_TEST;
@@ -350,13 +337,15 @@ void initializeSelectedMode(GameMode mode) {
       Serial.println("Starting 'Chess Moves'...");
       chessMoves.begin();
       break;
-    case MODE_BLACK_BOT_MEDIUM:
-      Serial.println("Starting 'Black Bot Medium'...");
-      blackBotMedium.begin();
-      break;
-    case MODE_WHITE_BOT_MEDIUM:
-      Serial.println("Starting 'White Bot Medium'...");
-      whiteBotMedium.begin();
+    case MODE_BOT:
+      Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
+      // Clean up any existing bot instance
+      if (chessBot != nullptr) {
+        delete chessBot;
+      }
+      // Create new bot with current configuration
+      chessBot = new ChessBot(&boardDriver, &chessEngine, &wifiManager, botConfig);
+      chessBot->begin();
       break;
     case MODE_SENSOR_TEST:
       Serial.println("Starting 'Sensor Test'...");
@@ -368,5 +357,90 @@ void initializeSelectedMode(GameMode mode) {
       modeInitialized = false;
       showGameSelection();
       break;
+  }
+}
+
+// Bot configuration selection functions
+void showBotConfigSelection() {
+  boardDriver.clearAllLEDs();
+
+  Serial.println("=== Bot Configuration Selection ===");
+  Serial.println("Select Bot Color:");
+  Serial.println("Row 2 (any square): Play as White (bot is Black)");
+  Serial.println("Row 5 (any square): Play as Black (bot is White)");
+  Serial.println("");
+  Serial.println("Select Difficulty:");
+  Serial.println("Col 1: Easy");
+  Serial.println("Col 3: Medium");
+  Serial.println("Col 5: Hard");
+  Serial.println("Col 7: Expert");
+  Serial.println("");
+  Serial.println("Example: Place piece at row 2, col 3 = White + Medium");
+
+  // Only show LEDs for valid difficulty selections (don't light up all squares)
+  // Row 2 = Player plays White, Row 5 = Player plays Black
+  // Easy (col 1) - Green
+  boardDriver.setSquareLED(2, 1, 0, 255, 0);
+  boardDriver.setSquareLED(5, 1, 0, 255, 0);
+
+  // Medium (col 3) - Orange/Gold
+  boardDriver.setSquareLED(2, 3, 255, 165, 0);
+  boardDriver.setSquareLED(5, 3, 255, 165, 0);
+
+  // Hard (col 5) - Red
+  boardDriver.setSquareLED(2, 5, 255, 0, 0);
+  boardDriver.setSquareLED(5, 5, 255, 0, 0);
+
+  // Expert (col 7) - Purple
+  boardDriver.setSquareLED(2, 7, 128, 0, 255);
+  boardDriver.setSquareLED(5, 7, 128, 0, 255);
+
+  boardDriver.showLEDs();
+
+  // Wait for selection
+  handleBotConfigSelection();
+}
+
+void handleBotConfigSelection() {
+  Serial.println("Waiting for bot configuration selection...");
+
+  while (currentMode == MODE_BOT && !modeInitialized) {
+    boardDriver.readSensors();
+
+    // Check rows 2 and 5 for selections
+    for (int row : {2, 5}) {
+      for (int col = 0; col < 8; col++) {
+        if (boardDriver.getSensorState(row, col)) {
+          // Determine player color based on row
+          botConfig.playerIsWhite = (row == 2);
+          const char* colorName = botConfig.playerIsWhite ? "White" : "Black";
+
+          // Determine difficulty based on column
+          if (col == 1) {
+            botConfig.stockfishSettings = StockfishSettings::easy();
+            Serial.printf("Configuration: Play as %s, Easy difficulty\n", colorName);
+          } else if (col == 3) {
+            botConfig.stockfishSettings = StockfishSettings::medium();
+            Serial.printf("Configuration: Play as %s, Medium difficulty\n", colorName);
+          } else if (col == 5) {
+            botConfig.stockfishSettings = StockfishSettings::hard();
+            Serial.printf("Configuration: Play as %s, Hard difficulty\n", colorName);
+          } else if (col == 7) {
+            botConfig.stockfishSettings = StockfishSettings::expert();
+            Serial.printf("Configuration: Play as %s, Expert difficulty\n", colorName);
+          } else {
+            Serial.println("Invalid column for difficulty selection. Please try again.");
+            continue;
+          }
+
+          // Configuration complete
+          boardDriver.clearAllLEDs();
+          delay(500);
+          return;
+        }
+      }
+    }
+
+    delay(100);
   }
 }

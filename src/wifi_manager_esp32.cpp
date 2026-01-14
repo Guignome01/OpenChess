@@ -13,6 +13,8 @@ WiFiManagerESP32::WiFiManagerESP32(BoardDriver* boardDriver) : server(AP_PORT) {
   apMode = true;
   clientConnected = false;
   gameMode = "None";
+  botConfig.stockfishSettings = StockfishSettings::medium(); // Default to medium
+  botConfig.playerIsWhite = true;                            // Default to player as white
   boardStateValid = false;
   hasPendingEdit = false;
   boardEvaluation = 0.0;
@@ -59,6 +61,7 @@ void WiFiManagerESP32::begin() {
   server.on("/board-edit", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBoardEditSuccess(request); });
   server.on("/connect-wifi", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleConnectWiFi(request); });
   server.on("/gameselect", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleGameSelection(request); });
+  server.on("/botconfig", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBotConfiguration(request); });
   server.onNotFound([](AsyncWebServerRequest* request) {
     const Page* page = findPage(request->url().c_str());
     if (!page) {
@@ -158,6 +161,37 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
   gameMode = String(mode);
   Serial.println("Game mode selected via web: " + gameMode);
   request->send(200, "text/plain", "OK");
+}
+
+void WiFiManagerESP32::handleBotConfiguration(AsyncWebServerRequest* request) {
+  if (request->hasArg("difficulty") && request->hasArg("playerColor")) {
+    int difficulty = request->arg("difficulty").toInt();
+    switch (difficulty) {
+      case 1:
+        botConfig.stockfishSettings = StockfishSettings::easy();
+        break;
+      case 2:
+        botConfig.stockfishSettings = StockfishSettings::medium();
+        break;
+      case 3:
+        botConfig.stockfishSettings = StockfishSettings::hard();
+        break;
+      case 4:
+        botConfig.stockfishSettings = StockfishSettings::expert();
+        break;
+      default:
+        botConfig.stockfishSettings = StockfishSettings::medium();
+        break;
+    }
+    String playerColor = request->arg("playerColor");
+    botConfig.playerIsWhite = (playerColor == "white");
+
+    Serial.printf("Bot configuration received: Depth=%d, Player is %s\n",
+                  botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
+    request->send(200, "text/plain", "OK");
+  } else {
+    request->send(400, "text/plain", "Missing parameters");
+  }
 }
 
 void WiFiManagerESP32::updateBoardState(char newBoardState[8][8], float evaluation) {

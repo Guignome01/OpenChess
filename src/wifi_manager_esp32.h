@@ -14,6 +14,7 @@
 // 1. You're compiling for ESP32 board (Tools -> Board -> ESP32)
 // 2. WiFiNINA library is not interfering (you may need to temporarily remove it)
 #include "board_driver.h"
+#include "stockfish_settings.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <WiFi.h>
@@ -40,6 +41,9 @@ class WiFiManagerESP32 {
   String wifiPassword;
   String gameMode;
 
+  // Bot configuration
+  BotConfig botConfig;
+
   // Board state storage
   BoardDriver* _boardDriver;
   char boardState[8][8];
@@ -56,6 +60,7 @@ class WiFiManagerESP32 {
   void handleBoardEditSuccess(AsyncWebServerRequest* request);
   void handleConnectWiFi(AsyncWebServerRequest* request);
   void handleGameSelection(AsyncWebServerRequest* request);
+  void handleBotConfiguration(AsyncWebServerRequest* request);
 
  public:
   WiFiManagerESP32(BoardDriver* boardDriver);
@@ -67,6 +72,8 @@ class WiFiManagerESP32 {
   // Game selection via web
   int getSelectedGameMode() { return gameMode.toInt(); }
   void resetGameSelection() { gameMode = "0"; };
+  // Bot configuration
+  BotConfig getBotConfig() { return botConfig; }
   // Board state management
   void updateBoardState(char newBoardState[8][8], float evaluation = 0.0f);
   bool hasValidBoardState() { return boardStateValid; }

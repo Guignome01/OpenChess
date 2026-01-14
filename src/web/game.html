@@ -16,27 +16,95 @@
                 <p>Human vs Human</p>
                 <p>Visualize available moves</p>
             </div>
-            <div class="game-mode available mode-2" onclick="selectGame(2)">
-                <h3>Black Bot</h3>
-                <p>Human vs Black Bot</p>
-                <p>(Stockfish Medium)</p>
+            <div class="game-mode available mode-2" onclick="showBotConfig()">
+                <h3>Chess Bot</h3>
+                <p>Human vs AI</p>
+                <p>(Stockfish)</p>
             </div>
             <div class="game-mode available mode-3" onclick="selectGame(3)">
-                <h3>White Bot</h3>
-                <p>Human vs White Bot</p>
-                <p>(Stockfish Medium)</p>
-            </div>
-            <div class="game-mode available mode-4" onclick="selectGame(4)">
                 <h3>Sensor Test</h3>
                 <p>Test board sensors</p>
             </div>
         </div>
+
+        <!-- Bot Configuration Panel (hidden by default) -->
+        <div id="botConfigPanel"
+            style="display: none; margin-top: 20px; padding: 20px; border: 2px solid #4CAF50; border-radius: 10px;">
+            <h3>Bot Configuration</h3>
+
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold;">Your Color:</label><br>
+                <select id="botPlayerColor" style="padding: 8px; font-size: 16px; margin-top: 5px; width: 100%;">
+                    <option value="white">Play as White (bot is Black)</option>
+                    <option value="black">Play as Black (bot is White)</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold;">Difficulty:</label><br>
+                <select id="botDifficulty" style="padding: 8px; font-size: 16px; margin-top: 5px; width: 100%;">
+                    <option value="1">Easy (Depth 6, Fast)</option>
+                    <option value="2" selected>Medium (Depth 10, Balanced)</option>
+                    <option value="3">Hard (Depth 14, Slow)</option>
+                    <option value="4">Expert (Depth 16, Very Slow)</option>
+                </select>
+            </div>
+
+            <button onclick="startBotGame()"
+                style="padding: 10px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                Start Game
+            </button>
+            <button onclick="hideBotConfig()"
+                style="padding: 10px 20px; font-size: 16px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; margin-top: 10px;">
+                Cancel
+            </button>
+        </div>
+
         <a href="/board-view" class="button">View Board</a>
         <a href="/" class="back-button">OpenChess Home</a>
     </div>
     <script>
+        function showBotConfig() {
+            document.getElementById('botConfigPanel').style.display = 'block';
+        }
+
+        function hideBotConfig() {
+            document.getElementById('botConfigPanel').style.display = 'none';
+        }
+
+        function startBotGame() {
+            const playerColor = document.getElementById('botPlayerColor').value;
+            const difficulty = document.getElementById('botDifficulty').value;
+
+            // Send bot configuration
+            fetch('/botconfig', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'playerColor=' + playerColor + '&difficulty=' + difficulty
+            }).then(response => {
+                if (response.ok) {
+                    // Then select game mode 2 (bot)
+                    return fetch('/gameselect', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: 'gamemode=2'
+                    });
+                }
+                throw new Error('Failed to set bot configuration');
+            }).then(response => response.text()).then(data => {
+                window.location.href = "/board-view";
+            }).catch(error => {
+                console.error('Error:', error);
+                alert('Failed to start bot game. Please try again.');
+            });
+        }
+
         function selectGame(mode) {
-            if (mode === 1 || mode === 2 || mode === 3 || mode === 4) {
+            if (mode === 1 || mode === 3) {
                 fetch('/gameselect', {
                     method: 'POST',
                     headers: {
@@ -44,13 +112,11 @@
                     },
                     body: 'gamemode=' + mode
                 }).then(response => response.text()).then(data => {
-                    if (mode != 4)
+                    if (mode != 3) // Don't redirect for sensor test
                         window.location.href = "/board-view";
-                }
-                ).catch(error => {
+                }).catch(error => {
                     console.error('Error:', error);
-                }
-                );
+                });
             } else {
                 alert('This game mode doesn\'t exist!');
             }

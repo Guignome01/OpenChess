@@ -18,7 +18,7 @@ struct StockfishSettings {
 
   static StockfishSettings medium() {
     StockfishSettings s;
-    s.depth = 6;
+    s.depth = 10;
     s.timeoutMs = 25000;
     return s;
   }
@@ -32,18 +32,16 @@ struct StockfishSettings {
 
   static StockfishSettings expert() {
     StockfishSettings s;
-    s.depth = 16;
+    s.depth = 15;
     s.timeoutMs = 60000;
     return s;
   }
 };
 
-// Bot difficulty levels
-enum BotDifficulty {
-  BOT_EASY = 1,
-  BOT_MEDIUM = 2,
-  BOT_HARD = 3,
-  BOT_EXPERT = 4
+// Bot configuration structure
+struct BotConfig {
+  StockfishSettings stockfishSettings;
+  bool playerIsWhite;
 };
 
 #endif
