@@ -24,7 +24,6 @@ class ChessMoves {
 
   // Helper functions
   void initializeBoard();
-  void handleCastlingRookMove(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece);
   void waitForBoardSetup();
   void processMove(int fromRow, int fromCol, int toRow, int toCol, char piece);
   void checkForPromotion(int targetRow, int targetCol, char piece);

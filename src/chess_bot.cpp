@@ -481,34 +481,8 @@ void ChessBot::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol,
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
-  if (castling) {
-    ChessCommon::applyCastlingRookInternal(board, fromRow, fromCol, toRow, toCol, piece);
-
-    // Prompt player to also move the rook physically
-    int rookFromCol = ((toCol - fromCol) == 2) ? 7 : 0;
-    int rookToCol = ((toCol - fromCol) == 2) ? 5 : 3;
-    Serial.printf("Castling: please move rook from %c%d to %c%d\n",
-                  (char)('a' + rookFromCol), 8 - fromRow,
-                  (char)('a' + rookToCol), 8 - toRow);
-
-    // Wait for the rook move to complete (source empty, destination occupied)
-    while (_boardDriver->getSensorState(fromRow, rookFromCol)) {
-      _boardDriver->readSensors();
-      _boardDriver->clearAllLEDs();
-      _boardDriver->setSquareLED(fromRow, rookFromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
-      _boardDriver->setSquareLED(toRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
-      _boardDriver->showLEDs();
-      delay(50);
-    }
-    while (!_boardDriver->getSensorState(toRow, rookToCol)) {
-      _boardDriver->readSensors();
-      _boardDriver->clearAllLEDs();
-      _boardDriver->setSquareLED(toRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
-      _boardDriver->showLEDs();
-      delay(50);
-    }
-    _boardDriver->clearAllLEDs();
-  }
+  if (castling)
+    ChessCommon::applyCastlingRookInternal(_boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
 
   ChessCommon::updateCastlingRightsAfterMove(castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   _chessEngine->setCastlingRights(castlingRights);

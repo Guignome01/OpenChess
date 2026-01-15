@@ -20,7 +20,7 @@ void updateCastlingRightsAfterMove(uint8_t& castlingRights, int fromRow, int fro
 
 bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece);
 
-void applyCastlingRookInternal(char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece);
+void applyCastlingRookInternal(BoardDriver* boardDriver, char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece);
 
 bool applyPawnPromotionIfNeeded(ChessEngine* engine, char board[8][8], int toRow, int toCol, char movedPiece, char& promotedPieceOut);
 

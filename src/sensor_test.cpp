@@ -53,7 +53,7 @@ void SensorTest::update() {
     lastPrint = millis();
   }
 
-  delay(100); // Small delay to prevent overwhelming the system
+  delay(50); // Small delay to prevent overwhelming the system
 }
 
 bool SensorTest::isActive() {

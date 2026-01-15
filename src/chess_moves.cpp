@@ -251,49 +251,11 @@ void ChessMoves::initializeBoard() {
   chessEngine->setCastlingRights(castlingRights);
 }
 
-void ChessMoves::handleCastlingRookMove(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece) {
-  int deltaCol = kingToCol - kingFromCol;
-  if (kingFromRow != kingToRow) return;
-  if (deltaCol != 2 && deltaCol != -2) return;
-
-  int rookFromCol = (deltaCol == 2) ? 7 : 0;
-  int rookToCol = (deltaCol == 2) ? 5 : 3;
-
-  // Update internal board state for rook
-  ChessCommon::applyCastlingRookInternal(board, kingFromRow, kingFromCol, kingToRow, kingToCol, kingPiece);
-
-  Serial.printf("Castling: please move rook from %c%d to %c%d\n",
-                (char)('a' + rookFromCol), kingToRow + 1,
-                (char)('a' + rookToCol), kingToRow + 1);
-
-  // Prompt the user on the physical board
-  // Wait for rook to be lifted from its original square
-  while (boardDriver->getSensorState(kingToRow, rookFromCol)) {
-    boardDriver->readSensors();
-    boardDriver->clearAllLEDs();
-    boardDriver->setSquareLED(kingToRow, rookFromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
-    boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
-    boardDriver->showLEDs();
-    delay(100);
-  }
-
-  // Wait for rook to be placed on destination square
-  while (!boardDriver->getSensorState(kingToRow, rookToCol)) {
-    boardDriver->readSensors();
-    boardDriver->clearAllLEDs();
-    boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
-    boardDriver->showLEDs();
-    delay(100);
-  }
-
-  boardDriver->clearAllLEDs();
-}
-
 void ChessMoves::waitForBoardSetup() {
   Serial.println("Waiting for pieces to be placed...");
   while (!boardDriver->checkInitialBoard(INITIAL_BOARD)) {
     boardDriver->updateSetupDisplay(INITIAL_BOARD);
-    delay(500);
+    delay(250);
   }
 }
 
@@ -306,9 +268,8 @@ void ChessMoves::processMove(int fromRow, int fromCol, int toRow, int toCol, cha
   board[fromRow][fromCol] = ' ';
 
   // If this was castling, also move the rook (and wait for physical rook move)
-  if (isCastling) {
-    handleCastlingRookMove(fromRow, fromCol, toRow, toCol, piece);
-  }
+  if (isCastling)
+    ChessCommon::applyCastlingRookInternal(boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
 
   ChessCommon::updateCastlingRightsAfterMove(castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   chessEngine->setCastlingRights(castlingRights);

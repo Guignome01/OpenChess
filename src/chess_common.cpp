@@ -57,7 +57,7 @@ bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece) 
   return (upper == 'K' && fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2));
 }
 
-void applyCastlingRookInternal(char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece) {
+void applyCastlingRookInternal(BoardDriver* boardDriver, char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece) {
   int deltaCol = kingToCol - kingFromCol;
   if (kingFromRow != kingToRow) return;
   if (deltaCol != 2 && deltaCol != -2) return;
@@ -66,8 +66,37 @@ void applyCastlingRookInternal(char board[8][8], int kingFromRow, int kingFromCo
   int rookToCol = (deltaCol == 2) ? 5 : 3;
   char rookPiece = (kingPiece >= 'a' && kingPiece <= 'z') ? 'r' : 'R';
 
+  // Update board state
   board[kingToRow][rookToCol] = rookPiece;
   board[kingToRow][rookFromCol] = ' ';
+
+  if (!boardDriver) return;
+
+  // Handle LED prompts and wait for rook move
+  Serial.printf("Castling: please move rook from %c%d to %c%d\n", (char)('a' + rookFromCol), 8 - kingToRow, (char)('a' + rookToCol), 8 - kingToRow);
+
+  // Wait for rook to be lifted from its original square
+  boardDriver->clearAllLEDs();
+  boardDriver->setSquareLED(kingToRow, rookFromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
+  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
+  boardDriver->showLEDs();
+
+  while (boardDriver->getSensorState(kingToRow, rookFromCol)) {
+    boardDriver->readSensors();
+    delay(50);
+  }
+
+  // Wait for rook to be placed on destination square
+  boardDriver->clearAllLEDs();
+  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
+  boardDriver->showLEDs();
+
+  while (!boardDriver->getSensorState(kingToRow, rookToCol)) {
+    boardDriver->readSensors();
+    delay(50);
+  }
+
+  boardDriver->clearAllLEDs();
 }
 
 bool applyPawnPromotionIfNeeded(ChessEngine* engine, char board[8][8], int toRow, int toCol, char movedPiece, char& promotedPieceOut) {
