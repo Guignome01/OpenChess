@@ -57,7 +57,7 @@ bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece) 
   return (upper == 'K' && fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2));
 }
 
-void applyCastlingRookInternal(BoardDriver* boardDriver, char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece) {
+void applyCastling(BoardDriver* boardDriver, char board[8][8], int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece) {
   int deltaCol = kingToCol - kingFromCol;
   if (kingFromRow != kingToRow) return;
   if (deltaCol != 2 && deltaCol != -2) return;

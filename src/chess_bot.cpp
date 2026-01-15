@@ -390,9 +390,8 @@ void ChessBot::executeBotMove(int fromRow, int fromCol, int toRow, int toCol) {
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
-  if (castling) {
-    ChessCommon::applyCastlingRookInternal(board, fromRow, fromCol, toRow, toCol, piece);
-  }
+  if (castling)
+    ChessCommon::applyCastling(_boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
 
   ChessCommon::updateCastlingRightsAfterMove(castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   _chessEngine->setCastlingRights(castlingRights);
@@ -482,7 +481,7 @@ void ChessBot::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol,
   board[fromRow][fromCol] = ' ';
 
   if (castling)
-    ChessCommon::applyCastlingRookInternal(_boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
+    ChessCommon::applyCastling(_boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
 
   ChessCommon::updateCastlingRightsAfterMove(castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   _chessEngine->setCastlingRights(castlingRights);

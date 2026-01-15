@@ -269,7 +269,7 @@ void ChessMoves::processMove(int fromRow, int fromCol, int toRow, int toCol, cha
 
   // If this was castling, also move the rook (and wait for physical rook move)
   if (isCastling)
-    ChessCommon::applyCastlingRookInternal(boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
+    ChessCommon::applyCastling(boardDriver, board, fromRow, fromCol, toRow, toCol, piece);
 
   ChessCommon::updateCastlingRightsAfterMove(castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   chessEngine->setCastlingRights(castlingRights);
