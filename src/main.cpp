@@ -51,16 +51,6 @@ void setup() {
   // Initialize Serial with extended timeout
   Serial.begin(115200);
 
-  // Wait for Serial to be ready (critical for RP2040)
-  unsigned long startTime = millis();
-  while (!Serial && (millis() - startTime < 10000)) {
-    // Wait up to 10 seconds for Serial connection
-    delay(100);
-  }
-
-  // Force a delay to ensure Serial is stable
-  delay(2000);
-
   Serial.println();
   Serial.println("================================================");
   Serial.println("         OpenChess Starting Up");
