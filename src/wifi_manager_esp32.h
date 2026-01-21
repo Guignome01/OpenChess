@@ -57,7 +57,6 @@ class WiFiManagerESP32 {
   void handleBoardEditSuccess(AsyncWebServerRequest* request);
   void handleConnectWiFi(AsyncWebServerRequest* request);
   void handleGameSelection(AsyncWebServerRequest* request);
-  void handleBotConfiguration(AsyncWebServerRequest* request);
 
  public:
   WiFiManagerESP32(BoardDriver* boardDriver);

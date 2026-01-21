@@ -50,7 +50,7 @@
                 </select>
             </div>
 
-            <button onclick="startBotGame()"
+            <button onclick="selectGame(2)"
                 style="padding: 10px 20px; font-size: 16px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
                 Start Game
             </button>
@@ -72,50 +72,23 @@
             document.getElementById('botConfigPanel').style.display = 'none';
         }
 
-        function startBotGame() {
-            const playerColor = document.getElementById('botPlayerColor').value;
-            const difficulty = document.getElementById('botDifficulty').value;
-
-            // Send bot configuration
-            fetch('/botconfig', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: 'playerColor=' + playerColor + '&difficulty=' + difficulty
-            }).then(response => {
-                if (response.ok) {
-                    // Then select game mode 2 (bot)
-                    return fetch('/gameselect', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: 'gamemode=2'
-                    });
-                }
-                throw new Error('Failed to set bot configuration');
-            }).then(response => response.text()).then(data => {
-                window.location.href = "/board-view";
-            }).catch(error => {
-                console.error('Error:', error);
-                alert('Failed to start bot game. Please try again.');
-            });
-        }
-
         function selectGame(mode) {
-            if (mode === 1 || mode === 3) {
+            if (mode === 1 || mode === 2 || mode === 3) {
+                requestBody = 'gamemode=' + mode;
+                if (mode === 2)
+                    requestBody += '&playerColor=' + document.getElementById('botPlayerColor').value + '&difficulty=' + document.getElementById('botDifficulty').value;
                 fetch('/gameselect', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: 'gamemode=' + mode
+                    body: requestBody
                 }).then(response => response.text()).then(data => {
                     if (mode != 3) // Don't redirect for sensor test
                         window.location.href = "/board-view";
                 }).catch(error => {
                     console.error('Error:', error);
+                    alert('Failed to select game mode. Please try again.');
                 });
             } else {
                 alert('This game mode doesn\'t exist!');
