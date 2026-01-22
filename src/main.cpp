@@ -278,20 +278,20 @@ void handleBotConfigSelection() {
   Serial.println("Example: Place piece at Rank 3, File D = White Bot Medium");
 
   // Easy (col 1) - Green
-  boardDriver.setSquareLED(2, 1, 0, 255, 0);
-  boardDriver.setSquareLED(5, 1, 0, 255, 0);
+  boardDriver.setSquareLED(2, 1, LedColors::Green.r, LedColors::Green.g, LedColors::Green.b);
+  boardDriver.setSquareLED(5, 1, LedColors::Green.r, LedColors::Green.g, LedColors::Green.b);
 
   // Medium (col 3) - Orange/Gold
-  boardDriver.setSquareLED(2, 3, 255, 165, 0);
-  boardDriver.setSquareLED(5, 3, 255, 165, 0);
+  boardDriver.setSquareLED(2, 3, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
+  boardDriver.setSquareLED(5, 3, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
 
   // Hard (col 5) - Red
-  boardDriver.setSquareLED(2, 5, 255, 0, 0);
-  boardDriver.setSquareLED(5, 5, 255, 0, 0);
+  boardDriver.setSquareLED(2, 5, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+  boardDriver.setSquareLED(5, 5, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
 
   // Expert (col 7) - Purple
-  boardDriver.setSquareLED(2, 7, 128, 0, 255);
-  boardDriver.setSquareLED(5, 7, 128, 0, 255);
+  boardDriver.setSquareLED(2, 7, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+  boardDriver.setSquareLED(5, 7, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
 
   boardDriver.showLEDs();
 

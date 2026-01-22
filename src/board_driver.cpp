@@ -220,7 +220,7 @@ bool BoardDriver::waitForSingleRawPress(int& rawRow, int& rawCol, unsigned long 
 
 void BoardDriver::showCalibrationError() {
   for (int i = 0; i < LED_COUNT; i++)
-    strip.setPixelColor(i, strip.Color(LedColors::ErrorRed.r, LedColors::ErrorRed.g, LedColors::ErrorRed.b));
+    strip.setPixelColor(i, strip.Color(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b));
   strip.show();
   waitForBoardEmpty();
   clearAllLEDs();
@@ -341,7 +341,7 @@ void BoardDriver::runCalibration() {
 
   // Calibration animation - light up each pixel sequentially
   for (int i = 0; i < LED_COUNT; i++) {
-    strip.setPixelColor(i, strip.Color(LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b));
+    strip.setPixelColor(i, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
     strip.show();
     delay(50);
   }
@@ -370,9 +370,9 @@ void BoardDriver::runCalibration() {
     for (int r = 0; r < NUM_ROWS; r++)
       for (int c = 0; c < NUM_COLS; c++)
         if (logicalUsed[r][c])
-          strip.setPixelColor(ledIndexMap[r][c], strip.Color(LedColors::ConfirmGreen.r, LedColors::ConfirmGreen.g, LedColors::ConfirmGreen.b));
+          strip.setPixelColor(ledIndexMap[r][c], strip.Color(LedColors::Green.r, LedColors::Green.g, LedColors::Green.b));
     if (currentPixel < LED_COUNT)
-      strip.setPixelColor(currentPixel, strip.Color(LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b));
+      strip.setPixelColor(currentPixel, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
     strip.show();
   };
 
@@ -494,15 +494,15 @@ void BoardDriver::showLEDs() {
 void BoardDriver::showConnectingAnimation() {
   // Show each WiFi connection attempt with animated LEDs
   for (int i = 0; i < 8; i++) {
-    setSquareLED(3, i, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
-    setSquareLED(4, i, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
+    setSquareLED(3, i, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+    setSquareLED(4, i, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
     showLEDs();
     delay(100);
   }
   clearAllLEDs();
 }
 
-void BoardDriver::blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times) {
+void BoardDriver::blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times, bool clearAfter) {
   for (int i = 0; i < times; i++) {
     setSquareLED(row, col, r, g, b);
     showLEDs();
@@ -510,6 +510,10 @@ void BoardDriver::blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b,
     setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
     showLEDs();
     delay(200);
+  }
+  if (!clearAfter) {
+    setSquareLED(row, col, r, g, b);
+    showLEDs();
   }
 }
 
@@ -526,7 +530,7 @@ void BoardDriver::fireworkAnimation() {
         float dist = sqrt(dx * dx + dy * dy);
         int pixelIndex = getPixelIndex(row, col);
         if (fabs(dist - radius) < 0.5)
-          strip.setPixelColor(pixelIndex, strip.Color(LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b));
+          strip.setPixelColor(pixelIndex, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
         else
           strip.setPixelColor(pixelIndex, 0);
       }
@@ -543,7 +547,7 @@ void BoardDriver::fireworkAnimation() {
         float dist = sqrt(dx * dx + dy * dy);
         int pixelIndex = getPixelIndex(row, col);
         if (fabs(dist - radius) < 0.5)
-          strip.setPixelColor(pixelIndex, strip.Color(LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b));
+          strip.setPixelColor(pixelIndex, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
         else
           strip.setPixelColor(pixelIndex, 0);
       }
@@ -560,7 +564,7 @@ void BoardDriver::fireworkAnimation() {
         float dist = sqrt(dx * dx + dy * dy);
         int pixelIndex = getPixelIndex(row, col);
         if (fabs(dist - radius) < 0.5)
-          strip.setPixelColor(pixelIndex, strip.Color(LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b));
+          strip.setPixelColor(pixelIndex, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
         else
           strip.setPixelColor(pixelIndex, 0);
       }
@@ -589,9 +593,7 @@ void BoardDriver::captureAnimation() {
 
         if (dist >= pulseWidth - 0.5 && dist <= pulseWidth + 0.5) {
           // Alternate between red and orange for capture effect
-          uint32_t color = (pulse % 2 == 0)
-                               ? strip.Color(LedColors::AttackRed.r, LedColors::AttackRed.g, LedColors::AttackRed.b)     // Red
-                               : strip.Color(LedColors::CheckAmber.r, LedColors::CheckAmber.g, LedColors::CheckAmber.b); // Orange
+          uint32_t color = (pulse % 2 == 0) ? strip.Color(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b) : strip.Color(LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
           strip.setPixelColor(pixelIndex, color);
         } else {
           strip.setPixelColor(pixelIndex, 0);
@@ -652,13 +654,13 @@ void BoardDriver::updateSetupDisplay() {
           setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
         else
           // Middle rows - show error (piece shouldn't be here)
-          setSquareLED(row, col, LedColors::ErrorRed.r, LedColors::ErrorRed.g, LedColors::ErrorRed.b);
+          setSquareLED(row, col, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
       } else {
         // No piece detected - show where pieces should be placed
         if (row <= 1)
-          setSquareLED(row, col, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b); // Black side
+          setSquareLED(row, col, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b); // Black side
         else if (row >= 6)
-          setSquareLED(row, col, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b); // White side
+          setSquareLED(row, col, LedColors::White.r, LedColors::White.g, LedColors::White.b); // White side
         else
           setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b); // Middle rows - turn off
       }

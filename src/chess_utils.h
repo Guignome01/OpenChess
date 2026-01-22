@@ -3,30 +3,37 @@
 
 #include <Arduino.h>
 
+// Forward declaration
+class ChessEngine;
+
 class ChessUtils {
  public:
-  // Get color name from color character
   static const char* colorName(char color) {
     return (color == 'w') ? "White" : "Black";
+  }
+
+  static const char getPieceColor(char piece) {
+    return (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
   }
 
   // Convert castling rights bitmask (KQkq) to string used in FEN.
   // rights: bitmask where 0x01=K, 0x02=Q, 0x04=k, 0x08=q
   static String castlingRightsToString(uint8_t rights);
+  static uint8_t castlingRightsFromString(const String rightsStr);
 
   // Convert board state to FEN notation
   // board: 8x8 array representing the chess board
   // currentTurn: 'w' for white's turn, 'b' for black's turn
-  // castlingRights: castling availability string (e.g., "KQkq", "-" for none)
+  // chessEngine: ChessEngine pointer to get castling rights and en passant target square
   // Returns: FEN string representation
-  static String boardToFEN(const char board[8][8], char currentTurn, const char* castlingRights = "KQkq");
+  static String boardToFEN(const char board[8][8], char currentTurn, ChessEngine* chessEngine = nullptr);
 
   // Parse FEN notation and update board state
   // fen: FEN string to parse
   // board: 8x8 array to update with parsed position
   // currentTurn: output parameter for whose turn it is - 'w' or 'b' (optional)
-  // castlingRights: output parameter for castling availability (optional)
-  static void fenToBoard(String fen, char board[8][8], char* currentTurn = nullptr, String* castlingRights = nullptr);
+  // chessEngine: ChessEngine pointer to set castling rights and en passant target square
+  static void fenToBoard(String fen, char board[8][8], char& currentTurn, ChessEngine* chessEngine = nullptr);
 
   // Print current board state to Serial for debugging
   // board: 8x8 array representing the chess board

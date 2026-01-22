@@ -1,14 +1,12 @@
 #include "chess_engine.h"
+#include "chess_utils.h"
 #include <Arduino.h>
 
 // ---------------------------
 // ChessEngine Implementation
 // ---------------------------
 
-ChessEngine::ChessEngine() {
-  // Default to all castling rights available
-  castlingRights = 0x0F;
-}
+ChessEngine::ChessEngine() : castlingRights(0x0F), enPassantTargetRow(-1), enPassantTargetCol(-1) {}
 
 void ChessEngine::setCastlingRights(uint8_t rights) {
   castlingRights = rights;
@@ -16,6 +14,25 @@ void ChessEngine::setCastlingRights(uint8_t rights) {
 
 uint8_t ChessEngine::getCastlingRights() const {
   return castlingRights;
+}
+
+void ChessEngine::setEnPassantTarget(int row, int col) {
+  enPassantTargetRow = row;
+  enPassantTargetCol = col;
+}
+
+void ChessEngine::clearEnPassantTarget() {
+  enPassantTargetRow = -1;
+  enPassantTargetCol = -1;
+}
+
+void ChessEngine::getEnPassantTarget(int& row, int& col) const {
+  row = enPassantTargetRow;
+  col = enPassantTargetCol;
+}
+
+bool ChessEngine::hasEnPassantTarget() const {
+  return enPassantTargetRow != -1 && enPassantTargetCol != -1;
 }
 
 // Generate pseudo-legal moves (without check filtering)
@@ -26,7 +43,7 @@ void ChessEngine::getPseudoLegalMoves(const char board[8][8], int row, int col, 
   if (piece == ' ')
     return; // Empty square
 
-  char pieceColor = getPieceColor(piece);
+  char pieceColor = ChessUtils::getPieceColor(piece);
 
   switch (toupper(piece)) {
     case 'P': // Pawn
@@ -107,6 +124,21 @@ void ChessEngine::addPawnMoves(const char board[8][8], int row, int col, char pi
       moves[moveCount][0] = captureRow;
       moves[moveCount][1] = captureCol;
       moveCount++;
+    }
+  }
+
+  // En passant captures
+  if (hasEnPassantTarget()) {
+    // The pawn must be on the correct rank (white on row 3/rank 5, black on row 4/rank 4) and the en passant target must be diagonally forward
+    if ((pieceColor == 'w' && row == 3) || (pieceColor == 'b' && row == 4)) {
+      for (int i = 0; i < 2; i++) {
+        int captureCol = captureColumns[i];
+        if (captureCol == enPassantTargetCol && row + direction == enPassantTargetRow) {
+          moves[moveCount][0] = enPassantTargetRow;
+          moves[moveCount][1] = enPassantTargetCol;
+          moveCount++;
+        }
+      }
     }
   }
 }
@@ -260,7 +292,7 @@ bool ChessEngine::isSquareOccupiedByOpponent(const char board[8][8], int row, in
   if (targetPiece == ' ')
     return false;
 
-  char targetColor = getPieceColor(targetPiece);
+  char targetColor = ChessUtils::getPieceColor(targetPiece);
   return targetColor != pieceColor;
 }
 
@@ -272,11 +304,6 @@ bool ChessEngine::isSquareEmpty(const char board[8][8], int row, int col) {
 // Helper function to check if coordinates are within board bounds
 bool ChessEngine::isValidSquare(int row, int col) {
   return row >= 0 && row < 8 && col >= 0 && col < 8;
-}
-
-// Helper function to get piece color
-char ChessEngine::getPieceColor(char piece) {
-  return (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
 }
 
 // Move validation
@@ -362,7 +389,7 @@ bool ChessEngine::isSquareUnderAttack(const char board[8][8], int row, int col, 
       char piece = board[r][c];
       if (piece == ' ') continue;
 
-      char pieceColor = getPieceColor(piece);
+      char pieceColor = ChessUtils::getPieceColor(piece);
       if (pieceColor != attackingColor) continue;
 
       // Pawns are special: their attack pattern differs from their move pattern.
@@ -419,6 +446,17 @@ void ChessEngine::makeMove(char board[8][8], int fromRow, int fromCol, int toRow
       }
     }
   }
+
+  // Handle en passant capture
+  if (toupper(movingPiece) == 'P' && hasEnPassantTarget()) {
+    // If moving to the en passant target square, remove the captured pawn
+    if (toRow == enPassantTargetRow && toCol == enPassantTargetCol && capturedPiece == ' ') {
+      // The captured pawn is one square behind the target (in the opposite direction)
+      int capturedPawnRow = toRow - ((ChessUtils::getPieceColor(movingPiece) == 'w') ? -1 : 1);
+      capturedPiece = board[capturedPawnRow][toCol];
+      board[capturedPawnRow][toCol] = ' ';
+    }
+  }
 }
 
 // Check if a move would leave the king in check
@@ -431,7 +469,7 @@ bool ChessEngine::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow,
 
   // Get the color of the piece being moved
   char movingPiece = testBoard[fromRow][fromCol];
-  char movingColor = getPieceColor(movingPiece);
+  char movingColor = ChessUtils::getPieceColor(movingPiece);
 
   // Make the move on the test board
   char capturedPiece;
@@ -472,7 +510,7 @@ bool ChessEngine::isCheckmate(const char board[8][8], char kingColor) {
       char piece = board[fromRow][fromCol];
       if (piece == ' ') continue;
 
-      char pieceColor = getPieceColor(piece);
+      char pieceColor = ChessUtils::getPieceColor(piece);
       if (pieceColor != kingColor) continue;
 
       // Get all possible moves for this piece
@@ -506,7 +544,7 @@ bool ChessEngine::isStalemate(const char board[8][8], char colorToMove) {
       char piece = board[fromRow][fromCol];
       if (piece == ' ') continue;
 
-      char pieceColor = getPieceColor(piece);
+      char pieceColor = ChessUtils::getPieceColor(piece);
       if (pieceColor != colorToMove) continue;
 
       // Get all possible moves for this piece

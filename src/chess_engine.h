@@ -15,6 +15,10 @@ class ChessEngine {
   // Bit 3: Black queen-side (q)
   uint8_t castlingRights;
 
+  // En passant target square (-1 if none)
+  int enPassantTargetRow;
+  int enPassantTargetCol;
+
   // Helper functions for move generation
   void addPawnMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
   void addRookMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
@@ -29,7 +33,6 @@ class ChessEngine {
   bool isSquareOccupiedByOpponent(const char board[8][8], int row, int col, char pieceColor);
   bool isSquareEmpty(const char board[8][8], int row, int col);
   bool isValidSquare(int row, int col);
-  char getPieceColor(char piece);
 
   // Check detection helpers
   void getPseudoLegalMoves(const char board[8][8], int row, int col, int& moveCount, int moves[][2], bool includeCastling = true);
@@ -41,9 +44,21 @@ class ChessEngine {
  public:
   ChessEngine();
 
+  // Reset engine state to initial conditions (new game)
+  void reset() {
+    clearEnPassantTarget();
+    castlingRights = 0x0F;
+  }
+
   // Set castling rights bitmask (KQkq = 0b1111)
   void setCastlingRights(uint8_t rights);
   uint8_t getCastlingRights() const;
+
+  // En passant target square management
+  void setEnPassantTarget(int row, int col);
+  void clearEnPassantTarget();
+  void getEnPassantTarget(int& row, int& col) const;
+  bool hasEnPassantTarget() const;
 
   // Main move generation function
   void getPossibleMoves(const char board[8][8], int row, int col, int& moveCount, int moves[][2]);

@@ -16,3 +16,4 @@ Thumbs.db
 # IDE files
 .vscode/
 .pio/
+.idea/

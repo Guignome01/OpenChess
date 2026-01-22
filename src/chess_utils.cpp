@@ -1,4 +1,5 @@
 #include "chess_utils.h"
+#include "chess_engine.h"
 
 extern "C" {
 #include "nvs_flash.h"
@@ -14,7 +15,31 @@ String ChessUtils::castlingRightsToString(uint8_t rights) {
   return s;
 }
 
-String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, const char* castlingRights) {
+uint8_t ChessUtils::castlingRightsFromString(const String rightsStr) {
+  uint8_t rights = 0;
+  for (int i = 0; i < rightsStr.length(); i++) {
+    char c = rightsStr.charAt(i);
+    switch (c) {
+      case 'K':
+        rights |= 0x01;
+        break;
+      case 'Q':
+        rights |= 0x02;
+        break;
+      case 'k':
+        rights |= 0x04;
+        break;
+      case 'q':
+        rights |= 0x08;
+        break;
+      default:
+        break;
+    }
+  }
+  return rights;
+}
+
+String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, ChessEngine* chessEngine) {
   String fen = "";
 
   // Board position - FEN expects rank 8 (black pieces) first, rank 1 (white pieces) last
@@ -42,10 +67,19 @@ String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, const ch
   fen += " " + String(currentTurn);
 
   // Castling availability
-  fen += " " + String(castlingRights);
+  fen += " " + ChessUtils::castlingRightsToString(chessEngine->getCastlingRights());
 
-  // En passant target square (simplified - assume none)
-  fen += " -";
+  // En passant target square
+  if (chessEngine != nullptr && chessEngine->hasEnPassantTarget()) {
+    int epRow, epCol;
+    chessEngine->getEnPassantTarget(epRow, epCol);
+    // Convert row/col to algebraic notation (e.g., e3, e6)
+    char file = 'a' + epCol;
+    int rank = 8 - epRow;
+    fen += " " + String(file) + String(rank);
+  } else {
+    fen += " -";
+  }
 
   // Halfmove clock (simplified)
   fen += " 0";
@@ -56,7 +90,7 @@ String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, const ch
   return fen;
 }
 
-void ChessUtils::fenToBoard(String fen, char board[8][8], char* currentTurn, String* castlingRights) {
+void ChessUtils::fenToBoard(String fen, char board[8][8], char& currentTurn, ChessEngine* chessEngine) {
   // Parse FEN string and update board state
   // FEN format: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -96,24 +130,48 @@ void ChessUtils::fenToBoard(String fen, char board[8][8], char* currentTurn, Str
     }
   }
 
-  // Parse active color if requested
-  if (currentTurn != nullptr && remainingParts.length() > 0) {
+  // Parse active color
+  if (remainingParts.length() > 0) {
     int secondSpace = remainingParts.indexOf(' ');
     String activeColor = (secondSpace > 0) ? remainingParts.substring(0, secondSpace) : remainingParts;
-    *currentTurn = (activeColor == "w" || activeColor == "W") ? 'w' : 'b';
+    currentTurn = (activeColor == "w" || activeColor == "W") ? 'w' : 'b';
     remainingParts = (secondSpace > 0) ? remainingParts.substring(secondSpace + 1) : "";
   }
 
-  // Parse castling rights if requested
-  if (castlingRights != nullptr && remainingParts.length() > 0) {
+  // Parse castling rights
+  if (remainingParts.length() > 0) {
     int thirdSpace = remainingParts.indexOf(' ');
-    *castlingRights = (thirdSpace > 0) ? remainingParts.substring(0, thirdSpace) : remainingParts;
+    if (chessEngine != nullptr)
+      chessEngine->setCastlingRights(castlingRightsFromString((thirdSpace > 0) ? remainingParts.substring(0, thirdSpace) : remainingParts));
+    remainingParts = (thirdSpace > 0) ? remainingParts.substring(thirdSpace + 1) : "";
+  }
+
+  // Parse en passant target square
+  if (remainingParts.length() > 0) {
+    int fourthSpace = remainingParts.indexOf(' ');
+    String enPassantSquare = (fourthSpace > 0) ? remainingParts.substring(0, fourthSpace) : remainingParts;
+
+    if (enPassantSquare != "-" && enPassantSquare.length() >= 2) {
+      // Parse algebraic notation (e.g., "e3", "e6")
+      char file = enPassantSquare.charAt(0);
+      char rankChar = enPassantSquare.charAt(1);
+
+      if (file >= 'a' && file <= 'h' && rankChar >= '1' && rankChar <= '8') {
+        int epCol = file - 'a';
+        int rank = rankChar - '0';
+        int epRow = 8 - rank;
+        if (chessEngine != nullptr)
+          chessEngine->setEnPassantTarget(epRow, epCol);
+      }
+      return;
+    }
+    if (chessEngine != nullptr)
+      chessEngine->clearEnPassantTarget();
   }
 }
 
 void ChessUtils::printBoard(const char board[8][8]) {
-  Serial.println("====== BOARD STATE ======");
-  Serial.println("  a b c d e f g h");
+  Serial.println("====== BOARD ======");
   for (int row = 0; row < 8; row++) {
     String rowStr = String(8 - row) + " ";
     for (int col = 0; col < 8; col++) {
@@ -124,7 +182,7 @@ void ChessUtils::printBoard(const char board[8][8]) {
     Serial.println(rowStr);
   }
   Serial.println("  a b c d e f g h");
-  Serial.println("========================");
+  Serial.println("===================");
 }
 
 float ChessUtils::evaluatePosition(const char board[8][8]) {

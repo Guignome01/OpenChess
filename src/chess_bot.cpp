@@ -19,7 +19,7 @@ void ChessBot::begin() {
     initializeBoard();
     waitForBoardSetup();
   } else {
-    boardDriver->flashBoardAnimation(LedColors::ErrorRed.r, LedColors::ErrorRed.g, LedColors::ErrorRed.b);
+    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
     Serial.println("Failed to connect to WiFi. Bot mode unavailable.");
     wifiConnected = false;
   }
@@ -115,8 +115,7 @@ bool ChessBot::parseStockfishResponse(String response, String& bestMove, float& 
 void ChessBot::makeBotMove() {
   Serial.println("=== BOT MOVE CALCULATION ===");
   showBotThinking();
-  String rights = ChessUtils::castlingRightsToString(chessEngine->getCastlingRights());
-  String fen = ChessUtils::boardToFEN(board, currentTurn, rights.c_str());
+  String fen = ChessUtils::boardToFEN(board, currentTurn, chessEngine);
   String bestMove;
   String response = makeStockfishRequest(fen);
   if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
@@ -191,10 +190,10 @@ void ChessBot::executeBotMove(int fromRow, int fromCol, int toRow, int toCol) {
 
 void ChessBot::showBotThinking() {
   boardDriver->clearAllLEDs();
-  boardDriver->setSquareLED(0, 0, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
-  boardDriver->setSquareLED(0, 7, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
-  boardDriver->setSquareLED(7, 0, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
-  boardDriver->setSquareLED(7, 7, LedColors::BotThinking.r, LedColors::BotThinking.g, LedColors::BotThinking.b);
+  boardDriver->setSquareLED(0, 0, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+  boardDriver->setSquareLED(0, 7, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+  boardDriver->setSquareLED(7, 0, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+  boardDriver->setSquareLED(7, 7, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
   boardDriver->showLEDs();
 }
 
@@ -202,13 +201,13 @@ void ChessBot::showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toC
   boardDriver->clearAllLEDs();
 
   // Show source square (where to pick up from)
-  boardDriver->setSquareLED(fromRow, fromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
+  boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
 
   // Show destination square (where to place)
   if (isCapture)
-    boardDriver->setSquareLED(toRow, toCol, LedColors::AttackRed.r, LedColors::AttackRed.g, LedColors::AttackRed.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
   else
-    boardDriver->setSquareLED(toRow, toCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
 
   boardDriver->showLEDs();
 }
@@ -222,11 +221,11 @@ void ChessBot::waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int
 
   // Set LEDs once at the beginning to avoid flickering
   boardDriver->clearAllLEDs();
-  boardDriver->setSquareLED(fromRow, fromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
+  boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
   if (isCapture)
-    boardDriver->setSquareLED(toRow, toCol, LedColors::AttackRed.r, LedColors::AttackRed.g, LedColors::AttackRed.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
   else
-    boardDriver->setSquareLED(toRow, toCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
   boardDriver->showLEDs();
 
   while (!moveCompleted) {
@@ -268,10 +267,10 @@ void ChessBot::waitForBotCastlingCompletion(int kingFromRow, int kingFromCol, in
 
   // Set LEDs once at the beginning to avoid flickering
   boardDriver->clearAllLEDs();
-  boardDriver->setSquareLED(kingFromRow, kingFromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
-  boardDriver->setSquareLED(kingFromRow, rookFromCol, LedColors::PickupCyan.r, LedColors::PickupCyan.g, LedColors::PickupCyan.b);
-  boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
-  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::MoveWhite.r, LedColors::MoveWhite.g, LedColors::MoveWhite.b);
+  boardDriver->setSquareLED(kingFromRow, kingFromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
+  boardDriver->setSquareLED(kingFromRow, rookFromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
+  boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
   boardDriver->showLEDs();
 
   bool kingSourceEmpty = false;
