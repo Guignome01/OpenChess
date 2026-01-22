@@ -45,12 +45,11 @@ class ChessGame {
  public:
   virtual ~ChessGame() {}
 
-  // Pure virtual methods - must be implemented by derived classes
   virtual void begin() = 0;
   virtual void update() = 0;
 
-  // Set board state for editing/corrections
   void setBoardState(char newBoardState[8][8]);
+  bool isGameOver() const { return gameOver; }
 };
 
 #endif // CHESS_COMMON_H

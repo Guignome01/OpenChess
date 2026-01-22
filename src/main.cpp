@@ -121,21 +121,27 @@ void loop() {
     initializeSelectedMode(currentMode);
     modeInitialized = true;
   }
+
+  bool gameEnded = false;
   switch (currentMode) {
     case MODE_CHESS_MOVES:
-      chessMoves.update();
+      if (chessMoves.isGameOver())
+        showGameSelection();
+      else
+        chessMoves.update();
       break;
     case MODE_BOT:
-      if (chessBot != nullptr)
-        chessBot->update();
+      if (chessBot != nullptr) {
+        if (chessBot->isGameOver())
+          showGameSelection();
+        else
+          chessBot->update();
+      }
       break;
     case MODE_SENSOR_TEST:
       sensorTest.update();
       break;
     default:
-      // Should not reach here
-      currentMode = MODE_SELECTION;
-      modeInitialized = false;
       showGameSelection();
       break;
   }
@@ -148,6 +154,8 @@ void loop() {
 // ---------------------------
 
 void showGameSelection() {
+  currentMode = MODE_SELECTION;
+  modeInitialized = false;
   boardDriver.clearAllLEDs();
   // Light up the 3 selector positions in the middle of the board
   // Each mode has a different color for easy identification
@@ -249,10 +257,7 @@ void initializeSelectedMode(GameMode mode) {
       Serial.println("Starting 'Sensor Test'...");
       sensorTest.begin();
       break;
-
     default:
-      currentMode = MODE_SELECTION;
-      modeInitialized = false;
       showGameSelection();
       break;
   }
@@ -263,8 +268,8 @@ void handleBotConfigSelection() {
 
   Serial.println("====== Bot Configuration Selection ======");
   Serial.println("Select Bot Color:");
-  Serial.println("- Rank 6: Bot is Black)");
-  Serial.println("- Rank 3: Bot is White)");
+  Serial.println("- Rank 6: Bot is Black");
+  Serial.println("- Rank 3: Bot is White");
   Serial.println("Select Difficulty:");
   Serial.println("- File B: Easy");
   Serial.println("- File D: Medium");
