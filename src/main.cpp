@@ -36,7 +36,6 @@ bool modeInitialized = false;
 // ---------------------------
 void showGameSelection();
 void handleGameSelection();
-void showBotConfigSelection();
 void handleBotConfigSelection();
 void initializeSelectedMode(GameMode mode);
 
@@ -214,7 +213,7 @@ void handleGameSelection() {
           currentMode = MODE_BOT;
           modeInitialized = false;
           boardDriver.clearAllLEDs();
-          showBotConfigSelection();
+          handleBotConfigSelection();
           break;
         case 2:
           Serial.println("Mode: 'Sensor Test' Selected!");
@@ -259,25 +258,20 @@ void initializeSelectedMode(GameMode mode) {
   }
 }
 
-// Bot configuration selection functions
-void showBotConfigSelection() {
+void handleBotConfigSelection() {
   boardDriver.clearAllLEDs();
 
-  Serial.println("=== Bot Configuration Selection ===");
+  Serial.println("====== Bot Configuration Selection ======");
   Serial.println("Select Bot Color:");
-  Serial.println("Row 2 (any square): Play as White (bot is Black)");
-  Serial.println("Row 5 (any square): Play as Black (bot is White)");
-  Serial.println("");
+  Serial.println("- Rank 6: Bot is Black)");
+  Serial.println("- Rank 3: Bot is White)");
   Serial.println("Select Difficulty:");
-  Serial.println("Col 1: Easy");
-  Serial.println("Col 3: Medium");
-  Serial.println("Col 5: Hard");
-  Serial.println("Col 7: Expert");
-  Serial.println("");
-  Serial.println("Example: Place piece at row 2, col 3 = White + Medium");
+  Serial.println("- File B: Easy");
+  Serial.println("- File D: Medium");
+  Serial.println("- File F: Hard");
+  Serial.println("- File H: Expert");
+  Serial.println("Example: Place piece at Rank 3, File D = White Bot Medium");
 
-  // Only show LEDs for valid difficulty selections (don't light up all squares)
-  // Row 2 = Player plays White, Row 5 = Player plays Black
   // Easy (col 1) - Green
   boardDriver.setSquareLED(2, 1, 0, 255, 0);
   boardDriver.setSquareLED(5, 1, 0, 255, 0);
@@ -297,24 +291,22 @@ void showBotConfigSelection() {
   boardDriver.showLEDs();
 
   // Wait for selection
-  handleBotConfigSelection();
-}
-
-void handleBotConfigSelection() {
   Serial.println("Waiting for bot configuration selection...");
+
+  static bool prevState[2][8] = {};
+  bool firstLoop = true;
 
   while (true) {
     boardDriver.readSensors();
 
-    // Check rows 2 and 5 for selections
-    for (int row : {2, 5})
-      for (int col = 0; col < 8; col++)
-        if (boardDriver.getSensorState(row, col)) {
-          // Determine player color based on row
+    for (int rowIdx = 0; rowIdx < 2; ++rowIdx) {
+      int row = (rowIdx == 0) ? 2 : 5;
+      for (int col : {1, 3, 5, 7}) {
+        bool curr = boardDriver.getSensorState(row, col);
+        // Only accept selection if square was previously empty and is now occupied
+        if (!firstLoop && !prevState[rowIdx][col] && curr) {
           botConfig.playerIsWhite = (row == 2);
           const char* colorName = botConfig.playerIsWhite ? "White" : "Black";
-
-          // Determine difficulty based on column
           if (col == 1) {
             botConfig.stockfishSettings = StockfishSettings::easy();
             Serial.printf("Configuration: Play as %s, Easy difficulty\n", colorName);
@@ -327,15 +319,16 @@ void handleBotConfigSelection() {
           } else if (col == 7) {
             botConfig.stockfishSettings = StockfishSettings::expert();
             Serial.printf("Configuration: Play as %s, Expert difficulty\n", colorName);
-          } else {
-            Serial.println("Invalid column for difficulty selection. Please try again.");
-            continue;
           }
-
+          firstLoop = true;
           boardDriver.clearAllLEDs();
           return;
         }
+        prevState[rowIdx][col] = curr;
+      }
+    }
 
+    firstLoop = false;
     delay(SENSOR_READ_DELAY_MS);
   }
 }
