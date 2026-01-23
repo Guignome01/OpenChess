@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess Board</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h2>Chess Board</h2>
+
+        <!-- Edit mode instructions (above board, hidden on interaction) -->
+        <div class="status anim-panel" id="edit-instructions">
+            Drag pieces from the spare pieces area to the board, or drag pieces off the board to remove them
+        </div>
+
+        <!-- Chess board container -->
+        <div id="board" class="chessboard-container"></div>
+
+        <!-- Evaluation bar (hidden in edit mode) -->
+        <div class="info" id="eval-container">
+            <div class="eval-bar-container">
+                <div id="eval-bar"></div>
+                <div id="eval-text">--</div>
+            </div>
+        </div>
+
+        <!-- FEN display/edit section (shown in edit mode) -->
+        <div id="fen-section" class="config-panel anim-panel">
+            <div class="fen-container">
+                <input type="text" id="fen-input" readonly>
+                <button id="fen-copy-btn" class="fen-btn" title="Copy FEN">📋</button>
+                <button id="fen-edit-btn" class="fen-btn" title="Edit FEN">✏️</button>
+            </div>
+
+            <!-- Turn and Castling controls -->
+            <div class="game-options">
+                <div class="option-group">
+                    <label>Turn:</label>
+                    <div class="toggle-group">
+                        <button id="turn-white" class="toggle-btn active">White</button>
+                        <button id="turn-black" class="toggle-btn">Black</button>
+                    </div>
+                </div>
+                <div class="option-group">
+                    <label>Castling:</label>
+                    <div class="castling-toggles">
+                        <button id="castle-K" class="castle-btn active" title="White King-side">K</button>
+                        <button id="castle-Q" class="castle-btn active" title="White Queen-side">Q</button>
+                        <button id="castle-k" class="castle-btn active" title="Black King-side">k</button>
+                        <button id="castle-q" class="castle-btn active" title="Black Queen-side">q</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit controls -->
+            <div class="controls">
+                <button id="sync-btn" class="button" style="background-color: #6c757d;">⟳ Sync</button>
+                <button id="start-btn" class="button" style="background-color: #17a2b8;">↻ Reset</button>
+                <button id="clear-btn" class="button" style="background-color: #dc3545;">✕ Clear</button>
+            </div>
+
+            <!-- Apply button to send to server -->
+            <button id="apply-btn" class="button" style="background-color: #28a745;">✓ Apply Changes</button>
+        </div>
+
+        <!-- Mode toggle button -->
+        <button id="modeToggleBtn" class="button">Edit Board</button>
+
+        <a href="/" class="back-button">OpenChess Home</a>
+    </div>
+
+    <script>
+        // State variables
+        let board = null;
+        let editMode = false;
+        let currentTurn = 'w';
+        let castlingRights = { K: true, Q: true, k: true, q: true };
+        let previousValidFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+        let isEditingFen = false;
+        let updateInterval = null;
+
+        // Custom piece theme using local SVG files
+        function pieceTheme(piece) {
+            return '/pieces/' + piece + '.svg';
+        }
+
+        // Initialize the board in view mode
+        function initBoard() {
+            const config = {
+                draggable: false,
+                position: 'start',
+                pieceTheme: pieceTheme,
+                showNotation: true
+            };
+            board = Chessboard('board', config);
+            $(window).on('resize', board.resize);
+        }
+
+        // Switch to edit mode
+        function enableEditMode() {
+            editMode = true;
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+
+            const currentPosition = board.position();
+
+            board.destroy();
+            board = Chessboard('board', {
+                draggable: true,
+                dropOffBoard: 'trash',
+                sparePieces: true,
+                position: currentPosition,
+                pieceTheme: pieceTheme,
+                showNotation: true,
+                onChange: onBoardChange
+            });
+
+            // Prevent page scrolling when dragging pieces on touch devices
+            $('#board').on('touchmove', function (e) {
+                if ($(e.target).closest('.piece-417db').length) {
+                    e.preventDefault();
+                }
+            });
+
+            $('#modeToggleBtn').text('View Board');
+            $('#eval-container').hide();
+            $('#edit-instructions').addClass('visible');
+            $('#fen-section').addClass('visible');
+
+            updateFenDisplay();
+        }
+
+        // Switch to view mode
+        function enableViewMode() {
+            editMode = false;
+
+            const currentPosition = board.position();
+
+            board.destroy();
+            board = Chessboard('board', {
+                draggable: false,
+                position: currentPosition,
+                pieceTheme: pieceTheme,
+                showNotation: true
+            });
+
+            $('#board').off('touchmove');
+
+            $('#modeToggleBtn').text('Edit Board');
+            $('#eval-container').show();
+            $('#edit-instructions').removeClass('visible');
+            $('#fen-section').removeClass('visible');
+
+            // Resume polling
+            startPolling();
+        }
+
+        // Board change handler - immediately update FEN display after any board change
+        function onBoardChange(oldPos, newPos) {
+            // Hide instructions when board is interacted with
+            $('#edit-instructions').removeClass('visible');
+            // Use setTimeout to ensure board.fen() returns updated position
+            setTimeout(updateFenDisplay, 0);
+        }
+
+        // Generate full FEN from board position and game state
+        function getFullFen() {
+            const positionFen = board.fen();
+            const turn = currentTurn;
+
+            let castling = '';
+            if (castlingRights.K) castling += 'K';
+            if (castlingRights.Q) castling += 'Q';
+            if (castlingRights.k) castling += 'k';
+            if (castlingRights.q) castling += 'q';
+            if (castling === '') castling = '-';
+
+            return positionFen + ' ' + turn + ' ' + castling + ' - 0 1';
+        }
+
+        // Parse full FEN and update UI state
+        function parseFullFen(fen) {
+            const parts = fen.trim().split(/\s+/);
+            if (parts.length < 1) return false;
+
+            const positionFen = parts[0];
+
+            if (!isValidPositionFen(positionFen)) return false;
+
+            board.position(positionFen, false);
+            previousValidFen = positionFen;
+
+            if (parts.length >= 2) {
+                currentTurn = parts[1] === 'b' ? 'b' : 'w';
+                updateTurnButtons();
+            }
+
+            if (parts.length >= 3) {
+                const castleStr = parts[2];
+                castlingRights = {
+                    K: castleStr.includes('K'),
+                    Q: castleStr.includes('Q'),
+                    k: castleStr.includes('k'),
+                    q: castleStr.includes('q')
+                };
+                updateCastlingButtons();
+            }
+
+            return true;
+        }
+
+        // Validate position FEN (just the board part)
+        function isValidPositionFen(fen) {
+            if (!fen || typeof fen !== 'string') return false;
+
+            const ranks = fen.split('/');
+            if (ranks.length !== 8) return false;
+
+            const validPieces = 'prnbqkPRNBQK';
+
+            for (const rank of ranks) {
+                let squares = 0;
+                for (const char of rank) {
+                    if (char >= '1' && char <= '8') {
+                        squares += parseInt(char);
+                    } else if (validPieces.includes(char)) {
+                        squares += 1;
+                    } else {
+                        return false;
+                    }
+                }
+                if (squares !== 8) return false;
+            }
+
+            return true;
+        }
+
+        // Helper function to get piece at a specific square
+        function getPieceAt(fen, file, rank) {
+            // file: 0-7 (a-h), rank: 0-7 (8-1 in chess notation)
+            const ranks = fen.split('/');
+            if (rank < 0 || rank > 7) return null;
+
+            const rankStr = ranks[rank];
+            let fileIndex = 0;
+
+            for (const char of rankStr) {
+                if (char >= '1' && char <= '8') {
+                    fileIndex += parseInt(char);
+                } else {
+                    if (fileIndex === file) return char;
+                    fileIndex++;
+                }
+            }
+            return null;
+        }
+
+        // Validate chess position is legal (both kings present, valid king count, castling, en passant, etc.)
+        function isLegalPosition(fullFen) {
+            const parts = fullFen.trim().split(/\s+/);
+            if (parts.length < 4) return { valid: false, error: 'Incomplete FEN notation' };
+
+            const fen = parts[0];
+            const turn = parts[1];
+            const castling = parts[2];
+            const enPassant = parts[3];
+
+            if (!isValidPositionFen(fen)) return { valid: false, error: 'Invalid FEN format' };
+
+            const position = fen.split('/').join('');
+
+            // Count pieces
+            const whiteKings = (position.match(/K/g) || []).length;
+            const blackKings = (position.match(/k/g) || []).length;
+            const whiteQueens = (position.match(/Q/g) || []).length;
+            const blackQueens = (position.match(/q/g) || []).length;
+            const whiteRooks = (position.match(/R/g) || []).length;
+            const blackRooks = (position.match(/r/g) || []).length;
+            const whiteBishops = (position.match(/B/g) || []).length;
+            const blackBishops = (position.match(/b/g) || []).length;
+            const whiteKnights = (position.match(/N/g) || []).length;
+            const blackKnights = (position.match(/n/g) || []).length;
+            const whitePawns = (position.match(/P/g) || []).length;
+            const blackPawns = (position.match(/p/g) || []).length;
+
+            // Must have exactly one king per side
+            if (whiteKings !== 1) return { valid: false, error: 'White must have exactly one king' };
+            if (blackKings !== 1) return { valid: false, error: 'Black must have exactly one king' };
+
+            // Check max pieces (accounting for promotions: 8 pawns can become other pieces)
+            if (whiteQueens > 9) return { valid: false, error: 'Too many white queens' };
+            if (blackQueens > 9) return { valid: false, error: 'Too many black queens' };
+            if (whiteRooks > 10) return { valid: false, error: 'Too many white rooks' };
+            if (blackRooks > 10) return { valid: false, error: 'Too many black rooks' };
+            if (whiteBishops > 10) return { valid: false, error: 'Too many white bishops' };
+            if (blackBishops > 10) return { valid: false, error: 'Too many black bishops' };
+            if (whiteKnights > 10) return { valid: false, error: 'Too many white knights' };
+            if (blackKnights > 10) return { valid: false, error: 'Too many black knights' };
+            if (whitePawns > 8) return { valid: false, error: 'Too many white pawns' };
+            if (blackPawns > 8) return { valid: false, error: 'Too many black pawns' };
+
+            // Check total piece count (max 16 per side)
+            const whitePieces = whiteKings + whiteQueens + whiteRooks + whiteBishops + whiteKnights + whitePawns;
+            const blackPieces = blackKings + blackQueens + blackRooks + blackBishops + blackKnights + blackPawns;
+            if (whitePieces > 16) return { valid: false, error: 'Too many white pieces' };
+            if (blackPieces > 16) return { valid: false, error: 'Too many black pieces' };
+
+            // Check pawns not on first or last rank
+            const ranks = fen.split('/');
+            if (ranks[0].match(/[Pp]/) || ranks[7].match(/[Pp]/)) {
+                return { valid: false, error: 'Pawns cannot be on the first or last rank' };
+            }
+
+            // Validate turn
+            if (turn !== 'w' && turn !== 'b') {
+                return { valid: false, error: 'Turn must be "w" or "b"' };
+            }
+
+            // Validate castling rights
+            if (castling !== '-' && !/^[KQkq]{1,4}$/.test(castling)) {
+                return { valid: false, error: 'Invalid castling rights format' };
+            }
+
+            // Check castling rights consistency with piece positions
+            if (castling.includes('K')) {
+                // White kingside: King on e1, Rook on h1
+                if (getPieceAt(fen, 4, 7) !== 'K') {
+                    return { valid: false, error: 'White kingside castling requires king on e1' };
+                }
+                if (getPieceAt(fen, 7, 7) !== 'R') {
+                    return { valid: false, error: 'White kingside castling requires rook on h1' };
+                }
+            }
+            if (castling.includes('Q')) {
+                // White queenside: King on e1, Rook on a1
+                if (getPieceAt(fen, 4, 7) !== 'K') {
+                    return { valid: false, error: 'White queenside castling requires king on e1' };
+                }
+                if (getPieceAt(fen, 0, 7) !== 'R') {
+                    return { valid: false, error: 'White queenside castling requires rook on a1' };
+                }
+            }
+            if (castling.includes('k')) {
+                // Black kingside: King on e8, Rook on h8
+                if (getPieceAt(fen, 4, 0) !== 'k') {
+                    return { valid: false, error: 'Black kingside castling requires king on e8' };
+                }
+                if (getPieceAt(fen, 7, 0) !== 'r') {
+                    return { valid: false, error: 'Black kingside castling requires rook on h8' };
+                }
+            }
+            if (castling.includes('q')) {
+                // Black queenside: King on e8, Rook on a8
+                if (getPieceAt(fen, 4, 0) !== 'k') {
+                    return { valid: false, error: 'Black queenside castling requires king on e8' };
+                }
+                if (getPieceAt(fen, 0, 0) !== 'r') {
+                    return { valid: false, error: 'Black queenside castling requires rook on a8' };
+                }
+            }
+
+            // Validate en passant square
+            if (enPassant !== '-') {
+                if (!/^[a-h][36]$/.test(enPassant)) {
+                    return { valid: false, error: 'En passant square must be on rank 3 or 6' };
+                }
+
+                const file = enPassant.charCodeAt(0) - 'a'.charCodeAt(0);
+                const rank = enPassant[1];
+
+                // If en passant is on rank 3, it's white's turn and there should be a black pawn on rank 4
+                if (rank === '3') {
+                    if (turn !== 'w') {
+                        return { valid: false, error: 'En passant on rank 3 requires white to move' };
+                    }
+                    const pawnPiece = getPieceAt(fen, file, 4); // rank 4 (index 4)
+                    if (pawnPiece !== 'p') {
+                        return { valid: false, error: 'En passant on rank 3 requires black pawn on rank 4' };
+                    }
+                }
+                // If en passant is on rank 6, it's black's turn and there should be a white pawn on rank 5
+                else if (rank === '6') {
+                    if (turn !== 'b') {
+                        return { valid: false, error: 'En passant on rank 6 requires black to move' };
+                    }
+                    const pawnPiece = getPieceAt(fen, file, 3); // rank 5 (index 3)
+                    if (pawnPiece !== 'P') {
+                        return { valid: false, error: 'En passant on rank 6 requires white pawn on rank 5' };
+                    }
+                }
+            }
+
+            return { valid: true, error: null };
+        }
+
+        // Update FEN input display
+        function updateFenDisplay() {
+            if (!isEditingFen) {
+                $('#fen-input').val(getFullFen());
+            }
+        }
+
+        // Update turn toggle buttons
+        function updateTurnButtons() {
+            if (currentTurn === 'w') {
+                $('#turn-white').addClass('active');
+                $('#turn-black').removeClass('active');
+            } else {
+                $('#turn-white').removeClass('active');
+                $('#turn-black').addClass('active');
+            }
+        }
+
+        // Update castling toggle buttons
+        function updateCastlingButtons() {
+            ['K', 'Q', 'k', 'q'].forEach(right => {
+                if (castlingRights[right]) {
+                    $('#castle-' + right).addClass('active');
+                } else {
+                    $('#castle-' + right).removeClass('active');
+                }
+            });
+        }
+
+        // Update evaluation bar
+        function updateEvaluationBar(evalValue) {
+            const evalInPawns = evalValue.toFixed(2);
+            const maxEval = 10;
+            const clampedEval = Math.max(-maxEval, Math.min(maxEval, evalValue));
+            const whitePercentage = ((clampedEval + maxEval) / (maxEval * 2)) * 100;
+
+            const bar = document.getElementById('eval-bar');
+            const text = document.getElementById('eval-text');
+
+            bar.style.width = whitePercentage + '%';
+
+            let evalText = '';
+            let textColor = '#A0A0A0';
+
+            if (evalValue > 0.5) {
+                evalText = '+' + evalInPawns;
+                textColor = '#000000';
+            } else if (evalValue < -0.5) {
+                evalText = evalInPawns;
+                textColor = '#FFFFFF';
+            } else {
+                evalText = evalInPawns;
+                textColor = '#A0A0A0';
+            }
+
+            text.textContent = evalText;
+            text.style.color = textColor;
+        }
+
+        // Fetch board state from server
+        function fetchBoardState() {
+            if (editMode) return;
+
+            fetch('/board-update')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.fen) {
+                        const parts = data.fen.trim().split(/\s+/);
+                        if (parts.length >= 1 && isValidPositionFen(parts[0])) {
+                            board.position(parts[0], false);
+                        }
+                    }
+                    if (data.evaluation !== undefined) {
+                        updateEvaluationBar(data.evaluation);
+                    }
+                })
+                .catch(error => {
+                    console.log('Fetch failed:', error);
+                });
+        }
+
+        // Start polling for updates
+        function startPolling() {
+            if (updateInterval) clearInterval(updateInterval);
+            fetchBoardState();
+            updateInterval = setInterval(fetchBoardState, 500);
+        }
+
+        // Send edited board to server
+        function applyChanges() {
+            const fen = getFullFen();
+
+            // Validate position before sending (pass full FEN for complete validation)
+            const validation = isLegalPosition(fen);
+            if (!validation.valid) {
+                alert('Invalid position: ' + validation.error);
+                return;
+            }
+
+            fetch('/board-update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'fen=' + encodeURIComponent(fen)
+            })
+                .then(response => {
+                    if (response.ok) {
+                        enableViewMode();
+                    } else {
+                        alert('Failed to apply changes. Please try again.');
+                    }
+                })
+                .catch(error => {
+                    alert('Network error while applying changes.');
+                });
+        }
+
+        // Copy FEN to clipboard
+        function copyFen() {
+            const fenText = $('#fen-input').val();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(fenText).then(function () {
+                    const btn = $('#fen-copy-btn');
+                    btn.text('✓');
+                    setTimeout(function () { btn.text('📋'); }, 1000);
+                }).catch(function () {
+                    fallbackCopy(fenText);
+                });
+            } else {
+                fallbackCopy(fenText);
+            }
+        }
+
+        // Fallback copy method
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                const btn = $('#fen-copy-btn');
+                btn.text('✓');
+                setTimeout(function () { btn.text('📋'); }, 1000);
+            } catch (e) {
+                alert('Failed to copy. Please select and copy manually.');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Toggle FEN editing
+        let fenBeforeEdit = '';
+        function toggleFenEdit() {
+            const fenInput = $('#fen-input');
+            const editBtn = $('#fen-edit-btn');
+
+            if (isEditingFen) {
+                const newFen = fenInput.val();
+                if (parseFullFen(newFen)) {
+                    isEditingFen = false;
+                    fenInput.prop('readonly', true);
+                    editBtn.text('✏️');
+                    updateFenDisplay();
+                } else {
+                    alert('Invalid FEN notation. Reverting to previous position.');
+                    parseFullFen(fenBeforeEdit);
+                    isEditingFen = false;
+                    fenInput.prop('readonly', true);
+                    editBtn.text('✏️');
+                    updateFenDisplay();
+                }
+            } else {
+                fenBeforeEdit = getFullFen();
+                isEditingFen = true;
+                fenInput.prop('readonly', false);
+                fenInput.focus();
+                editBtn.text('✅');
+            }
+        }
+
+        // Sync board from server
+        function syncFromServer() {
+            fetch('/board-update')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.fen) {
+                        parseFullFen(data.fen);
+                        updateFenDisplay();
+                    }
+                })
+                .catch(error => {
+                    alert('Failed to sync from server.');
+                });
+        }
+
+        // Event handlers
+        $(document).ready(function () {
+            initBoard();
+            startPolling();
+
+            $('#modeToggleBtn').on('click', function () {
+                if (editMode) {
+                    enableViewMode();
+                } else {
+                    enableEditMode();
+                }
+            });
+
+            $('#turn-white').on('click', function () {
+                currentTurn = 'w';
+                updateTurnButtons();
+                updateFenDisplay();
+            });
+
+            $('#turn-black').on('click', function () {
+                currentTurn = 'b';
+                updateTurnButtons();
+                updateFenDisplay();
+            });
+
+            ['K', 'Q', 'k', 'q'].forEach(function (right) {
+                $('#castle-' + right).on('click', function () {
+                    castlingRights[right] = !castlingRights[right];
+                    $(this).toggleClass('active');
+                    updateFenDisplay();
+                });
+            });
+
+            $('#sync-btn').on('click', syncFromServer);
+
+            $('#start-btn').on('click', function () {
+                board.start();
+                currentTurn = 'w';
+                castlingRights = { K: true, Q: true, k: true, q: true };
+                updateTurnButtons();
+                updateCastlingButtons();
+                updateFenDisplay();
+            });
+
+            $('#clear-btn').on('click', function () {
+                if (confirm('Clear all pieces from the board?')) {
+                    board.clear();
+                    updateFenDisplay();
+                }
+            });
+
+            $('#fen-copy-btn').on('click', copyFen);
+            $('#fen-edit-btn').on('click', toggleFenEdit);
+
+            $('#fen-input').on('keypress', function (e) {
+                if (e.which === 13 && isEditingFen) {
+                    toggleFenEdit();
+                }
+            });
+
+            $('#apply-btn').on('click', applyChanges);
+        });
+    </script>
+</body>
+
+</html>

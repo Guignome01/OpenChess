@@ -3,8 +3,7 @@
 #include "web_pages.h"
 
 static const Page pages[] = {
-  { "/board-edit.html", BOARD_EDIT_HTML_GZ, BOARD_EDIT_HTML_GZ_LEN, "text/html", true },
-  { "/board-view.html", BOARD_VIEW_HTML_GZ, BOARD_VIEW_HTML_GZ_LEN, "text/html", true },
+  { "/board.html", BOARD_HTML_GZ, BOARD_HTML_GZ_LEN, "text/html", true },
   { "/game.html", GAME_HTML_GZ, GAME_HTML_GZ_LEN, "text/html", true },
   { "/", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN, "text/html", true },
   { "/pieces/bB.svg", BB_SVG_GZ, BB_SVG_GZ_LEN, "image/svg+xml", true },

@@ -49,6 +49,7 @@ class ChessGame {
   virtual void update() = 0;
 
   void setBoardState(char newBoardState[8][8]);
+  void setBoardStateFromFEN(const String& fen);
   bool isGameOver() const { return gameOver; }
 };
 

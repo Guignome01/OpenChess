@@ -22,6 +22,7 @@ h2 {
     text-align: center;
     color: #ec8703;
     font-size: 30px;
+    margin-top: 0;
     margin-bottom: 30px;
 }
 
@@ -162,106 +163,152 @@ input[type="submit"]:hover,
     opacity: 0.8;
 }
 
-.board {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 0;
-    border: 3px solid #ec8703;
-    width: 480px;
-    height: 480px;
-    margin: 0 auto;
-}
-
-.square {
-    position: relative;
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 40px;
-    font-weight: bold;
-}
-
-.square.light {
-    background-color: #f0d9b5;
-}
-
-.square.dark {
-    background-color: #b58863;
-}
-
-.square .piece {
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.square .piece.white {
-    color: #ffffff;
-}
-
-.square .piece.black {
-    color: #000000;
-}
-
-.square:hover {
-    background-color: #ec8703 !important;
-    opacity: 0.8;
-}
-
-.square select {
+/* Chessboard.js container */
+.chessboard-container {
     width: 100%;
-    height: 100%;
-    border: none;
-    background: transparent;
-    font-size: 40px;
-    text-align: center;
-    cursor: pointer;
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    padding: 0;
-    margin: 0;
-    line-height: 60px;
-    vertical-align: middle;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
+    max-width: 100%;
+    margin: 0 auto 10px auto;
+    touch-action: none;
 }
 
-.square .select-symbol {
-    position: absolute;
-    inset: 0;
+/* Config panel (used for fen-section and botConfigPanel) */
+.config-panel {
+    border: 2px solid #4CAF50;
+    border-radius: 10px;
+    background-color: #3a3939;
+}
+
+/* Animation for panels - use !important to override config-panel defaults */
+.anim-panel {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease, padding 0.3s ease, border-width 0.3s ease;
+    margin: 0 !important;
+    padding: 0 15px !important;
+    border-width: 0 !important;
+}
+
+.anim-panel.visible {
+    max-height: 600px;
+    opacity: 1;
+    margin-top: 15px !important;
+    padding: 15px !important;
+    border-width: 2px !important;
+}
+
+/* FEN input container */
+.fen-container {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+    align-items: center;
+}
+
+.fen-container input[type="text"] {
+    flex: 1;
+    margin: 0;
+    font-family: monospace;
+    font-size: 12px;
+    padding: 10px;
+}
+
+.fen-btn {
+    background-color: #555;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    font-size: 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 50px;
+}
+
+.fen-btn:hover {
+    background-color: #777;
+}
+
+/* Game options (turn and castling) */
+.game-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 15px;
+    padding: 15px;
+    background-color: #444;
+    border-radius: 10px;
+}
+
+.option-group {
     display: flex;
     align-items: center;
-    justify-content: center;
-    font-size: 40px;
-    pointer-events: none;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    gap: 15px;
 }
 
-.square select optgroup {
-    background: #777;
-    color: #ec8703;
-    font-size: 18px;
+.option-group label {
+    font-size: 16px;
+    margin: 0;
+    min-width: 80px;
+}
+
+.toggle-group {
+    display: flex;
+    gap: 10px;
+}
+
+.toggle-btn {
+    background-color: #555;
+    color: white;
+    border: 2px solid #666;
+    padding: 8px 20px;
+    font-size: 14px;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.toggle-btn:hover {
+    background-color: #666;
+}
+
+.toggle-btn.active {
+    background-color: #ec8703;
+    border-color: #ec8703;
+}
+
+.castling-toggles {
+    display: flex;
+    gap: 8px;
+}
+
+.castle-btn {
+    background-color: #555;
+    color: white;
+    border: 2px solid #666;
+    padding: 8px 15px;
+    font-size: 14px;
     font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 40px;
 }
 
-.square select option {
-    background: #888;
-    color: #e0e0e0;
-    padding: 8px;
-    font-size: 18px;
-    text-align: center;
+.castle-btn:hover {
+    background-color: #666;
 }
 
-.square select:focus {
-    outline: 2px solid #ec8703;
+.castle-btn.active {
+    background-color: #4CAF50;
+    border-color: #4CAF50;
 }
 
 .controls {
     display: flex;
     gap: 10px;
-    margin-top: 20px;
-    margin-bottom: 30px;
+    margin-bottom: 15px;
 }
 
 .controls .button {
@@ -290,23 +337,6 @@ input[type="submit"]:hover,
     padding: 10px;
     background-color: #444;
     border-radius: 20px;
-    max-height: 100px;
-    transition: opacity 1.2s ease, transform 1.2s ease, max-height 1.2s ease, margin 1.2s ease, padding 1.2s ease;
-    overflow: hidden;
-    transform: translateY(0);
-}
-
-.status--hidden {
-    opacity: 0;
-    transform: translateY(-10px);
-    max-height: 0;
-    margin: 0 auto;
-    padding: 0;
-    pointer-events: none;
-}
-
-.state-display-invalid {
-    color: #F44336;
 }
 
 .eval-bar-container {

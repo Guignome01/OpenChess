@@ -38,13 +38,13 @@ void ChessBot::update() {
     if (tryPlayerMove(currentTurn, fromRow, fromCol, toRow, toCol, piece)) {
       processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
       updateGameStatus();
-      wifiManager->updateBoardState(board, currentEvaluation);
+      wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), currentEvaluation);
     }
   } else {
     // Bot's turn
     makeBotMove();
     updateGameStatus();
-    wifiManager->updateBoardState(board, currentEvaluation);
+    wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), currentEvaluation);
   }
 
   boardDriver->updateSensorPrev();
@@ -115,9 +115,8 @@ bool ChessBot::parseStockfishResponse(String response, String& bestMove, float& 
 void ChessBot::makeBotMove() {
   Serial.println("=== BOT MOVE CALCULATION ===");
   showBotThinking();
-  String fen = ChessUtils::boardToFEN(board, currentTurn, chessEngine);
   String bestMove;
-  String response = makeStockfishRequest(fen);
+  String response = makeStockfishRequest(ChessUtils::boardToFEN(board, currentTurn, chessEngine));
   if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
     Serial.println("=== STOCKFISH EVALUATION ===");
     Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation > 0 ? "White" : "Black", currentEvaluation);

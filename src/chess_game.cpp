@@ -311,6 +311,15 @@ void ChessGame::setBoardState(char newBoardState[8][8]) {
   ChessUtils::printBoard(board);
 }
 
+void ChessGame::setBoardStateFromFEN(const String& fen) {
+  ChessUtils::fenToBoard(fen, board, currentTurn, chessEngine);
+  // Update sensor previous state to match new board
+  boardDriver->readSensors();
+  boardDriver->updateSensorPrev();
+  Serial.println("Board state set from FEN: " + fen);
+  ChessUtils::printBoard(board);
+}
+
 void ChessGame::recomputeCastlingRightsFromBoard() {
   uint8_t rights = 0;
 

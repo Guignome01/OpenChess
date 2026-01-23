@@ -4,7 +4,9 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
-WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd) : boardDriver(bd), server(AP_PORT), wifiSSID(SECRET_SSID), wifiPassword(SECRET_PASS), gameMode("0"), botConfig(), boardStateValid(false), hasPendingEdit(false), boardEvaluation(0.0f) {}
+static const char* INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd) : boardDriver(bd), server(AP_PORT), wifiSSID(SECRET_SSID), wifiPassword(SECRET_PASS), gameMode("0"), botConfig(), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
 
 void WiFiManagerESP32::begin() {
   Serial.println("=== Starting OpenChess WiFi Manager (ESP32) ===");
@@ -38,9 +40,9 @@ void WiFiManagerESP32::begin() {
   Serial.println("=====================================");
 
   // Set up web server routes with async handlers
-  server.on("/board", HTTP_GET, [this](AsyncWebServerRequest* request) { request->send(200, "application/json", this->getBoardUpdateJSON()); });
+  server.on("/board-update", HTTP_GET, [this](AsyncWebServerRequest* request) { request->send(200, "application/json", this->getBoardUpdateJSON()); });
+  server.on("/board-update", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBoardEditSuccess(request); });
   server.on("/wifi-info", HTTP_GET, [this](AsyncWebServerRequest* request) { request->send(200, "application/json", this->getWiFiInfoJSON()); });
-  server.on("/board-edit", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBoardEditSuccess(request); });
   server.on("/connect-wifi", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleConnectWiFi(request); });
   server.on("/gameselect", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleGameSelection(request); });
   server.onNotFound([](AsyncWebServerRequest* request) {
@@ -65,23 +67,7 @@ void WiFiManagerESP32::begin() {
 }
 
 String WiFiManagerESP32::getBoardUpdateJSON() {
-  String resp = "{\"board\":[";
-  for (int row = 0; row < 8; row++) {
-    resp += "[";
-    for (int col = 0; col < 8; col++) {
-      char piece = boardStateValid ? boardState[row][col] : ' ';
-      if (piece == ' ')
-        resp += "\"\"";
-      else
-        resp += "\"" + String(piece) + "\"";
-      if (col < 7)
-        resp += ",";
-    }
-    resp += "]";
-    if (row < 7)
-      resp += ",";
-  }
-  resp += "],\"valid\":" + String(boardStateValid ? "true" : "false");
+  String resp = "{\"fen\":\"" + currentFen + "\"";
   resp += ",\"evaluation\":" + String(boardEvaluation, 2) + "}";
   return resp;
 }
@@ -91,22 +77,15 @@ String WiFiManagerESP32::getWiFiInfoJSON() {
 }
 
 void WiFiManagerESP32::handleBoardEditSuccess(AsyncWebServerRequest* request) {
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++) {
-      String paramName = "r" + String(row) + "c" + String(col);
-      if (request->hasArg(paramName.c_str())) {
-        String value = request->arg(paramName.c_str());
-        if (value.length() > 0)
-          pendingBoardEdit[row][col] = value.charAt(0);
-        else
-          pendingBoardEdit[row][col] = ' ';
-      } else {
-        pendingBoardEdit[row][col] = ' ';
-      }
-    }
-  hasPendingEdit = true;
-  Serial.println("Board edit received and stored");
-  request->send(200, "text/plain", "OK");
+  if (request->hasArg("fen")) {
+    pendingFenEdit = request->arg("fen");
+    hasPendingEdit = true;
+    Serial.println("Board edit received (FEN): " + pendingFenEdit);
+    request->send(200, "text/plain", "OK");
+  } else {
+    Serial.println("Board edit failed: no FEN parameter");
+    request->send(400, "text/plain", "Missing FEN parameter");
+  }
 }
 
 void WiFiManagerESP32::handleConnectWiFi(AsyncWebServerRequest* request) {
@@ -171,26 +150,21 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
   request->send(200, "text/plain", "OK");
 }
 
-void WiFiManagerESP32::updateBoardState(char newBoardState[8][8], float evaluation) {
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++)
-      boardState[row][col] = newBoardState[row][col];
-  boardStateValid = true;
+void WiFiManagerESP32::updateBoardState(const String& fen, float evaluation) {
+  currentFen = fen;
   boardEvaluation = evaluation;
 }
 
-bool WiFiManagerESP32::getPendingBoardEdit(char editBoard[8][8]) {
+bool WiFiManagerESP32::getPendingBoardEdit(String& fenOut) {
   if (hasPendingEdit) {
-    for (int row = 0; row < 8; row++)
-      for (int col = 0; col < 8; col++)
-        editBoard[row][col] = pendingBoardEdit[row][col];
+    fenOut = pendingFenEdit;
     return true;
   }
   return false;
 }
 
 void WiFiManagerESP32::clearPendingEdit() {
-  updateBoardState(pendingBoardEdit, boardEvaluation);
+  currentFen = pendingFenEdit;
   hasPendingEdit = false;
 }
 

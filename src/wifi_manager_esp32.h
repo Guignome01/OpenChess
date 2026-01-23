@@ -43,12 +43,11 @@ class WiFiManagerESP32 {
 
   // Board state storage
   BoardDriver* boardDriver;
-  char boardState[8][8];
-  bool boardStateValid;
+  String currentFen; // Current board state in FEN notation
   float boardEvaluation;
 
   // Board edit storage (pending edits from web interface)
-  char pendingBoardEdit[8][8];
+  String pendingFenEdit;
   bool hasPendingEdit;
 
   // Web interface methods
@@ -70,12 +69,12 @@ class WiFiManagerESP32 {
   void resetGameSelection() { gameMode = "0"; };
   // Bot configuration
   BotConfig getBotConfig() { return botConfig; }
-  // Board state management
-  void updateBoardState(char newBoardState[8][8], float evaluation = 0.0f);
-  bool hasValidBoardState() { return boardStateValid; }
+  // Board state management (FEN-based)
+  void updateBoardState(const String& fen, float evaluation = 0.0f);
+  String getCurrentFen() { return currentFen; }
   float getEvaluation() { return boardEvaluation; }
-  // Board edit management
-  bool getPendingBoardEdit(char editBoard[8][8]);
+  // Board edit management (FEN-based)
+  bool getPendingBoardEdit(String& fenOut);
   void clearPendingEdit();
   // WiFi connection management
   bool connectToWiFi(String ssid, String password, bool fromWeb = false);

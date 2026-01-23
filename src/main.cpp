@@ -67,16 +67,16 @@ void setup() {
 }
 
 void loop() {
-  // Check for pending board edits from WiFi
-  char editBoard[8][8];
-  if (wifiManager.getPendingBoardEdit(editBoard)) {
+  // Check for pending board edits from WiFi (FEN-based)
+  String editFen;
+  if (wifiManager.getPendingBoardEdit(editFen)) {
     Serial.println("Applying board edit from WiFi interface...");
 
     if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
-      chessMoves.setBoardState(editBoard);
+      chessMoves.setBoardStateFromFEN(editFen);
       Serial.println("Board edit applied to Chess Moves mode");
     } else if (currentMode == MODE_BOT && modeInitialized && chessBot != nullptr) {
-      chessBot->setBoardState(editBoard);
+      chessBot->setBoardStateFromFEN(editFen);
       Serial.println("Board edit applied to Chess Bot mode");
     } else {
       Serial.println("Warning: Board edit received but no active game mode");

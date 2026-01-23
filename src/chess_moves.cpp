@@ -21,7 +21,7 @@ void ChessMoves::update() {
   if (tryPlayerMove(currentTurn, fromRow, fromCol, toRow, toCol, piece)) {
     processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
     updateGameStatus();
-    wifiManager->updateBoardState(board, ChessUtils::evaluatePosition(board));
+    wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
   }
 
   boardDriver->updateSensorPrev();

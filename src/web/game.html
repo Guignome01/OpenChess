@@ -28,8 +28,7 @@
         </div>
 
         <!-- Bot Configuration Panel (hidden by default) -->
-        <div id="botConfigPanel"
-            style="display: none; margin-top: 20px; padding: 20px; border: 2px solid #4CAF50; border-radius: 10px;">
+        <div id="botConfigPanel" class="config-panel anim-panel">
             <h3>Bot Configuration</h3>
 
             <div style="margin-bottom: 15px;">
@@ -60,16 +59,16 @@
             </button>
         </div>
 
-        <a href="/board-view" class="button">View Board</a>
+        <a href="/board" class="button">View Board</a>
         <a href="/" class="back-button">OpenChess Home</a>
     </div>
     <script>
         function showBotConfig() {
-            document.getElementById('botConfigPanel').style.display = 'block';
+            document.getElementById('botConfigPanel').classList.add('visible');
         }
 
         function hideBotConfig() {
-            document.getElementById('botConfigPanel').style.display = 'none';
+            document.getElementById('botConfigPanel').classList.remove('visible');
         }
 
         function selectGame(mode) {
@@ -85,7 +84,7 @@
                     body: requestBody
                 }).then(response => response.text()).then(data => {
                     if (mode != 3) // Don't redirect for sensor test
-                        window.location.href = "/board-view";
+                        window.location.href = "/board";
                 }).catch(error => {
                     console.error('Error:', error);
                     alert('Failed to select game mode. Please try again.');
