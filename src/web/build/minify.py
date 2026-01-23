@@ -66,4 +66,13 @@ else:
         else:
             shutil.copy(f, out)
 
+    # Copy directories recursively (e.g., pieces folder with SVG files)
+    for d in SRC.iterdir():
+        if d.is_dir() and d.name != "build":
+            dst_dir = DST / d.name
+            if dst_dir.exists():
+                shutil.rmtree(dst_dir)
+            shutil.copytree(d, dst_dir)
+            print(f"Copied directory: {d.name}")
+
     print("Web assets minified")

@@ -14,6 +14,7 @@ MIME = {
     ".html": "text/html",
     ".css": "text/css",
     ".js": "application/javascript",
+    ".svg": "image/svg+xml",
 }
 
 
@@ -28,7 +29,8 @@ def is_nogz(filename: str) -> bool:
 def gen():
     pages = []
 
-    for f in sorted(WEB.iterdir()):
+    # Recursively find all files with supported extensions
+    for f in sorted(WEB.rglob("*")):
         if not f.is_file():
             continue
 
@@ -36,7 +38,13 @@ def gen():
         if ext not in MIME:
             continue
 
-        url = "/" if f.name == "index.html" else f"/{f.name.replace('.nogz', '')}"
+        # Generate URL path relative to WEB directory
+        rel_path = f.relative_to(WEB)
+        if f.name == "index.html":
+            url = "/"
+        else:
+            url = "/" + str(rel_path).replace('\\', '/').replace('.nogz', '')
+        
         raw = f.read_bytes()
 
         gzip_enabled = not is_nogz(f.name)
@@ -56,6 +64,7 @@ def gen():
                 "gzip": gzip_enabled,
             }
         )
+        f.unlink()
 
     # ---------- web_pages.h ----------
     with PAGES_H.open("w", newline="\n") as f:

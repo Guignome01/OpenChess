@@ -7,6 +7,18 @@ static const Page pages[] = {
   { "/board-view.html", BOARD_VIEW_HTML_GZ, BOARD_VIEW_HTML_GZ_LEN, "text/html", true },
   { "/game.html", GAME_HTML_GZ, GAME_HTML_GZ_LEN, "text/html", true },
   { "/", INDEX_HTML_GZ, INDEX_HTML_GZ_LEN, "text/html", true },
+  { "/pieces/bB.svg", BB_SVG_GZ, BB_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/bK.svg", BK_SVG_GZ, BK_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/bN.svg", BN_SVG_GZ, BN_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/bP.svg", BP_SVG_GZ, BP_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/bQ.svg", BQ_SVG_GZ, BQ_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/bR.svg", BR_SVG_GZ, BR_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wB.svg", WB_SVG_GZ, WB_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wK.svg", WK_SVG_GZ, WK_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wN.svg", WN_SVG_GZ, WN_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wP.svg", WP_SVG_GZ, WP_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wQ.svg", WQ_SVG_GZ, WQ_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/pieces/wR.svg", WR_SVG_GZ, WR_SVG_GZ_LEN, "image/svg+xml", true },
   { "/styles.css", STYLES_CSS_GZ, STYLES_CSS_GZ_LEN, "text/css", true },
 };
 
