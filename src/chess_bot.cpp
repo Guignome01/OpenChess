@@ -151,26 +151,34 @@ void ChessBot::executeBotMove(int fromRow, int fromCol, int toRow, int toCol) {
   char piece = board[fromRow][fromCol];
   char capturedPiece = board[toRow][toCol];
 
-  bool castling = isCastlingMove(fromRow, fromCol, toRow, toCol, piece);
+  updateEnPassantTarget(fromRow, fromCol, toRow, piece);
+  bool isEnPassantCapture = ChessUtils::isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, piece);
+  if (isEnPassantCapture) {
+    capturedPiece = applyEnPassant(toRow, toCol, piece);
+  }
 
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
+  bool castling = ChessUtils::isCastlingMove(fromRow, fromCol, toRow, toCol, piece);
   if (castling)
     applyCastling(fromRow, fromCol, toRow, toCol, piece);
-
   updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
   if (!castling) {
-    Serial.printf("Bot wants to move piece from %c%d to %c%d\nPlease make this move on the physical board...\n", (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
+    if (isEnPassantCapture) {
+      Serial.printf("Bot wants to perform en passant: move pawn from %c%d to %c%d and remove captured pawn at %c%d\nPlease make this move on the physical board...\n", (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow, (char)('a' + toCol), 8 - capturedPawnRow);
+    } else {
+      Serial.printf("Bot wants to move piece from %c%d to %c%d\nPlease make this move on the physical board...\n", (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
+    }
 
     bool isCapture = (capturedPiece != ' ');
 
     // Show the move that needs to be made
-    showBotMoveIndicator(fromRow, fromCol, toRow, toCol, isCapture);
-
+    showBotMoveIndicator(fromRow, fromCol, toRow, toCol, isCapture, isEnPassantCapture, capturedPawnRow);
     // Wait for user to physically complete the bot's move
-    waitForBotMoveCompletion(fromRow, fromCol, toRow, toCol, isCapture);
+    waitForBotMoveCompletion(fromRow, fromCol, toRow, toCol, isCapture, isEnPassantCapture, capturedPawnRow);
 
     boardDriver->clearAllLEDs();
   } else {
@@ -196,46 +204,43 @@ void ChessBot::showBotThinking() {
   boardDriver->showLEDs();
 }
 
-void ChessBot::showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toCol, bool isCapture) {
+void ChessBot::showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant, int enPassantCapturedPawnRow) {
   boardDriver->clearAllLEDs();
-
   // Show source square (where to pick up from)
   boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
-
   // Show destination square (where to place)
   if (isCapture)
     boardDriver->setSquareLED(toRow, toCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
   else
     boardDriver->setSquareLED(toRow, toCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+  if (isEnPassant)
+    boardDriver->setSquareLED(enPassantCapturedPawnRow, toCol, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
 
   boardDriver->showLEDs();
 }
 
-void ChessBot::waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture) {
+void ChessBot::waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant, int enPassantCapturedPawnRow) {
   bool piecePickedUp = false;
   bool capturedPieceRemoved = false;
   bool moveCompleted = false;
 
   Serial.println("Waiting for you to complete the bot's move...");
 
-  // Set LEDs once at the beginning to avoid flickering
-  boardDriver->clearAllLEDs();
-  boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
-  if (isCapture)
-    boardDriver->setSquareLED(toRow, toCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
-  else
-    boardDriver->setSquareLED(toRow, toCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
-  boardDriver->showLEDs();
-
   while (!moveCompleted) {
     boardDriver->readSensors();
 
     // For capture moves, ensure captured piece is removed first
-    if (isCapture && !capturedPieceRemoved)
-      if (!boardDriver->getSensorState(toRow, toCol)) {
+    // For en passant, check the actual captured pawn square (not the destination)
+    if (isCapture && !capturedPieceRemoved) {
+      int captureCheckRow = isEnPassant ? enPassantCapturedPawnRow : toRow;
+      if (!boardDriver->getSensorState(captureCheckRow, toCol)) {
         capturedPieceRemoved = true;
-        Serial.println("Captured piece removed, now complete the bot's move...");
+        if (isEnPassant)
+          Serial.println("En passant captured pawn removed, now complete the bot's move...");
+        else
+          Serial.println("Captured piece removed, now complete the bot's move...");
       }
+    }
 
     // Check if piece was picked up from source
     if (!piecePickedUp && !boardDriver->getSensorState(fromRow, fromCol)) {

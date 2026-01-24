@@ -16,6 +16,18 @@ class ChessUtils {
     return (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
   }
 
+  static bool isEnPassantMove(int fromRow, int fromCol, int toRow, int toCol, char piece, char capturedPiece) {
+    return (toupper(piece) == 'P' && fromCol != toCol && capturedPiece == ' ');
+  }
+
+  static int getEnPassantCapturedPawnRow(int toRow, char piece) {
+    return toRow - ((getPieceColor(piece) == 'w') ? -1 : 1);
+  }
+
+  static bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece) {
+    return (toupper(piece) == 'K' && fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2));
+  }
+
   // Convert castling rights bitmask (KQkq) to string used in FEN.
   // rights: bitmask where 0x01=K, 0x02=Q, 0x04=k, 0x08=q
   static String castlingRightsToString(uint8_t rights);
