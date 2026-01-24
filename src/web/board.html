@@ -15,11 +15,6 @@
     <div class="container">
         <h2>Chess Board</h2>
 
-        <!-- Edit mode instructions (above board, hidden on interaction) -->
-        <div class="status anim-panel" id="edit-instructions">
-            Drag pieces from the spare pieces area to the board, or drag pieces off the board to remove them
-        </div>
-
         <!-- Chess board container -->
         <div id="board" class="chessboard-container"></div>
 
@@ -31,25 +26,32 @@
             </div>
         </div>
 
+        <!-- Edit mode instructions (above board, hidden on interaction) -->
+        <div class="status anim-panel" id="edit-instructions">
+            Drag pieces to edit the board
+        </div>
+
         <!-- FEN display/edit section (shown in edit mode) -->
         <div id="fen-section" class="config-panel anim-panel">
-            <div class="fen-container">
-                <input type="text" id="fen-input" readonly>
-                <button id="fen-copy-btn" class="fen-btn" title="Copy FEN">📋</button>
-                <button id="fen-edit-btn" class="fen-btn" title="Edit FEN">✏️</button>
+
+            <!-- Edit controls -->
+            <div class="controls controls-sm game-options">
+                <button id="sync-btn" class="button" style="background-color: #6c757d;">⟳ Sync</button>
+                <button id="start-btn" class="button" style="background-color: #17a2b8;">↻ Reset</button>
+                <button id="clear-btn" class="button" style="background-color: #dc3545;">✕ Clear</button>
             </div>
 
             <!-- Turn and Castling controls -->
             <div class="game-options">
                 <div class="option-group">
-                    <label>Turn:</label>
+                    <label>Turn</label>
                     <div class="toggle-group">
                         <button id="turn-white" class="toggle-btn active">White</button>
                         <button id="turn-black" class="toggle-btn">Black</button>
                     </div>
                 </div>
                 <div class="option-group">
-                    <label>Castling:</label>
+                    <label>Castling</label>
                     <div class="castling-toggles">
                         <button id="castle-K" class="castle-btn active" title="White King-side">K</button>
                         <button id="castle-Q" class="castle-btn active" title="White Queen-side">Q</button>
@@ -59,15 +61,17 @@
                 </div>
             </div>
 
-            <!-- Edit controls -->
-            <div class="controls">
-                <button id="sync-btn" class="button" style="background-color: #6c757d;">⟳ Sync</button>
-                <button id="start-btn" class="button" style="background-color: #17a2b8;">↻ Reset</button>
-                <button id="clear-btn" class="button" style="background-color: #dc3545;">✕ Clear</button>
+            <!-- FEN input and copy/edit buttons -->
+            <div class="fen-container">
+                <input type="text" id="fen-input" readonly>
+                <button id="fen-copy-btn" class="fen-btn" title="Copy FEN">📋</button>
+                <button id="fen-edit-btn" class="fen-btn" title="Edit FEN">✏️</button>
             </div>
 
             <!-- Apply button to send to server -->
-            <button id="apply-btn" class="button" style="background-color: #28a745;">✓ Apply Changes</button>
+            <button id="apply-btn" class="button" style="background-color: #28a745; margin-bottom: 0">
+                ✓ Apply Changes
+            </button>
         </div>
 
         <!-- Mode toggle button -->
@@ -82,9 +86,11 @@
         let editMode = false;
         let currentTurn = 'w';
         let castlingRights = { K: true, Q: true, k: true, q: true };
+        let enPassantSquare = '-';
         let previousValidFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
         let isEditingFen = false;
         let updateInterval = null;
+        let instructionsHidden = false;
 
         // Custom piece theme using local SVG files
         function pieceTheme(piece) {
@@ -133,7 +139,9 @@
 
             $('#modeToggleBtn').text('View Board');
             $('#eval-container').hide();
-            $('#edit-instructions').addClass('visible');
+            if (!instructionsHidden) {
+                $('#edit-instructions').addClass('visible');
+            }
             $('#fen-section').addClass('visible');
 
             updateFenDisplay();
@@ -160,14 +168,50 @@
             $('#edit-instructions').removeClass('visible');
             $('#fen-section').removeClass('visible');
 
-            // Resume polling
-            startPolling();
+            // Resume polling after short delay to allow things to hide smoothly and
+            // To allow the server FEN to be already updated on the first fetch
+            setTimeout(() => { startPolling(); }, 250);
         }
 
         // Board change handler - immediately update FEN display after any board change
         function onBoardChange(oldPos, newPos) {
-            // Hide instructions when board is interacted with
-            $('#edit-instructions').removeClass('visible');
+            // Permanently hide instructions when board is interacted with
+            if (!instructionsHidden) {
+                instructionsHidden = true;
+                $('#edit-instructions').removeClass('visible');
+            }
+
+            // Detect pawn double moves for en passant
+            enPassantSquare = '-';
+
+            // Find what changed between old and new position
+            const files = 'abcdefgh';
+            for (let f = 0; f < 8; f++) {
+                for (let r = 1; r <= 8; r++) {
+                    const sq = files[f] + r;
+                    const oldPiece = oldPos[sq];
+                    const newPiece = newPos[sq];
+
+                    // Check if a pawn appeared on rank 4 (white) or rank 5 (black)
+                    if (!oldPiece && newPiece) {
+                        // White pawn on rank 4, check if it came from rank 2
+                        if (newPiece === 'wP' && r === 4) {
+                            const fromSq = files[f] + '2';
+                            if (oldPos[fromSq] === 'wP' && !newPos[fromSq]) {
+                                enPassantSquare = files[f] + '3';
+                            }
+                        }
+                        // Black pawn on rank 5, check if it came from rank 7
+                        if (newPiece === 'bP' && r === 5) {
+                            const fromSq = files[f] + '7';
+                            if (oldPos[fromSq] === 'bP' && !newPos[fromSq]) {
+                                enPassantSquare = files[f] + '6';
+                            }
+                        }
+                    }
+                }
+            }
+
             // Use setTimeout to ensure board.fen() returns updated position
             setTimeout(updateFenDisplay, 0);
         }
@@ -184,7 +228,7 @@
             if (castlingRights.q) castling += 'q';
             if (castling === '') castling = '-';
 
-            return positionFen + ' ' + turn + ' ' + castling + ' - 0 1';
+            return positionFen + ' ' + turn + ' ' + castling + ' ' + enPassantSquare + ' 0 1';
         }
 
         // Parse full FEN and update UI state
@@ -196,7 +240,7 @@
 
             if (!isValidPositionFen(positionFen)) return false;
 
-            board.position(positionFen, false);
+            board.position(positionFen);
             previousValidFen = positionFen;
 
             if (parts.length >= 2) {
@@ -215,6 +259,13 @@
                 updateCastlingButtons();
             }
 
+            if (parts.length >= 4) {
+                enPassantSquare = parts[3];
+            } else {
+                enPassantSquare = '-';
+            }
+
+            updateEnPassantHighlight();
             return true;
         }
 
@@ -377,24 +428,24 @@
                 const file = enPassant.charCodeAt(0) - 'a'.charCodeAt(0);
                 const rank = enPassant[1];
 
-                // If en passant is on rank 3, it's white's turn and there should be a black pawn on rank 4
+                // If en passant is on rank 3, white pawn just moved to rank 4, so it's black's turn
                 if (rank === '3') {
-                    if (turn !== 'w') {
-                        return { valid: false, error: 'En passant on rank 3 requires white to move' };
+                    if (turn !== 'b') {
+                        return { valid: false, error: 'En passant on rank 3 requires black to move' };
                     }
                     const pawnPiece = getPieceAt(fen, file, 4); // rank 4 (index 4)
-                    if (pawnPiece !== 'p') {
-                        return { valid: false, error: 'En passant on rank 3 requires black pawn on rank 4' };
+                    if (pawnPiece !== 'P') {
+                        return { valid: false, error: 'En passant on rank 3 requires white pawn on rank 4' };
                     }
                 }
-                // If en passant is on rank 6, it's black's turn and there should be a white pawn on rank 5
+                // If en passant is on rank 6, black pawn just moved to rank 5, so it's white's turn
                 else if (rank === '6') {
-                    if (turn !== 'b') {
-                        return { valid: false, error: 'En passant on rank 6 requires black to move' };
+                    if (turn !== 'w') {
+                        return { valid: false, error: 'En passant on rank 6 requires white to move' };
                     }
                     const pawnPiece = getPieceAt(fen, file, 3); // rank 5 (index 3)
-                    if (pawnPiece !== 'P') {
-                        return { valid: false, error: 'En passant on rank 6 requires white pawn on rank 5' };
+                    if (pawnPiece !== 'p') {
+                        return { valid: false, error: 'En passant on rank 6 requires black pawn on rank 5' };
                     }
                 }
             }
@@ -402,11 +453,23 @@
             return { valid: true, error: null };
         }
 
+        // Update en passant square highlight on the board
+        function updateEnPassantHighlight() {
+            // Remove any existing highlight
+            $('.square-55d63').removeClass('highlight-ep');
+
+            // Only show highlight in edit mode
+            if (editMode && enPassantSquare !== '-' && /^[a-h][1-8]$/.test(enPassantSquare)) {
+                $('.square-' + enPassantSquare).addClass('highlight-ep');
+            }
+        }
+
         // Update FEN input display
         function updateFenDisplay() {
             if (!isEditingFen) {
                 $('#fen-input').val(getFullFen());
             }
+            updateEnPassantHighlight();
         }
 
         // Update turn toggle buttons
@@ -469,10 +532,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.fen) {
-                        const parts = data.fen.trim().split(/\s+/);
-                        if (parts.length >= 1 && isValidPositionFen(parts[0])) {
-                            board.position(parts[0], false);
-                        }
+                        parseFullFen(data.fen);
                     }
                     if (data.evaluation !== undefined) {
                         updateEvaluationBar(data.evaluation);
@@ -561,13 +621,16 @@
 
             if (isEditingFen) {
                 const newFen = fenInput.val();
-                if (parseFullFen(newFen)) {
+                // Use strong validation
+                const validation = isLegalPosition(newFen);
+                if (validation.valid && parseFullFen(newFen)) {
                     isEditingFen = false;
                     fenInput.prop('readonly', true);
                     editBtn.text('✏️');
                     updateFenDisplay();
                 } else {
-                    alert('Invalid FEN notation. Reverting to previous position.');
+                    const errorMsg = validation.error || 'Invalid FEN format';
+                    alert('Invalid FEN: ' + errorMsg + '. Reverting to previous position.');
                     parseFullFen(fenBeforeEdit);
                     isEditingFen = false;
                     fenInput.prop('readonly', true);
@@ -637,16 +700,17 @@
                 board.start();
                 currentTurn = 'w';
                 castlingRights = { K: true, Q: true, k: true, q: true };
+                enPassantSquare = '-';
                 updateTurnButtons();
                 updateCastlingButtons();
                 updateFenDisplay();
             });
 
             $('#clear-btn').on('click', function () {
-                if (confirm('Clear all pieces from the board?')) {
-                    board.clear();
-                    updateFenDisplay();
-                }
+                // if (confirm('Clear all pieces from the board?')) {
+                board.clear();
+                enPassantSquare = '-';
+                updateFenDisplay();
             });
 
             $('#fen-copy-btn').on('click', copyFen);

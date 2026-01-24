@@ -13,7 +13,7 @@ body {
     background-color: #353434;
     border-radius: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    padding: 30px;
+    padding: 20px;
     width: 100%;
     max-width: 600px;
 }
@@ -171,6 +171,19 @@ input[type="submit"]:hover,
     touch-action: none;
 }
 
+/* Spare pieces container - background for visibility */
+.spare-pieces-7492f {
+    background-color: #00000055;
+    border-radius: 10px;
+    padding: 0;
+    margin: 5px 5px;
+}
+
+/* En passant square highlight */
+.highlight-ep {
+    box-shadow: inset 0 0 3px 3px #ff6b6b;
+}
+
 /* Config panel (used for fen-section and botConfigPanel) */
 .config-panel {
     border: 2px solid #4CAF50;
@@ -215,7 +228,7 @@ input[type="submit"]:hover,
 }
 
 .fen-btn {
-    background-color: #555;
+    background-color: #444;
     color: white;
     border: none;
     padding: 10px 15px;
@@ -233,10 +246,13 @@ input[type="submit"]:hover,
 /* Game options (turn and castling) */
 .game-options {
     display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-bottom: 15px;
-    padding: 15px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    column-gap: clamp(10px, calc((100% - 400px)), 80px);
+    row-gap: 5px;
+    margin-bottom: 10px;
+    padding: 10px;
     background-color: #444;
     border-radius: 10px;
 }
@@ -244,26 +260,26 @@ input[type="submit"]:hover,
 .option-group {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 5px;
 }
 
 .option-group label {
-    font-size: 16px;
+    font-size: 14px;
     margin: 0;
-    min-width: 80px;
+    min-width: auto;
 }
 
 .toggle-group {
     display: flex;
-    gap: 10px;
+    gap: 3px;
 }
 
 .toggle-btn {
     background-color: #555;
     color: white;
     border: 2px solid #666;
-    padding: 8px 20px;
-    font-size: 14px;
+    padding: 6px 14px;
+    font-size: 13px;
     border-radius: 15px;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -280,20 +296,20 @@ input[type="submit"]:hover,
 
 .castling-toggles {
     display: flex;
-    gap: 8px;
+    gap: 3px;
 }
 
 .castle-btn {
     background-color: #555;
     color: white;
     border: 2px solid #666;
-    padding: 8px 15px;
-    font-size: 14px;
+    padding: 6px 10px;
+    font-size: 13px;
     font-weight: bold;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.3s ease;
-    min-width: 40px;
+    min-width: 32px;
 }
 
 .castle-btn:hover {
@@ -308,13 +324,19 @@ input[type="submit"]:hover,
 .controls {
     display: flex;
     gap: 10px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .controls .button {
     flex: 1;
     margin: 0;
     transition: all 0.3s ease;
+}
+
+.controls-sm .button {
+    padding: 7px;
+    font-size: 15px;
+    margin-inline: 2%;
 }
 
 .controls .button:hover {
