@@ -3,6 +3,7 @@
 
 #include "board_driver.h"
 #include "chess_engine.h"
+#include "chess_utils.h"
 #include "led_colors.h"
 #include <Arduino.h>
 
@@ -40,7 +41,10 @@ class ChessGame {
   bool applyPawnPromotionIfNeeded(int toRow, int toCol, char movedPiece, char& promotedPieceOut);
   bool findKingPosition(char colorToMove, int& kingRow, int& kingCol);
   void confirmSquareCompletion(int row, int col);
-  static bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece) { return (toupper(piece) == 'K' && fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2)); }
+
+  // En passant helpers
+  char applyEnPassant(int toRow, int toCol, char piece);
+  void updateEnPassantTarget(int fromRow, int fromCol, int toRow, char piece);
 
  public:
   virtual ~ChessGame() {}

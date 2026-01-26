@@ -28,8 +28,8 @@ class ChessBot : public ChessGame {
   // Game flow
   void makeBotMove();
   void showBotThinking();
-  void showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toCol, bool isCapture);
-  void waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture);
+  void showBotMoveIndicator(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1);
+  void waitForBotMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1);
   void waitForBotCastlingCompletion(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol);
 
  public:

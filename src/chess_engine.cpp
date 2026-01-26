@@ -452,7 +452,7 @@ void ChessEngine::makeMove(char board[8][8], int fromRow, int fromCol, int toRow
     // If moving to the en passant target square, remove the captured pawn
     if (toRow == enPassantTargetRow && toCol == enPassantTargetCol && capturedPiece == ' ') {
       // The captured pawn is one square behind the target (in the opposite direction)
-      int capturedPawnRow = toRow - ((ChessUtils::getPieceColor(movingPiece) == 'w') ? -1 : 1);
+      int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, movingPiece);
       capturedPiece = board[capturedPawnRow][toCol];
       board[capturedPawnRow][toCol] = ' ';
     }

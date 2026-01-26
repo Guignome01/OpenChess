@@ -21,6 +21,7 @@ void ChessGame::initializeBoard() {
   gameOver = false;
   memcpy(board, INITIAL_BOARD, sizeof(INITIAL_BOARD));
   chessEngine->reset();
+  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), 0);
 }
 
 void ChessGame::waitForBoardSetup() {
@@ -53,27 +54,16 @@ void ChessGame::waitForBoardSetup() {
 void ChessGame::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol, char piece) {
   char capturedPiece = board[toRow][toCol];
 
-  // Update en passant target square, check if this is a two-square pawn move
-  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
-    // Set en passant target to the square the pawn passed over
-    int enPassantRow = (fromRow + toRow) / 2;
-    chessEngine->setEnPassantTarget(enPassantRow, fromCol);
-  } else {
-    chessEngine->clearEnPassantTarget();
-  }
-
-  // Handle en passant capture (remove captured pawn)
-  if (toupper(piece) == 'P' && fromCol != toCol && capturedPiece == ' ') {
-    int capturedPawnRow = toRow - ((ChessUtils::getPieceColor(piece) == 'w') ? -1 : 1);
-    capturedPiece = board[capturedPawnRow][toCol];
-    board[capturedPawnRow][toCol] = ' ';
+  updateEnPassantTarget(fromRow, fromCol, toRow, piece);
+  if (ChessUtils::isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece)) {
+    capturedPiece = applyEnPassant(toRow, toCol, piece);
     Serial.printf("En passant capture of %c\n", capturedPiece);
   }
 
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
-  if (isCastlingMove(fromRow, fromCol, toRow, toCol, piece))
+  if (ChessUtils::isCastlingMove(fromRow, fromCol, toRow, toCol, piece))
     applyCastling(fromRow, fromCol, toRow, toCol, piece);
   updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
@@ -128,13 +118,13 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
         int r = moves[i][0];
         int c = moves[i][1];
 
-        bool isEnPassantCapture = (toupper(piece) == 'P' && board[r][c] == ' ' && col != c);
+        bool isEnPassantCapture = ChessUtils::isEnPassantMove(row, col, r, c, piece, board[r][c]);
         if (board[r][c] == ' ' && !isEnPassantCapture) {
           boardDriver->setSquareLED(r, c, LedColors::White.r, LedColors::White.g, LedColors::White.b);
         } else {
           boardDriver->setSquareLED(r, c, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
           if (isEnPassantCapture) {
-            int capturedPawnRow = r - ((ChessUtils::getPieceColor(piece) == 'w') ? -1 : 1);
+            int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(r, piece);
             boardDriver->setSquareLED(capturedPawnRow, c, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
           }
         }
@@ -177,8 +167,8 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
 
             // For capture moves: detect when the target square is empty (captured piece removed)
             // This works whether the piece was just removed or was already removed before pickup
-            bool isEnPassantCapture = (toupper(piece) == 'P' && board[r2][c2] == ' ' && col != c2);
-            int enPassantCapturedPawnRow = r2 - ((ChessUtils::getPieceColor(piece) == 'w') ? -1 : 1);
+            bool isEnPassantCapture = ChessUtils::isEnPassantMove(row, col, r2, c2, piece, board[r2][c2]);
+            int enPassantCapturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(r2, piece);
             auto isCapturedPiecePickedUp = [&]() -> bool {
               if (isEnPassantCapture)
                 return !boardDriver->getSensorState(enPassantCapturedPawnRow, c2);
@@ -403,6 +393,22 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
   }
 
   boardDriver->clearAllLEDs();
+}
+
+char ChessGame::applyEnPassant(int toRow, int toCol, char piece) {
+  int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, piece);
+  char capturedPawn = board[capturedPawnRow][toCol];
+  board[capturedPawnRow][toCol] = ' ';
+  return capturedPawn;
+}
+
+void ChessGame::updateEnPassantTarget(int fromRow, int fromCol, int toRow, char piece) {
+  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
+    int enPassantRow = (fromRow + toRow) / 2;
+    chessEngine->setEnPassantTarget(enPassantRow, fromCol);
+  } else {
+    chessEngine->clearEnPassantTarget();
+  }
 }
 
 bool ChessGame::applyPawnPromotionIfNeeded(int toRow, int toCol, char movedPiece, char& promotedPieceOut) {
