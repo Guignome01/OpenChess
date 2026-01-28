@@ -104,7 +104,7 @@ void ChessLichess::waitForLichessGame() {
   waitForBoardSetup(board);
 
   Serial.println("Board synchronized! Game starting...");
-  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), 0);
+  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
 }
 
 void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
@@ -143,7 +143,7 @@ void ChessLichess::update() {
     // Process locally FIRST - show animations immediately
     processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
     updateGameStatus();
-    wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), 0);
+    wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
     if (stopAnimation == nullptr && !gameOver)
       stopAnimation = boardDriver->startThinkingAnimation();
     // Then send move to Lichess (blocking)
@@ -193,7 +193,7 @@ void ChessLichess::update() {
         // Process the opponent's move
         processLichessMove(state.lastMove);
         updateGameStatus();
-        wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), 0);
+        wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
       }
     }
   }

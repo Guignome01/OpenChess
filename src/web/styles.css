@@ -458,3 +458,282 @@ input[type="submit"]:hover,
     text-align: center;
     font-weight: bold;
 }
+
+/* Board wrapper */
+.board-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+/* Control buttons above board, in the margin between title and board */
+.board-controls-left,
+.board-controls-right {
+    position: absolute;
+    top: -34px;
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    z-index: 100;
+}
+
+.board-controls-left {
+    left: 0;
+}
+
+.board-controls-right {
+    right: 0;
+}
+
+.board-ctrl-btn {
+    width: 28px;
+    height: 28px;
+    background-color: rgba(53, 52, 52, 0.85);
+    border: 1px solid #666;
+    border-radius: 6px;
+    color: #ec8703;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+    backdrop-filter: blur(2px);
+}
+
+.board-ctrl-btn:hover {
+    background-color: rgba(85, 85, 85, 0.95);
+    border-color: #ec8703;
+    transform: scale(1.1);
+}
+
+.board-ctrl-btn.active {
+    background-color: rgba(236, 135, 3, 0.9);
+    color: #fff;
+    border-color: #ec8703;
+}
+
+/* Focus mode (fullscreen board) */
+.focus-mode .container {
+    max-width: 95vmin;
+    padding: 10px;
+    padding-top: 40px;
+    background: transparent;
+    box-shadow: none;
+}
+
+.focus-mode .container>*:not(.board-wrapper):not(#settingsPopup) {
+    display: none !important;
+}
+
+.focus-mode .board-wrapper {
+    width: 95vmin;
+    height: 95vmin;
+}
+
+.focus-mode .chessboard-container {
+    max-width: 95vmin;
+}
+
+/* Settings popup overlay */
+.settings-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.settings-overlay.visible {
+    display: flex;
+}
+
+.settings-popup {
+    background-color: #353434;
+    border: 2px solid #ec8703;
+    border-radius: 12px;
+    padding: 20px;
+    width: 320px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.settings-popup h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.settings-close-btn {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    position: absolute;
+    right: 0;
+}
+
+.settings-close-btn:hover {
+    color: #fff;
+}
+
+.settings-group {
+    margin-bottom: 20px;
+}
+
+.settings-group label {
+    font-size: 14px;
+    color: #ec8703;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #444;
+}
+
+.settings-row:last-child {
+    border-bottom: none;
+}
+
+.settings-row span {
+    color: #fff;
+    font-size: 14px;
+}
+
+/* Toggle switch */
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #555;
+    transition: 0.3s;
+    border-radius: 26px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch input:checked+.toggle-slider {
+    background-color: #ec8703;
+}
+
+.toggle-switch input:checked+.toggle-slider:before {
+    transform: translateX(24px);
+}
+
+/* Color picker for board colors */
+.color-picker-group {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.color-picker-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.color-picker-item span {
+    font-size: 12px;
+    color: #aaa;
+}
+
+.color-picker-item input[type="color"] {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #666;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 2px;
+}
+
+/* Piece theme dropdown */
+.piece-theme-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.piece-theme-row select {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 14px;
+    border: 2px solid #666;
+    border-radius: 8px;
+    background-color: #444;
+    color: #fff;
+    cursor: pointer;
+    margin: 0;
+}
+
+.piece-theme-row select:focus {
+    border-color: #ec8703;
+    outline: none;
+}
+
+/* Theme URL display */
+.theme-url-display {
+    display: block;
+    font-size: 11px;
+    color: #888;
+    word-break: break-all;
+    margin-top: 5px;
+    padding: 5px 8px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+    font-family: monospace;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.theme-url-display:hover {
+    color: #ec8703;
+    text-decoration: underline;
+}
+
+/* Responsive adjustments - buttons stay on board corner at all sizes */

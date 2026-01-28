@@ -15,6 +15,7 @@ MIME = {
     ".css": "text/css",
     ".js": "application/javascript",
     ".svg": "image/svg+xml",
+    ".mp3": "audio/mpeg"
 }
 
 

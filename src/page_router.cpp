@@ -18,6 +18,8 @@ static const Page pages[] = {
   { "/pieces/wP.svg", WP_SVG_GZ, WP_SVG_GZ_LEN, "image/svg+xml", true },
   { "/pieces/wQ.svg", WQ_SVG_GZ, WQ_SVG_GZ_LEN, "image/svg+xml", true },
   { "/pieces/wR.svg", WR_SVG_GZ, WR_SVG_GZ_LEN, "image/svg+xml", true },
+  { "/sounds/capture.mp3", CAPTURE_NOGZ_MP3, CAPTURE_NOGZ_MP3_LEN, "audio/mpeg", false },
+  { "/sounds/move.mp3", MOVE_NOGZ_MP3, MOVE_NOGZ_MP3_LEN, "audio/mpeg", false },
   { "/styles.css", STYLES_CSS_GZ, STYLES_CSS_GZ_LEN, "text/css", true },
 };
 

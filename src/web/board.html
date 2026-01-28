@@ -12,11 +12,89 @@
 </head>
 
 <body>
+    <!-- Audio elements for move sounds -->
+    <audio id="moveSound" src="/sounds/move.mp3" preload="auto"></audio>
+    <audio id="captureSound" src="/sounds/capture.mp3" preload="auto"></audio>
+
+    <!-- Settings popup overlay -->
+    <div id="settingsPopup" class="settings-overlay">
+        <div class="settings-popup">
+            <h3>
+                <span>⚙️ Settings</span>
+                <button class="settings-close-btn" id="closeSettings">×</button>
+            </h3>
+
+            <div class="settings-group">
+                <label>Display</label>
+                <div class="settings-row">
+                    <span>Show board notation</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingNotation" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <label>Sound</label>
+                <div class="settings-row">
+                    <span>Play move sounds</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="settingSound" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <label>Board Colors</label>
+                <div class="color-picker-group">
+                    <div class="color-picker-item">
+                        <input type="color" id="settingLightColor" value="#f0d9b5">
+                        <span>Light</span>
+                    </div>
+                    <div class="color-picker-item">
+                        <input type="color" id="settingDarkColor" value="#b58863">
+                        <span>Dark</span>
+                    </div>
+                    <button id="resetColorsBtn" class="fen-btn" title="Reset to default">↻</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <label>Piece Theme</label>
+                <div class="piece-theme-row">
+                    <select id="settingPieceTheme">
+                        <option value="/pieces/{piece}.svg">Local SVG (default)</option>
+                        <option value="https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png">Wikipedia
+                        </option>
+                        <option value="https://chessboardjs.com/img/chesspieces/alpha/{piece}.png">Alpha</option>
+                    </select>
+                    <button id="addThemeBtn" class="fen-btn" title="Add custom theme">+</button>
+                    <button id="deleteThemeBtn" class="fen-btn" title="Delete custom theme"
+                        style="display:none;">−</button>
+                </div>
+                <a id="themeUrlDisplay" class="theme-url-display" href="#" target="_blank"></a>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h2>Chess Board</h2>
 
-        <!-- Chess board container -->
-        <div id="board" class="chessboard-container"></div>
+        <!-- Chess board wrapper -->
+        <div class="board-wrapper">
+            <div id="board" class="chessboard-container"></div>
+
+            <!-- Control buttons in margin above board -->
+            <div class="board-controls-left">
+                <button id="flipBtn" class="board-ctrl-btn" title="Flip board">⇅</button>
+                <button id="focusBtn" class="board-ctrl-btn" title="Focus mode">⛶</button>
+            </div>
+            <div class="board-controls-right">
+                <button id="settingsBtn" class="board-ctrl-btn" title="Settings">⚙</button>
+            </div>
+        </div>
 
         <!-- Evaluation bar (hidden in edit mode) -->
         <div class="info" id="eval-container">
@@ -91,10 +169,149 @@
         let isEditingFen = false;
         let updateInterval = null;
         let instructionsHidden = false;
+        let boardOrientation = 'white';
+        let focusMode = false;
+        let previousPosition = null;
 
-        // Custom piece theme using local SVG files
+        // Settings (loaded from localStorage)
+        let settings = {
+            showNotation: true,
+            playSound: true,
+            lightSquareColor: '#f0d9b5',
+            darkSquareColor: '#b58863',
+            pieceTheme: '/pieces/{piece}.svg',
+            customThemes: []
+        };
+
+        // Default piece themes
+        const defaultThemes = [
+            { value: '/pieces/{piece}.svg', label: 'Local SVG (default)' },
+            { value: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png', label: 'Wikipedia' },
+            { value: 'https://chessboardjs.com/img/chesspieces/alpha/{piece}.png', label: 'Alpha' }
+        ];
+
+        // Load settings from localStorage
+        function loadSettings() {
+            const saved = localStorage.getItem('chessBoardSettings');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    settings = { ...settings, ...parsed };
+                } catch (e) {
+                    console.log('Failed to parse settings');
+                }
+            }
+            applySettings();
+        }
+
+        // Save settings to localStorage
+        function saveSettings() {
+            localStorage.setItem('chessBoardSettings', JSON.stringify(settings));
+            applySettings();
+        }
+
+        // Apply settings to UI
+        function applySettings() {
+            // Update settings UI
+            $('#settingNotation').prop('checked', settings.showNotation);
+            $('#settingSound').prop('checked', settings.playSound);
+            $('#settingLightColor').val(settings.lightSquareColor);
+            $('#settingDarkColor').val(settings.darkSquareColor);
+
+            // Update piece theme dropdown
+            updatePieceThemeDropdown();
+            $('#settingPieceTheme').val(settings.pieceTheme);
+            updateThemeUI();
+
+            // Apply board colors
+            applyBoardColors();
+        }
+
+        // Update piece theme dropdown with default and custom themes
+        function updatePieceThemeDropdown() {
+            const select = $('#settingPieceTheme');
+            select.empty();
+
+            // Add default themes
+            defaultThemes.forEach(theme => {
+                select.append($('<option>', { value: theme.value, text: theme.label }));
+            });
+
+            // Add custom themes
+            if (settings.customThemes && settings.customThemes.length > 0) {
+                settings.customThemes.forEach(theme => {
+                    select.append($('<option>', { value: theme.value, text: theme.label, 'data-custom': 'true' }));
+                });
+            }
+
+            updateThemeUI();
+        }
+
+        // Update theme URL display and delete button visibility
+        function updateThemeUI() {
+            const selectedValue = settings.pieceTheme;
+            const isCustom = isCustomTheme(selectedValue);
+
+            // Show/hide delete button
+            $('#deleteThemeBtn').toggle(isCustom);
+
+            // Update URL display with clickable link
+            const urlDisplay = $('#themeUrlDisplay');
+            urlDisplay.text(selectedValue);
+            // Replace {piece} with wN (white knight) for preview link
+            const previewUrl = selectedValue.replace('{piece}', 'wN');
+            urlDisplay.attr('href', previewUrl);
+        }
+
+        // Check if a theme is custom (not in default themes)
+        function isCustomTheme(themeValue) {
+            return !defaultThemes.some(t => t.value === themeValue);
+        }
+
+        // Apply board colors dynamically (including notation)
+        function applyBoardColors() {
+            // Remove existing style if present
+            $('#boardColorStyle').remove();
+
+            // Notation text color is set via the square's color property
+            // Light squares have dark text, dark squares have light text for contrast
+            const style = `
+                <style id="boardColorStyle">
+                    .white-1e1d7 { 
+                        background-color: ${settings.lightSquareColor} !important; 
+                        color: ${settings.darkSquareColor} !important;
+                    }
+                    .black-3c85d { 
+                        background-color: ${settings.darkSquareColor} !important; 
+                        color: ${settings.lightSquareColor} !important;
+                    }
+                </style>
+            `;
+            $('head').append(style);
+        }
+
+        // Play sound effect
+        function playMoveSound(isCapture) {
+            if (!settings.playSound) return;
+
+            const sound = isCapture ? document.getElementById('captureSound') : document.getElementById('moveSound');
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(() => { });
+            }
+        }
+
+        // Detect if a move is a capture by comparing positions
+        function detectCapture(oldPos, newPos) {
+            // Count pieces in old and new positions
+            const oldCount = Object.keys(oldPos || {}).length;
+            const newCount = Object.keys(newPos || {}).length;
+            return newCount < oldCount;
+        }
+
+        // Custom piece theme using settings
         function pieceTheme(piece) {
-            return '/pieces/' + piece + '.svg';
+            return settings.pieceTheme.replace('{piece}', piece);
         }
 
         // Initialize the board in view mode
@@ -103,10 +320,12 @@
                 draggable: false,
                 position: 'start',
                 pieceTheme: pieceTheme,
-                showNotation: true
+                showNotation: settings.showNotation,
+                orientation: boardOrientation
             };
             board = Chessboard('board', config);
             $(window).on('resize', board.resize);
+            applyBoardColors();
         }
 
         // Switch to edit mode
@@ -126,9 +345,12 @@
                 sparePieces: true,
                 position: currentPosition,
                 pieceTheme: pieceTheme,
-                showNotation: true,
+                showNotation: settings.showNotation,
+                orientation: boardOrientation,
                 onChange: onBoardChange
             });
+
+            applyBoardColors();
 
             // Prevent page scrolling when dragging pieces on touch devices
             $('#board').on('touchmove', function (e) {
@@ -158,8 +380,11 @@
                 draggable: false,
                 position: currentPosition,
                 pieceTheme: pieceTheme,
-                showNotation: true
+                showNotation: settings.showNotation,
+                orientation: boardOrientation
             });
+
+            applyBoardColors();
 
             $('#board').off('touchmove');
 
@@ -180,6 +405,10 @@
                 instructionsHidden = true;
                 $('#edit-instructions').removeClass('visible');
             }
+
+            // Play sound for piece movement in edit mode
+            const isCapture = detectCapture(oldPos, newPos);
+            playMoveSound(isCapture);
 
             // Detect pawn double moves for en passant
             enPassantSquare = '-';
@@ -232,7 +461,7 @@
         }
 
         // Parse full FEN and update UI state
-        function parseFullFen(fen) {
+        function parseFullFen(fen, playSound = true) {
             const parts = fen.trim().split(/\s+/);
             if (parts.length < 1) return false;
 
@@ -240,7 +469,20 @@
 
             if (!isValidPositionFen(positionFen)) return false;
 
+            // Get old position before updating
+            const oldPosition = board ? board.position() : null;
+
             board.position(positionFen);
+
+            // Get new position after updating
+            const newPosition = board.position();
+
+            // Play sound if position changed and sounds enabled
+            if (playSound && oldPosition && previousValidFen !== positionFen) {
+                const isCapture = detectCapture(oldPosition, newPosition);
+                playMoveSound(isCapture);
+            }
+
             previousValidFen = positionFen;
 
             if (parts.length >= 2) {
@@ -623,7 +865,7 @@
                 const newFen = fenInput.val();
                 // Use strong validation
                 const validation = isLegalPosition(newFen);
-                if (validation.valid && parseFullFen(newFen)) {
+                if (validation.valid && parseFullFen(newFen, false)) {
                     isEditingFen = false;
                     fenInput.prop('readonly', true);
                     editBtn.text('✏️');
@@ -631,7 +873,7 @@
                 } else {
                     const errorMsg = validation.error || 'Invalid FEN format';
                     alert('Invalid FEN: ' + errorMsg + '. Reverting to previous position.');
-                    parseFullFen(fenBeforeEdit);
+                    parseFullFen(fenBeforeEdit, false);
                     isEditingFen = false;
                     fenInput.prop('readonly', true);
                     editBtn.text('✏️');
@@ -652,7 +894,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.fen) {
-                        parseFullFen(data.fen);
+                        parseFullFen(data.fen, false); // Don't play sound for manual sync
                         updateFenDisplay();
                     }
                 })
@@ -663,6 +905,7 @@
 
         // Event handlers
         $(document).ready(function () {
+            loadSettings();
             initBoard();
             startPolling();
 
@@ -694,10 +937,14 @@
                 });
             });
 
-            $('#sync-btn').on('click', syncFromServer);
+            $('#sync-btn').on('click', function () {
+                syncFromServer();
+                playMoveSound(false);
+            });
 
             $('#start-btn').on('click', function () {
                 board.start();
+                playMoveSound(false);
                 currentTurn = 'w';
                 castlingRights = { K: true, Q: true, k: true, q: true };
                 enPassantSquare = '-';
@@ -707,10 +954,10 @@
             });
 
             $('#clear-btn').on('click', function () {
-                // if (confirm('Clear all pieces from the board?')) {
                 board.clear();
                 enPassantSquare = '-';
                 updateFenDisplay();
+                playMoveSound(false);
             });
 
             $('#fen-copy-btn').on('click', copyFen);
@@ -723,7 +970,156 @@
             });
 
             $('#apply-btn').on('click', applyChanges);
+
+            // Flip board button
+            $('#flipBtn').on('click', function () {
+                boardOrientation = boardOrientation === 'white' ? 'black' : 'white';
+                board.orientation(boardOrientation);
+            });
+
+            // Focus mode button
+            $('#focusBtn').on('click', function () {
+                focusMode = !focusMode;
+                $(this).toggleClass('active');
+                $('body').toggleClass('focus-mode');
+                if (board) {
+                    setTimeout(() => board.resize(), 100);
+                }
+            });
+
+            // Settings button
+            $('#settingsBtn').on('click', function () {
+                $('#settingsPopup').addClass('visible');
+            });
+
+            // Close settings popup
+            $('#closeSettings').on('click', function () {
+                $('#settingsPopup').removeClass('visible');
+            });
+
+            // Close popup when clicking outside
+            $('#settingsPopup').on('click', function (e) {
+                if (e.target === this) {
+                    $(this).removeClass('visible');
+                }
+            });
+
+            // Settings: Show notation toggle
+            $('#settingNotation').on('change', function () {
+                settings.showNotation = this.checked;
+                saveSettings();
+                rebuildBoard();
+            });
+
+            // Settings: Play sounds toggle
+            $('#settingSound').on('change', function () {
+                settings.playSound = this.checked;
+                saveSettings();
+            });
+
+            // Settings: Light square color
+            $('#settingLightColor').on('input', function () {
+                settings.lightSquareColor = this.value;
+                saveSettings();
+            });
+
+            // Settings: Dark square color
+            $('#settingDarkColor').on('input', function () {
+                settings.darkSquareColor = this.value;
+                saveSettings();
+            });
+
+            // Reset colors to default
+            $('#resetColorsBtn').on('click', function () {
+                settings.lightSquareColor = '#f0d9b5';
+                settings.darkSquareColor = '#b58863';
+                saveSettings();
+            });
+
+            // Settings: Piece theme dropdown
+            $('#settingPieceTheme').on('change', function () {
+                settings.pieceTheme = this.value;
+                saveSettings();
+                rebuildBoard();
+                updateThemeUI();
+            });
+
+            // Delete custom piece theme
+            $('#deleteThemeBtn').on('click', function () {
+                const selectedValue = $('#settingPieceTheme').val();
+                if (isCustomTheme(selectedValue)) {
+                    if (confirm('Delete this custom theme?')) {
+                        settings.customThemes = settings.customThemes.filter(t => t.value !== selectedValue);
+                        settings.pieceTheme = defaultThemes[0].value;
+                        saveSettings();
+                        rebuildBoard();
+                    }
+                }
+            });
+
+            // Add custom piece theme
+            $('#addThemeBtn').on('click', function () {
+                const themeUrl = prompt('Enter piece theme URL pattern:\n(Use {piece} as placeholder, e.g., https://example.com/pieces/{piece}.png)');
+                if (themeUrl && themeUrl.includes('{piece}')) {
+                    const themeName = prompt('Enter a name for this theme:');
+                    if (themeName) {
+                        if (!settings.customThemes) settings.customThemes = [];
+                        settings.customThemes.push({ value: themeUrl, label: themeName });
+                        settings.pieceTheme = themeUrl;
+                        saveSettings();
+                        rebuildBoard();
+                        updateThemeUI();
+                    }
+                } else if (themeUrl) {
+                    alert('Theme URL must contain {piece} placeholder');
+                }
+            });
+
+            // ESC key to exit focus mode or close settings
+            $(document).on('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    if ($('#settingsPopup').hasClass('visible')) {
+                        $('#settingsPopup').removeClass('visible');
+                    } else if (focusMode) {
+                        focusMode = false;
+                        $('#focusBtn').removeClass('active');
+                        $('body').removeClass('focus-mode');
+                        if (board) {
+                            setTimeout(() => board.resize(), 100);
+                        }
+                    }
+                }
+            });
         });
+
+        // Rebuild board with current settings (for notation toggle)
+        function rebuildBoard() {
+            const currentPosition = board.position();
+            board.destroy();
+
+            if (editMode) {
+                board = Chessboard('board', {
+                    draggable: true,
+                    dropOffBoard: 'trash',
+                    sparePieces: true,
+                    position: currentPosition,
+                    pieceTheme: pieceTheme,
+                    showNotation: settings.showNotation,
+                    orientation: boardOrientation,
+                    onChange: onBoardChange
+                });
+            } else {
+                board = Chessboard('board', {
+                    draggable: false,
+                    position: currentPosition,
+                    pieceTheme: pieceTheme,
+                    showNotation: settings.showNotation,
+                    orientation: boardOrientation
+                });
+            }
+
+            applyBoardColors();
+        }
     </script>
 </body>
 
