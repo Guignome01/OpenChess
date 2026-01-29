@@ -14,8 +14,6 @@ class ChessLichess : public ChessBot {
   LichessConfig lichessConfig;
   String currentGameId;
   char myColor; // 'w' or 'b' - the color we play as
-  bool gameActive;
-  bool waitingForGame;
 
   // Last known state from Lichess
   String lastKnownMoves;
@@ -39,9 +37,6 @@ class ChessLichess : public ChessBot {
   ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, LichessConfig cfg);
   void begin() override;
   void update() override;
-
-  bool isWaitingForGame() const { return waitingForGame; }
-  String getGameId() const { return currentGameId; }
 };
 
 #endif // CHESS_LICHESS_H

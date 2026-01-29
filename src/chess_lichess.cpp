@@ -12,8 +12,6 @@ ChessLichess::ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* w
       lichessConfig(cfg),
       currentGameId(""),
       myColor('w'),
-      gameActive(false),
-      waitingForGame(true),
       lastKnownMoves(""),
       lastSentMove(""),
       lastPollTime(0) {}
@@ -50,10 +48,6 @@ void ChessLichess::begin() {
   Serial.println("Start a game on lichess.org or accept a challenge!");
   Serial.println("====================================");
 
-  waitingForGame = true;
-  gameActive = false;
-
-  // Wait for a game to start
   waitForLichessGame();
 }
 
@@ -62,7 +56,7 @@ void ChessLichess::waitForLichessGame() {
   std::atomic<bool>* stopAnimation = boardDriver->startWaitingAnimation();
   LichessEvent event;
   event.type = LichessEventType::UNKNOWN;
-  while (waitingForGame && !gameOver) {
+  while (!gameOver) {
     if (!LichessAPI::pollForGameEvent(event) || event.type != LichessEventType::GAME_START) {
       delay(1000);
       continue;
@@ -109,9 +103,6 @@ void ChessLichess::waitForLichessGame() {
   // Sync the board with the current game state
   syncBoardWithLichess(state);
 
-  waitingForGame = false;
-  gameActive = true;
-
   // Wait for board setup with the current position
   waitForBoardSetup(board);
 
@@ -140,7 +131,7 @@ void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
 
 void ChessLichess::update() {
   static std::atomic<bool>* stopAnimation = nullptr;
-  if (gameOver || !gameActive)
+  if (gameOver)
     return;
 
   boardDriver->readSensors();
@@ -156,11 +147,11 @@ void ChessLichess::update() {
     processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
     updateGameStatus();
     wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
-    if (stopAnimation == nullptr && !gameOver)
-      stopAnimation = boardDriver->startThinkingAnimation();
     // Then send move to Lichess (blocking)
     sendMoveToLichess(fromRow, fromCol, toRow, toCol, promotion);
     boardDriver->updateSensorPrev();
+    if (stopAnimation == nullptr && !gameOver)
+      stopAnimation = boardDriver->startThinkingAnimation();
     return;
   }
 
@@ -219,9 +210,24 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
   // Track this move so we don't process it as an opponent move when it echoes back
   lastSentMove = uciMove;
 
-  if (!LichessAPI::makeMove(currentGameId, uciMove)) {
-    Serial.println("ERROR: Failed to send move to Lichess!");
-    boardDriver->blinkSquare(fromRow, fromCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b, 3);
+  // Retry up to 3 times if sending fails
+  const int maxRetries = 3;
+  int attempt = 0;
+  bool sent = false;
+  while (attempt < maxRetries && !sent) {
+    if (LichessAPI::makeMove(currentGameId, uciMove)) {
+      sent = true;
+      break;
+    } else {
+      Serial.printf("ERROR: Failed to send move to Lichess! Attempt %d/%d\n", attempt + 1, maxRetries);
+      delay(500);
+      attempt++;
+    }
+  }
+  if (!sent) {
+    gameOver = true;
+    Serial.println("ERROR: All attempts to send move to Lichess failed, ending game!");
+    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
     lastSentMove = "";
   }
 }
