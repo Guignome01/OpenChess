@@ -182,13 +182,13 @@ void showGameSelection() {
   // Light up the 4 selector positions in the middle of the board
   // Each mode has a different color for easy identification
   // Position 1: Chess Moves (row 3, col 3) - Orange
-  boardDriver.setSquareLED(3, 3, LedColors::Orange.r, LedColors::Orange.g, LedColors::Orange.b);
+  boardDriver.setSquareLED(3, 3, LedColors::Orange);
   // Position 2: Chess Bot (row 3, col 4) - White
-  boardDriver.setSquareLED(3, 4, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+  boardDriver.setSquareLED(3, 4, LedColors::White);
   // Position 3: Lichess (row 4, col 3) - Purple
-  boardDriver.setSquareLED(4, 3, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+  boardDriver.setSquareLED(4, 3, LedColors::Purple);
   // Position 4: Sensor Test (row 4, col 4) - Red
-  boardDriver.setSquareLED(4, 4, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+  boardDriver.setSquareLED(4, 4, LedColors::Red);
   boardDriver.showLEDs();
   boardDriver.releaseLEDs();
 }
@@ -318,20 +318,20 @@ void handleBotConfigSelection() {
 
   boardDriver.acquireLEDs();
   // Easy (col 1) - Green
-  boardDriver.setSquareLED(2, 1, LedColors::Green.r, LedColors::Green.g, LedColors::Green.b);
-  boardDriver.setSquareLED(5, 1, LedColors::Green.r, LedColors::Green.g, LedColors::Green.b);
+  boardDriver.setSquareLED(2, 1, LedColors::Green);
+  boardDriver.setSquareLED(5, 1, LedColors::Green);
 
   // Medium (col 3) - Orange/Gold
-  boardDriver.setSquareLED(2, 3, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
-  boardDriver.setSquareLED(5, 3, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
+  boardDriver.setSquareLED(2, 3, LedColors::Gold);
+  boardDriver.setSquareLED(5, 3, LedColors::Gold);
 
   // Hard (col 5) - Red
-  boardDriver.setSquareLED(2, 5, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
-  boardDriver.setSquareLED(5, 5, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+  boardDriver.setSquareLED(2, 5, LedColors::Red);
+  boardDriver.setSquareLED(5, 5, LedColors::Red);
 
   // Expert (col 7) - Purple
-  boardDriver.setSquareLED(2, 7, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
-  boardDriver.setSquareLED(5, 7, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+  boardDriver.setSquareLED(2, 7, LedColors::Purple);
+  boardDriver.setSquareLED(5, 7, LedColors::Purple);
 
   boardDriver.showLEDs();
   boardDriver.releaseLEDs();

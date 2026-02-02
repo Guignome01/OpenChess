@@ -78,12 +78,12 @@ struct AnimationJob {
     } promotion;
     struct {
       int row, col;
-      uint8_t r, g, b;
+      LedRGB color;
       int times;
       bool clearAfter;
     } blink;
     struct {
-      uint8_t r, g, b;
+      LedRGB color;
       int times;
     } flash;
   } params;
@@ -106,11 +106,11 @@ class BoardDriver {
   void executeAnimation(const AnimationJob& job);
   void doCapture(int row, int col);
   void doPromotion(int col);
-  void doBlink(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times, bool clearAfter);
+  void doBlink(int row, int col, LedRGB color, int times, bool clearAfter);
   void doWaiting(std::atomic<bool>* stopFlag);
   void doThinking(std::atomic<bool>* stopFlag);
   void doFirework();
-  void doFlash(uint8_t r, uint8_t g, uint8_t b, int times);
+  void doFlash(LedRGB color, int times);
   bool sensorState[NUM_ROWS][NUM_COLS];
   bool sensorPrev[NUM_ROWS][NUM_COLS];
   bool sensorRaw[NUM_ROWS][NUM_COLS];
@@ -156,16 +156,16 @@ class BoardDriver {
   void acquireLEDs(); // Block until LED strip available
   void releaseLEDs(); // Release LED strip
   void clearAllLEDs(bool show = true);
-  void setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w = 0);
+  void setSquareLED(int row, int col, LedRGB color);
   void showLEDs();
 
   // Animation Functions (queued for async execution)
   void fireworkAnimation();
   void captureAnimation(int row, int col);
   void promotionAnimation(int col);
-  void blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times = 3, bool clearAfter = true);
+  void blinkSquare(int row, int col, LedRGB color, int times = 3, bool clearAfter = true);
   void showConnectingAnimation();
-  void flashBoardAnimation(uint8_t r, uint8_t g, uint8_t b, int times = 3);
+  void flashBoardAnimation(LedRGB color, int times = 3);
   std::atomic<bool>* startThinkingAnimation();
   std::atomic<bool>* startWaitingAnimation();
 };

@@ -62,17 +62,17 @@ void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
           // Need to place a piece here - show where pieces should go
           if (ChessUtils::getPieceColor(targetBoard[row][col]) == 'w') {
             // White piece - show in White
-            boardDriver->setSquareLED(row, col, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+            boardDriver->setSquareLED(row, col, LedColors::White);
           } else {
             // Black piece - show in Blu
-            boardDriver->setSquareLED(row, col, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+            boardDriver->setSquareLED(row, col, LedColors::Blu);
           }
         } else if (!shouldHavePiece && hasPiece) {
           // Need to remove a piece from here - show in red
-          boardDriver->setSquareLED(row, col, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+          boardDriver->setSquareLED(row, col, LedColors::Red);
         } else {
           // Correct state - no LED
-          boardDriver->setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+          boardDriver->setSquareLED(row, col, LedColors::Off);
         }
       }
     }
@@ -136,7 +136,7 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       // Check if it's the correct player's piece
       if (ChessUtils::getPieceColor(piece) != playerColor) {
         Serial.printf("Wrong turn! It's %s's turn to move.\n", ChessUtils::colorName(playerColor));
-        boardDriver->blinkSquare(row, col, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b, 2);
+        boardDriver->blinkSquare(row, col, LedColors::Red, 2);
         continue;
       }
 
@@ -148,7 +148,7 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       chessEngine->getPossibleMoves(board, row, col, moveCount, moves);
 
       // Light up current square and possible move squares
-      boardDriver->setSquareLED(row, col, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
+      boardDriver->setSquareLED(row, col, LedColors::Cyan);
 
       // Highlight possible move squares (different colors for empty vs capture)
       for (int i = 0; i < moveCount; i++) {
@@ -157,12 +157,12 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
 
         bool isEnPassantCapture = ChessUtils::isEnPassantMove(row, col, r, c, piece, board[r][c]);
         if (board[r][c] == ' ' && !isEnPassantCapture) {
-          boardDriver->setSquareLED(r, c, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+          boardDriver->setSquareLED(r, c, LedColors::White);
         } else {
-          boardDriver->setSquareLED(r, c, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+          boardDriver->setSquareLED(r, c, LedColors::Red);
           if (isEnPassantCapture) {
             int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(r, piece);
-            boardDriver->setSquareLED(capturedPawnRow, c, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+            boardDriver->setSquareLED(capturedPawnRow, c, LedColors::Purple);
           }
         }
       }
@@ -219,9 +219,9 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
               targetCol = c2;
               piecePlaced = true;
               if (isEnPassantCapture)
-                boardDriver->setSquareLED(enPassantCapturedPawnRow, c2, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+                boardDriver->setSquareLED(enPassantCapturedPawnRow, c2, LedColors::Off);
               // Blink the capture square to indicate waiting for piece placement
-              boardDriver->blinkSquare(r2, c2, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b, 1, false);
+              boardDriver->blinkSquare(r2, c2, LedColors::Red, 1, false);
               // Wait for the capturing piece to be placed (or returned to origin to cancel)
               while (!boardDriver->getSensorState(r2, c2)) {
                 boardDriver->readSensors();
@@ -321,7 +321,7 @@ void ChessGame::updateGameStatus() {
     int kingRow = -1;
     int kingCol = -1;
     if (findKingPosition(currentTurn, kingRow, kingCol))
-      boardDriver->blinkSquare(kingRow, kingCol, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
+      boardDriver->blinkSquare(kingRow, kingCol, LedColors::Gold);
   }
 
   Serial.printf("It's %s's turn !\n", ChessUtils::colorName(currentTurn));
@@ -408,8 +408,8 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
     Serial.printf("Castling: please move king from %c%d to %c%d\n", (char)('a' + kingFromCol), 8 - kingFromRow, (char)('a' + kingToCol), 8 - kingToRow);
 
     boardDriver->clearAllLEDs(false);
-    boardDriver->setSquareLED(kingFromRow, kingFromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
-    boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+    boardDriver->setSquareLED(kingFromRow, kingFromCol, LedColors::Cyan);
+    boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::White);
     boardDriver->showLEDs();
 
     // Wait for king to be lifted from its original square
@@ -420,7 +420,7 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
 
     // Wait for king to be placed on destination square
     boardDriver->clearAllLEDs(false);
-    boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+    boardDriver->setSquareLED(kingToRow, kingToCol, LedColors::White);
     boardDriver->showLEDs();
 
     while (!boardDriver->getSensorState(kingToRow, kingToCol)) {
@@ -436,8 +436,8 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
 
   // Wait for rook to be lifted from its original square
   boardDriver->clearAllLEDs(false);
-  boardDriver->setSquareLED(kingToRow, rookFromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
-  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+  boardDriver->setSquareLED(kingToRow, rookFromCol, LedColors::Cyan);
+  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::White);
   boardDriver->showLEDs();
 
   while (boardDriver->getSensorState(kingToRow, rookFromCol)) {
@@ -447,7 +447,7 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
 
   // Wait for rook to be placed on destination square
   boardDriver->clearAllLEDs(false);
-  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+  boardDriver->setSquareLED(kingToRow, rookToCol, LedColors::White);
   boardDriver->showLEDs();
 
   while (!boardDriver->getSensorState(kingToRow, rookToCol)) {
@@ -484,5 +484,5 @@ bool ChessGame::applyPawnPromotionIfNeeded(int toRow, int toCol, char movedPiece
 }
 
 void ChessGame::confirmSquareCompletion(int row, int col) {
-  boardDriver->blinkSquare(row, col, LedColors::Green.r, LedColors::Green.g, LedColors::Green.b, 1);
+  boardDriver->blinkSquare(row, col, LedColors::Green, 1);
 }

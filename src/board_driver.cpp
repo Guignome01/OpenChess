@@ -94,7 +94,7 @@ void BoardDriver::executeAnimation(const AnimationJob& job) {
       doPromotion(job.params.promotion.col);
       break;
     case AnimationType::BLINK:
-      doBlink(job.params.blink.row, job.params.blink.col, job.params.blink.r, job.params.blink.g, job.params.blink.b, job.params.blink.times, job.params.blink.clearAfter);
+      doBlink(job.params.blink.row, job.params.blink.col, job.params.blink.color, job.params.blink.times, job.params.blink.clearAfter);
       break;
     case AnimationType::WAITING:
       doWaiting(job.stopFlag);
@@ -106,7 +106,7 @@ void BoardDriver::executeAnimation(const AnimationJob& job) {
       doFirework();
       break;
     case AnimationType::FLASH:
-      doFlash(job.params.flash.r, job.params.flash.g, job.params.flash.b, job.params.flash.times);
+      doFlash(job.params.flash.color, job.params.flash.times);
       break;
   }
 }
@@ -617,15 +617,11 @@ void BoardDriver::clearAllLEDs(bool show) {
     showLEDs();
 }
 
-void BoardDriver::setSquareLED(int row, int col, uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
-  uint32_t color;
+void BoardDriver::setSquareLED(int row, int col, LedRGB color) {
   float multiplier = 1.0f;
-  int pixelIndex = getPixelIndex(row, col);
   if ((row + col) % 2 == 1)
     multiplier = 0.7f; // Dim dark squares to 70% brightness because they appear brighter due to the contrast
-  // RGBW to RGB conversion
-  color = (w > 0 && ((r == 0 && g == 0 && b == 0) || (r == 255 && g == 255 && b == 255))) ? strip.Color(255 * multiplier, 255 * multiplier, 255 * multiplier) : strip.Color(r * multiplier, g * multiplier, b * multiplier);
-  strip.setPixelColor(pixelIndex, color);
+  strip.setPixelColor(getPixelIndex(row, col), strip.Color(color.r * multiplier, color.g * multiplier, color.b * multiplier));
 }
 
 void BoardDriver::showLEDs() {
@@ -636,8 +632,8 @@ void BoardDriver::showConnectingAnimation() {
   acquireLEDs();
   // Show each WiFi connection attempt with animated LEDs
   for (int i = 0; i < 8; i++) {
-    setSquareLED(3, i, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
-    setSquareLED(4, i, LedColors::Blu.r, LedColors::Blu.g, LedColors::Blu.b);
+    setSquareLED(3, i, LedColors::Blu);
+    setSquareLED(4, i, LedColors::Blu);
     showLEDs();
     delay(100);
   }
@@ -645,23 +641,23 @@ void BoardDriver::showConnectingAnimation() {
   releaseLEDs();
 }
 
-void BoardDriver::blinkSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times, bool clearAfter) {
+void BoardDriver::blinkSquare(int row, int col, LedRGB color, int times, bool clearAfter) {
   AnimationJob job = {AnimationType::BLINK, nullptr, {}};
-  job.params.blink = {row, col, r, g, b, times, clearAfter};
+  job.params.blink = {row, col, color, times, clearAfter};
   xQueueSend(animationQueue, &job, portMAX_DELAY);
 }
 
-void BoardDriver::doBlink(int row, int col, uint8_t r, uint8_t g, uint8_t b, int times, bool clearAfter) {
+void BoardDriver::doBlink(int row, int col, LedRGB color, int times, bool clearAfter) {
   for (int i = 0; i < times; i++) {
-    setSquareLED(row, col, r, g, b);
+    setSquareLED(row, col, color);
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(200));
-    setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+    setSquareLED(row, col, LedColors::Off);
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(200));
   }
   if (!clearAfter) {
-    setSquareLED(row, col, r, g, b);
+    setSquareLED(row, col, color);
     showLEDs();
   }
 }
@@ -684,9 +680,9 @@ void BoardDriver::doFirework() {
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
         if (fabs(dist - radius) < 0.5)
-          setSquareLED(row, col, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+          setSquareLED(row, col, LedColors::White);
         else
-          setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+          setSquareLED(row, col, LedColors::Off);
       }
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -700,9 +696,9 @@ void BoardDriver::doFirework() {
         float dy = row - centerY;
         float dist = sqrt(dx * dx + dy * dy);
         if (fabs(dist - radius) < 0.5)
-          setSquareLED(row, col, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+          setSquareLED(row, col, LedColors::White);
         else
-          setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+          setSquareLED(row, col, LedColors::Off);
       }
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -768,10 +764,10 @@ void BoardDriver::doCapture(int centerRow, int centerCol) {
             }
           }
         }
-        setSquareLED(row, col, finalR, finalG, finalB);
+        setSquareLED(row, col, LedRGB{finalR, finalG, finalB});
       }
     }
-    setSquareLED(centerRow, centerCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    setSquareLED(centerRow, centerCol, LedColors::Red);
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(50));
   }
@@ -792,9 +788,9 @@ void BoardDriver::doPromotion(int col) {
     for (int row = 0; row < 8; row++) {
       // Create a golden wave moving up and down the column
       if ((step + row) % 8 < 4)
-        setSquareLED(row, col, LedColors::Gold.r, LedColors::Gold.g, LedColors::Gold.b);
+        setSquareLED(row, col, LedColors::Gold);
       else
-        setSquareLED(row, col, LedColors::Off.r, LedColors::Off.g, LedColors::Off.b);
+        setSquareLED(row, col, LedColors::Off);
     }
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -802,20 +798,20 @@ void BoardDriver::doPromotion(int col) {
   clearAllLEDs();
 }
 
-void BoardDriver::flashBoardAnimation(uint8_t r, uint8_t g, uint8_t b, int times) {
+void BoardDriver::flashBoardAnimation(LedRGB color, int times) {
   AnimationJob job = {AnimationType::FLASH, nullptr, {}};
-  job.params.flash = {r, g, b, times};
+  job.params.flash = {color, times};
   xQueueSend(animationQueue, &job, portMAX_DELAY);
 }
 
-void BoardDriver::doFlash(uint8_t r, uint8_t g, uint8_t b, int times) {
+void BoardDriver::doFlash(LedRGB color, int times) {
   for (int i = 0; i < times; i++) {
     clearAllLEDs();
     vTaskDelay(pdMS_TO_TICKS(200));
     // Light up entire board with specified color
     for (int row = 0; row < 8; row++)
       for (int col = 0; col < 8; col++)
-        setSquareLED(row, col, r, g, b);
+        setSquareLED(row, col, color);
     showLEDs();
     vTaskDelay(pdMS_TO_TICKS(200));
   }
@@ -896,7 +892,7 @@ void BoardDriver::doThinking(std::atomic<bool>* stopFlag) {
     }
 
     for (auto& corner : corners)
-      setSquareLED(corner[0], corner[1], r, g, b);
+      setSquareLED(corner[0], corner[1], LedRGB{r, g, b});
     showLEDs();
 
     phase += phaseStep;
@@ -926,10 +922,10 @@ void BoardDriver::doWaiting(std::atomic<bool>* stopFlag) {
     // Light up 4 consecutive LEDs in purple (Lichess color)
     for (int i = 0; i < 4; i++) {
       int idx = (frame + i) % numPositions;
-      setSquareLED(positions[idx][0], positions[idx][1], LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+      setSquareLED(positions[idx][0], positions[idx][1], LedColors::Purple);
       // Also light up the opposite side for symmetry
       idx = (frame + i + 15) % numPositions;
-      setSquareLED(positions[idx][0], positions[idx][1], LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+      setSquareLED(positions[idx][0], positions[idx][1], LedColors::Purple);
     }
     showLEDs();
     frame = (frame + 1) % numPositions;

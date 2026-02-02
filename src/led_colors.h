@@ -10,7 +10,6 @@ struct LedRGB {
 };
 
 namespace LedColors {
-// Consistent colors across Chess Bot + Chess Moves modes
 static constexpr LedRGB Cyan{0, 255, 255};    // piece original square
 static constexpr LedRGB White{255, 255, 255}; // normal move
 static constexpr LedRGB Red{255, 0, 0};       // capture/attack/error/invalid move

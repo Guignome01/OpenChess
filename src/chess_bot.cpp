@@ -18,7 +18,7 @@ void ChessBot::begin() {
     waitForBoardSetup();
   } else {
     Serial.println("Failed to connect to WiFi. Bot mode unavailable.");
-    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->flashBoardAnimation(LedColors::Red);
     gameOver = true;
     return;
   }
@@ -189,14 +189,14 @@ void ChessBot::showOpponentMoveIndicator(int fromRow, int fromCol, int toRow, in
   boardDriver->acquireLEDs();
   boardDriver->clearAllLEDs(false);
   // Show source square (where to pick up from)
-  boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan.r, LedColors::Cyan.g, LedColors::Cyan.b);
+  boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan);
   // Show destination square (where to place)
   if (isCapture)
-    boardDriver->setSquareLED(toRow, toCol, LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::Red);
   else
-    boardDriver->setSquareLED(toRow, toCol, LedColors::White.r, LedColors::White.g, LedColors::White.b);
+    boardDriver->setSquareLED(toRow, toCol, LedColors::White);
   if (isEnPassant)
-    boardDriver->setSquareLED(enPassantCapturedPawnRow, toCol, LedColors::Purple.r, LedColors::Purple.g, LedColors::Purple.b);
+    boardDriver->setSquareLED(enPassantCapturedPawnRow, toCol, LedColors::Purple);
   boardDriver->showLEDs();
   boardDriver->releaseLEDs();
 }

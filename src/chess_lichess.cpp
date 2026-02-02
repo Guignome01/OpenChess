@@ -21,7 +21,7 @@ void ChessLichess::begin() {
 
   if (!wifiManager->connectToWiFi(wifiManager->getWiFiSSID(), wifiManager->getWiFiPassword())) {
     Serial.println("Failed to connect to WiFi. Lichess mode unavailable.");
-    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->flashBoardAnimation(LedColors::Red);
     gameOver = true;
     return;
   }
@@ -29,7 +29,7 @@ void ChessLichess::begin() {
   if (lichessConfig.apiToken.length() == 0) {
     Serial.println("No Lichess API token configured!");
     Serial.println("Please set your Lichess API token via the web interface.");
-    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->flashBoardAnimation(LedColors::Red);
     gameOver = true;
     return;
   }
@@ -38,7 +38,7 @@ void ChessLichess::begin() {
   LichessAPI::setToken(lichessConfig.apiToken);
   if (!LichessAPI::verifyToken(username)) {
     Serial.println("Invalid Lichess API token!");
-    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->flashBoardAnimation(LedColors::Red);
     gameOver = true;
     return;
   }
@@ -227,7 +227,7 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
   if (!sent) {
     gameOver = true;
     Serial.println("ERROR: All attempts to send move to Lichess failed, ending game!");
-    boardDriver->flashBoardAnimation(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b);
+    boardDriver->flashBoardAnimation(LedColors::Red);
     lastSentMove = "";
   }
 }
