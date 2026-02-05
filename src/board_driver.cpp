@@ -210,22 +210,36 @@ void BoardDriver::readRawSensors(bool rawState[NUM_ROWS][NUM_COLS]) {
   disableAllCols();
 }
 
-bool BoardDriver::waitForBoardEmpty() {
+bool BoardDriver::waitForBoardEmpty(unsigned long stableMs) {
   bool rawState[NUM_ROWS][NUM_COLS];
+  unsigned long lastWarningTime = millis();
+  unsigned long stableStart = 0;
+
   while (true) {
     readRawSensors(rawState);
-    bool any = false;
-    for (int row = 0; row < NUM_ROWS; row++) {
+    int pressedCount = 0;
+    for (int row = 0; row < NUM_ROWS; row++)
       for (int col = 0; col < NUM_COLS; col++)
-        if (rawState[row][col]) {
-          any = true;
-          break;
-        }
-      if (any)
-        break;
+        if (rawState[row][col])
+          pressedCount++;
+
+    if (pressedCount == 0) {
+      if (stableStart == 0)
+        stableStart = millis();
+      if (millis() - stableStart >= stableMs)
+        return true;
+    } else {
+      stableStart = 0;
+      unsigned long now = millis();
+      if (now - lastWarningTime >= CALIBRATION_WARNING_INTERVAL_MS) {
+        lastWarningTime = now;
+        Serial.printf("Board not empty - %d sensor(s) still detecting a magnet:\n", pressedCount);
+        for (int row = 0; row < NUM_ROWS; row++)
+          for (int col = 0; col < NUM_COLS; col++)
+            if (rawState[row][col])
+              Serial.printf("  GPIO %d + 74HC595 Q%c (pin %d)\n", rowPins[row], shiftRegOutput(col), shiftRegPin(col));
+      }
     }
-    if (!any)
-      return true;
     delay(SENSOR_READ_DELAY_MS);
   }
 }
@@ -235,6 +249,7 @@ bool BoardDriver::waitForSingleRawPress(int& rawRow, int& rawCol, unsigned long 
   int lastRow = -1;
   int lastCol = -1;
   unsigned long stableStart = 0;
+  unsigned long lastWarningTime = millis();
 
   while (true) {
     readRawSensors(rawState);
@@ -250,21 +265,40 @@ bool BoardDriver::waitForSingleRawPress(int& rawRow, int& rawCol, unsigned long 
         }
     if (count == 1) {
       if (foundRow == lastRow && foundCol == lastCol) {
-        if (stableStart == 0)
+        if (stableStart == 0) {
           stableStart = millis();
+          Serial.printf("  Detect start: GPIO %d + 74HC595 Q%c (pin %d)\n", rowPins[foundRow], shiftRegOutput(foundCol), shiftRegPin(foundCol));
+        }
         if (millis() - stableStart >= stableMs) {
           rawRow = foundRow;
           rawCol = foundCol;
           return true;
         }
       } else {
+        // Position changed - warn about unstable detection
+        if (lastRow >= 0 && lastCol >= 0) {
+          Serial.println("Sensor reading unstable - detected square changed. Hold piece steady on one square.");
+          Serial.printf("  Previous: GPIO %d + 74HC595 Q%c (pin %d), Current: GPIO %d + 74HC595 Q%c (pin %d)\n", rowPins[lastRow], shiftRegOutput(lastCol), shiftRegPin(lastCol), rowPins[foundRow], shiftRegOutput(foundCol), shiftRegPin(foundCol));
+        }
         lastRow = foundRow;
         lastCol = foundCol;
         stableStart = 0;
       }
     } else {
-      lastRow = -1;
-      lastCol = -1;
+      // Multiple presses or no presses detected
+      unsigned long now = millis();
+      if (now - lastWarningTime >= CALIBRATION_WARNING_INTERVAL_MS) {
+        lastWarningTime = now;
+        if (count == 0) {
+          Serial.println("No sensor detecting a magnet - place a piece on the requested square");
+        } else {
+          Serial.printf("Multiple sensors (%d) detected simultaneously but need exactly 1:\n", count);
+          for (int row = 0; row < NUM_ROWS; row++)
+            for (int col = 0; col < NUM_COLS; col++)
+              if (rawState[row][col])
+                Serial.printf("  GPIO %d + 74HC595 Q%c (pin %d)\n", rowPins[row], shiftRegOutput(col), shiftRegPin(col));
+        }
+      }
       stableStart = 0;
     }
     delay(SENSOR_READ_DELAY_MS);
@@ -285,16 +319,6 @@ bool BoardDriver::calibrateAxis(Axis axis, uint8_t* axisPinsOrder, size_t NUM_PI
     Serial.println("Non-square boards not supported for calibration");
     return false;
   }
-
-  // 74HC595 shift register pin mapping: bits are sent MSB first, so bit 7 shifts to QH, bit 0 stays at QA
-  // col 0 -> QA (pin 15), col 1 -> QB (pin 1), ..., col 7 -> QH (pin 7)
-  auto shiftRegPin = [](int col) -> int {
-    const int pins[] = {15, 1, 2, 3, 4, 5, 6, 7}; // QA=15, QB=1, QC=2, QD=3, QE=4, QF=5, QG=6, QH=7
-    return (col >= 0 && col < 8) ? pins[col] : -1;
-  };
-  auto shiftRegOutput = [](int col) -> char {
-    return (col >= 0 && col < 8) ? (char)('A' + col) : '?'; // col 0 -> 'A' (QA), col 7 -> 'H' (QH)
-  };
 
   Axis detectedAxis = UnknownAxis;
   int firstRow = -1;
@@ -456,9 +480,8 @@ bool BoardDriver::runCalibration() {
   }
   Serial.println("");
   Serial.println("- Empty the board to begin the calibration, instructions will follow as soon as the board is detected as empty");
-  Serial.println("- If calibration doesn't start and the board is empty, then some sensors are giving false readings");
-  Serial.println("- If calibration starts but doesn't continue after asking you to place 1 piece and you see no errors:");
-  Serial.println("  either multiple magnets are detected within half a second OR no magnet is detected (try the other side of the magnet)");
+  Serial.println("- Low voltage output on GPIO pins could cause undefined shift register behavior");
+  Serial.println("- Try both sides of the magnet and try holding the magnet closer to the sensor if detection fails");
   Serial.println("================================================================================");
   waitForBoardEmpty();
 

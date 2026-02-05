@@ -56,6 +56,17 @@
 // ---------------------------
 #define SENSOR_READ_DELAY_MS 40
 #define DEBOUNCE_MS 125
+#define CALIBRATION_WARNING_INTERVAL_MS 4000
+
+// 74HC595 shift register pin mapping: bits are sent MSB first, so bit 7 shifts to QH, bit 0 stays at QA
+// col 0 -> QA (pin 15), col 1 -> QB (pin 1), ..., col 7 -> QH (pin 7)
+static inline int shiftRegPin(int col) {
+  const int pins[] = {15, 1, 2, 3, 4, 5, 6, 7}; // QA=15, QB=1, QC=2, QD=3, QE=4, QF=5, QG=6, QH=7
+  return (col >= 0 && col < 8) ? pins[col] : -1;
+}
+static inline char shiftRegOutput(int col) {
+  return (col >= 0 && col < 8) ? (char)('A' + col) : '?'; // col 0 -> 'A' (QA), col 7 -> 'H' (QH)
+};
 
 // Animation job types for async queue
 enum class AnimationType : uint8_t { CAPTURE,
@@ -140,7 +151,7 @@ class BoardDriver {
   bool runCalibration();
   void loadLedSettings();
   void readRawSensors(bool rawState[NUM_ROWS][NUM_COLS]);
-  bool waitForBoardEmpty();
+  bool waitForBoardEmpty(unsigned long stableMs = 500);
   bool waitForSingleRawPress(int& rawRow, int& rawCol, unsigned long stableMs = 500);
   void showCalibrationError();
   bool calibrateAxis(Axis axis, uint8_t* axisPinsOrder, size_t NUM_PINS, bool firstAxisSwapped);
