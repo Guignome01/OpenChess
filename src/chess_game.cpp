@@ -94,6 +94,8 @@ void ChessGame::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol
     Serial.printf("En passant capture of %c\n", capturedPiece);
   }
 
+  chessEngine->updateHalfmoveClock(piece, capturedPiece);
+
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
@@ -306,6 +308,13 @@ void ChessGame::updateGameStatus() {
 
   if (chessEngine->isStalemate(board, currentTurn)) {
     Serial.println("STALEMATE! Game is a draw.");
+    boardDriver->fireworkAnimation(LedColors::Cyan);
+    gameOver = true;
+    return;
+  }
+
+  if (chessEngine->isFiftyMoveRule()) {
+    Serial.println("DRAW by 50-move rule! No captures or pawn moves in the last 50 moves.");
     boardDriver->fireworkAnimation(LedColors::Cyan);
     gameOver = true;
     return;

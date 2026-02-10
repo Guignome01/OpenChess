@@ -6,7 +6,7 @@
 // ChessEngine Implementation
 // ---------------------------
 
-ChessEngine::ChessEngine() : castlingRights(0x0F), enPassantTargetRow(-1), enPassantTargetCol(-1) {}
+ChessEngine::ChessEngine() : castlingRights(0x0F), enPassantTargetRow(-1), enPassantTargetCol(-1), halfmoveClock(0) {}
 
 void ChessEngine::setCastlingRights(uint8_t rights) {
   castlingRights = rights;
@@ -33,6 +33,26 @@ void ChessEngine::getEnPassantTarget(int& row, int& col) const {
 
 bool ChessEngine::hasEnPassantTarget() const {
   return enPassantTargetRow != -1 && enPassantTargetCol != -1;
+}
+
+int ChessEngine::getHalfmoveClock() const {
+  return halfmoveClock;
+}
+
+void ChessEngine::setHalfmoveClock(int clock) {
+  halfmoveClock = clock;
+}
+
+void ChessEngine::updateHalfmoveClock(char movedPiece, char capturedPiece) {
+  // Reset on pawn move or any capture, otherwise increment
+  if (toupper(movedPiece) == 'P' || capturedPiece != ' ')
+    halfmoveClock = 0;
+  else
+    halfmoveClock++;
+}
+
+bool ChessEngine::isFiftyMoveRule() const {
+  return halfmoveClock >= 100; // 100 half-moves = 50 full moves
 }
 
 // Generate pseudo-legal moves (without check filtering)

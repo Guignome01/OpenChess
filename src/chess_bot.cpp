@@ -158,6 +158,8 @@ void ChessBot::executeOpponentMove(int fromRow, int fromCol, int toRow, int toCo
     capturedPiece = applyEnPassant(toRow, toCol, piece);
   }
 
+  chessEngine->updateHalfmoveClock(piece, capturedPiece);
+
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 

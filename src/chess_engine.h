@@ -19,6 +19,9 @@ class ChessEngine {
   int enPassantTargetRow;
   int enPassantTargetCol;
 
+  // Halfmove clock for 50-move rule (counts half-moves since last pawn move or capture)
+  int halfmoveClock;
+
   // Helper functions for move generation
   void addPawnMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
   void addRookMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
@@ -48,6 +51,7 @@ class ChessEngine {
   void reset() {
     clearEnPassantTarget();
     castlingRights = 0x0F;
+    halfmoveClock = 0;
   }
 
   // Set castling rights bitmask (KQkq = 0b1111)
@@ -59,6 +63,12 @@ class ChessEngine {
   void clearEnPassantTarget();
   void getEnPassantTarget(int& row, int& col) const;
   bool hasEnPassantTarget() const;
+
+  // Halfmove clock for 50-move rule
+  int getHalfmoveClock() const;
+  void setHalfmoveClock(int clock);
+  void updateHalfmoveClock(char movedPiece, char capturedPiece);
+  bool isFiftyMoveRule() const;
 
   // Main move generation function
   void getPossibleMoves(const char board[8][8], int row, int col, int& moveCount, int moves[][2]);

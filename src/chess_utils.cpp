@@ -81,8 +81,11 @@ String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, ChessEng
     fen += " -";
   }
 
-  // Halfmove clock (simplified)
-  fen += " 0";
+  // Halfmove clock
+  if (chessEngine != nullptr)
+    fen += " " + String(chessEngine->getHalfmoveClock());
+  else
+    fen += " 0";
 
   // Fullmove number (simplified)
   fen += " 1";
@@ -163,10 +166,19 @@ void ChessUtils::fenToBoard(String fen, char board[8][8], char& currentTurn, Che
         if (chessEngine != nullptr)
           chessEngine->setEnPassantTarget(epRow, epCol);
       }
-      return;
+    } else {
+      if (chessEngine != nullptr)
+        chessEngine->clearEnPassantTarget();
     }
+    remainingParts = (fourthSpace > 0) ? remainingParts.substring(fourthSpace + 1) : "";
+  }
+
+  // Parse halfmove clock
+  if (remainingParts.length() > 0) {
+    int fifthSpace = remainingParts.indexOf(' ');
+    String halfmoveStr = (fifthSpace > 0) ? remainingParts.substring(0, fifthSpace) : remainingParts;
     if (chessEngine != nullptr)
-      chessEngine->clearEnPassantTarget();
+      chessEngine->setHalfmoveClock(halfmoveStr.toInt());
   }
 }
 

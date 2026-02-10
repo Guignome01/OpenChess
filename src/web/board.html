@@ -165,6 +165,8 @@
         let currentTurn = 'w';
         let castlingRights = { K: true, Q: true, k: true, q: true };
         let enPassantSquare = '-';
+        let halfmoveClock = 0;
+        let fullmoveNumber = 1;
         let previousValidFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
         let isEditingFen = false;
         let updateInterval = null;
@@ -457,7 +459,7 @@
             if (castlingRights.q) castling += 'q';
             if (castling === '') castling = '-';
 
-            return positionFen + ' ' + turn + ' ' + castling + ' ' + enPassantSquare + ' 0 1';
+            return positionFen + ' ' + turn + ' ' + castling + ' ' + enPassantSquare + ' ' + halfmoveClock + ' ' + fullmoveNumber;
         }
 
         // Parse full FEN and update UI state
@@ -505,6 +507,18 @@
                 enPassantSquare = parts[3];
             } else {
                 enPassantSquare = '-';
+            }
+
+            if (parts.length >= 5) {
+                halfmoveClock = parseInt(parts[4]) || 0;
+            } else {
+                halfmoveClock = 0;
+            }
+
+            if (parts.length >= 6) {
+                fullmoveNumber = parseInt(parts[5]) || 1;
+            } else {
+                fullmoveNumber = 1;
             }
 
             updateEnPassantHighlight();
@@ -948,6 +962,8 @@
                 currentTurn = 'w';
                 castlingRights = { K: true, Q: true, k: true, q: true };
                 enPassantSquare = '-';
+                halfmoveClock = 0;
+                fullmoveNumber = 1;
                 updateTurnButtons();
                 updateCastlingButtons();
                 updateFenDisplay();
@@ -956,6 +972,8 @@
             $('#clear-btn').on('click', function () {
                 board.clear();
                 enPassantSquare = '-';
+                halfmoveClock = 0;
+                fullmoveNumber = 1;
                 updateFenDisplay();
                 playMoveSound(false);
             });
