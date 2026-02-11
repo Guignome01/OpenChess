@@ -26,11 +26,6 @@ class StockfishAPI {
   // Returns true if parsing was successful
   static bool parseResponse(const String& jsonString, StockfishResponse& response);
 
-  // Validate a UCI move string and convert to array coordinates
-  // Returns true if valid and fills errorMessage when invalid
-  // Also fills fromRow, fromCol, toRow, toCol with array coordinates (0-7)
-  static bool validateUCIMove(const String& move, String& errorMessage, int& fromRow, int& fromCol, int& toRow, int& toCol);
-
   // Build the API request URL
   static String buildRequestURL(const String& fen, int depth);
 };

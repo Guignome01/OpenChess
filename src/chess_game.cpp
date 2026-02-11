@@ -291,20 +291,6 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
   return false;
 }
 
-bool ChessGame::findKingPosition(char colorToMove, int& kingRow, int& kingCol) {
-  const char kingPiece = (colorToMove == 'w') ? 'K' : 'k';
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++)
-      if (board[row][col] == kingPiece) {
-        kingRow = row;
-        kingCol = col;
-        return true;
-      }
-  kingRow = -1;
-  kingCol = -1;
-  return false;
-}
-
 void ChessGame::updateGameStatus() {
   chessEngine->incrementFullmoveClock(currentTurn);
   currentTurn = (currentTurn == 'w') ? 'b' : 'w';
@@ -345,7 +331,7 @@ void ChessGame::updateGameStatus() {
 
     int kingRow = -1;
     int kingCol = -1;
-    if (findKingPosition(currentTurn, kingRow, kingCol))
+    if (chessEngine->findKingPosition(board, currentTurn, kingRow, kingCol))
       boardDriver->blinkSquare(kingRow, kingCol, LedColors::Yellow);
   }
 

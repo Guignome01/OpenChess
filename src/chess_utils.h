@@ -13,20 +13,20 @@ class ChessUtils {
     return (color == 'w') ? "White" : ((color == 'b') ? "Black" : "Unknown");
   }
 
-  static const LedRGB colorLed(char color) {
-    return (color == 'w') ? LedColors::White : ((color == 'b') ? LedColors::Blu : LedColors::Off);
+  static LedRGB colorLed(char color) {
+    return (color == 'w') ? LedColors::White : ((color == 'b') ? LedColors::Blue : LedColors::Off);
   }
 
-  static const char getPieceColor(char piece) {
+  static char getPieceColor(char piece) {
     return (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
   }
 
-  static const bool isWhitePiece(char piece) {
-    return (piece >= 'A' && piece <= 'Z') ? true : false;
+  static bool isWhitePiece(char piece) {
+    return (piece >= 'A' && piece <= 'Z');
   }
 
-  static const bool isBlackPiece(char piece) {
-    return (piece >= 'a' && piece <= 'z') ? true : false;
+  static bool isBlackPiece(char piece) {
+    return (piece >= 'a' && piece <= 'z');
   }
 
   static bool isEnPassantMove(int fromRow, int fromCol, int toRow, int toCol, char piece, char capturedPiece) {
@@ -44,7 +44,7 @@ class ChessUtils {
   // Convert castling rights bitmask (KQkq) to string used in FEN.
   // rights: bitmask where 0x01=K, 0x02=Q, 0x04=k, 0x08=q
   static String castlingRightsToString(uint8_t rights);
-  static uint8_t castlingRightsFromString(const String rightsStr);
+  static uint8_t castlingRightsFromString(String rightsStr);
 
   // Convert board state to FEN notation
   // board: 8x8 array representing the chess board
@@ -68,6 +68,11 @@ class ChessUtils {
   // Returns evaluation in pawns (positive = white advantage, negative = black advantage)
   // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9
   static float evaluatePosition(const char board[8][8]);
+
+  // Parse a UCI move string (e.g. "e2e4", "e7e8q") into array coordinates
+  // Returns true if the string is a valid UCI move; fills promotion with the
+  // promotion character (or ' ' if none)
+  static bool parseUCIMove(const String& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion);
 
   // Initialize NVS for ESP32 (required before Preferences.begin)
   static bool ensureNvsInitialized();

@@ -122,12 +122,10 @@ void ChessBot::makeBotMove() {
     Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation > 0 ? "White" : "Black", currentEvaluation);
 
     int fromRow, fromCol, toRow, toCol;
-    String validationError;
-    if (StockfishAPI::validateUCIMove(bestMove, validationError, fromRow, fromCol, toRow, toCol)) {
-      Serial.printf("Move string: %s Parsed: %c%c -> %c%c | Array coords: (%d,%d) to (%d,%d)", bestMove.c_str(), bestMove[0], bestMove[1], bestMove[2], bestMove[3], fromRow, fromCol, toRow, toCol);
-      if (bestMove.length() >= 5)
-        Serial.printf(" Promotion to: %c", bestMove[4]);
-      Serial.println("\n============================");
+    char promotion;
+    if (ChessUtils::parseUCIMove(bestMove, fromRow, fromCol, toRow, toCol, promotion)) {
+      Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: " + promotion);
+      Serial.println("============================");
       // Verify the move is from the correct color piece
       char piece = board[fromRow][fromCol];
       bool botPlaysWhite = !botConfig.playerIsWhite;
@@ -142,7 +140,7 @@ void ChessBot::makeBotMove() {
       }
       applyMove(fromRow, fromCol, toRow, toCol, (bestMove.length() >= 5) ? bestMove[4] : ' ', true);
     } else {
-      Serial.printf("Failed to parse bot move - %s\n", validationError.c_str());
+      Serial.println("Failed to parse Stockfish UCI move: " + bestMove);
     }
   }
 }

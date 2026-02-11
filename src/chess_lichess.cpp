@@ -193,12 +193,12 @@ void ChessLichess::update() {
         Serial.println("Skipping own move echo: " + state.lastMove);
       } else {
         Serial.println("Lichess move received: " + state.lastMove);
-        if (LichessAPI::parseUCIMove(state.lastMove, fromRow, fromCol, toRow, toCol, promotedPiece)) {
+        if (ChessUtils::parseUCIMove(state.lastMove, fromRow, fromCol, toRow, toCol, promotedPiece)) {
           if (stopAnimation) {
             stopAnimation->store(true);
             stopAnimation = nullptr;
           }
-          Serial.printf("Lichess move: %s Row-Col: (%d,%d) -> (%d,%d)\n", state.lastMove.c_str(), fromRow, fromCol, toRow, toCol);
+          Serial.printf("Lichess UCI move: %s = (%d,%d) -> (%d,%d)%s\n", state.lastMove.c_str(), fromRow, fromCol, toRow, toCol, promotedPiece == ' ' ? "" : " Promotion to: " + promotedPiece);
           applyMove(fromRow, fromCol, toRow, toCol, promotedPiece, true);
           updateGameStatus();
           wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));

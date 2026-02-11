@@ -15,7 +15,7 @@ String ChessUtils::castlingRightsToString(uint8_t rights) {
   return s;
 }
 
-uint8_t ChessUtils::castlingRightsFromString(const String rightsStr) {
+uint8_t ChessUtils::castlingRightsFromString(String rightsStr) {
   uint8_t rights = 0;
   for (int i = 0; i < rightsStr.length(); i++) {
     char c = rightsStr.charAt(i);
@@ -250,6 +250,40 @@ float ChessUtils::evaluatePosition(const char board[8][8]) {
     }
 
   return evaluation;
+}
+
+bool ChessUtils::parseUCIMove(const String& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
+  size_t len = move.length();
+  if (len < 4 || len > 5) return false;
+
+  char fromFile = move[0];
+  char fromRank = move[1];
+  char toFile = move[2];
+  char toRank = move[3];
+
+  if (fromFile < 'a' || fromFile > 'h' || toFile < 'a' || toFile > 'h') return false;
+  if (fromRank < '1' || fromRank > '8' || toRank < '1' || toRank > '8') return false;
+
+  fromCol = fromFile - 'a';
+  fromRow = 8 - (fromRank - '0');
+  toCol = toFile - 'a';
+  toRow = 8 - (toRank - '0');
+
+  // Validate that from and to squares are on the board (this is always false if the above checks passed, but we check again, just in case, to make it clear)
+  if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7 || toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
+
+  // From and to squares must differ
+  if (fromRow == toRow && fromCol == toCol) return false;
+
+  // Promotion (optional 5th char) must be q, r, b, or n
+  promotion = ' ';
+  if (len == 5) {
+    char promo = tolower(move[4]);
+    if (promo != 'q' && promo != 'r' && promo != 'b' && promo != 'n') return false;
+    promotion = move[4];
+  }
+
+  return true;
 }
 
 bool ChessUtils::ensureNvsInitialized() {

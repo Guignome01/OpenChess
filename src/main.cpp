@@ -175,7 +175,7 @@ void showGameSelection() {
   boardDriver.clearAllLEDs(false);
   // Light up the 4 selector positions in the middle of the board
   // Position 1: Chess Moves (row 3, col 3) - Blu
-  boardDriver.setSquareLED(3, 3, LedColors::Blu);
+  boardDriver.setSquareLED(3, 3, LedColors::Blue);
   // Position 2: Chess Bot (row 3, col 4) - Green
   boardDriver.setSquareLED(3, 4, LedColors::Green);
   // Position 3: Lichess (row 4, col 3) - Yellow

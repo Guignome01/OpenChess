@@ -442,42 +442,6 @@ bool LichessAPI::resignGame(const String& gameId) {
   return response.indexOf("ok") >= 0 || response.indexOf("true") >= 0;
 }
 
-bool LichessAPI::parseUCIMove(const String& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
-  if (move.length() < 4) {
-    return false;
-  }
-
-  // Parse source square (e.g., "e2")
-  char fromFile = move[0];
-  char fromRank = move[1];
-
-  // Parse destination square (e.g., "e4")
-  char toFile = move[2];
-  char toRank = move[3];
-
-  // Validate characters
-  if (fromFile < 'a' || fromFile > 'h' || toFile < 'a' || toFile > 'h') {
-    return false;
-  }
-  if (fromRank < '1' || fromRank > '8' || toRank < '1' || toRank > '8') {
-    return false;
-  }
-
-  // Convert to array coordinates (row 0 = rank 8, col 0 = file a)
-  fromCol = fromFile - 'a';
-  fromRow = 8 - (fromRank - '0');
-  toCol = toFile - 'a';
-  toRow = 8 - (toRank - '0');
-
-  // Check for promotion
-  promotion = ' ';
-  if (move.length() >= 5) {
-    promotion = move[4];
-  }
-
-  return true;
-}
-
 String LichessAPI::toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
   String move = "";
   move += (char)('a' + fromCol);

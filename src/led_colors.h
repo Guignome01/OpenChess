@@ -16,7 +16,7 @@ static constexpr LedRGB Red{255, 0, 0};       // capture/attack/error/invalid mo
 static constexpr LedRGB Purple{128, 0, 255};  // en passant, expert mode
 static constexpr LedRGB Green{0, 255, 0};     // confirm/move completion
 static constexpr LedRGB Yellow{255, 200, 0};  // king in check/promotion
-static constexpr LedRGB Blu{0, 0, 255};       // bot thinking
+static constexpr LedRGB Blue{0, 0, 255};      // bot thinking
 static constexpr LedRGB Off{0, 0, 0};         // turn off LED
 } // namespace LedColors
 

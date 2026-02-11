@@ -451,27 +451,11 @@ bool ChessEngine::isPawnPromotion(char piece, int targetRow) {
   return false;
 }
 
-// Utility function to print a move in readable format
-void ChessEngine::printMove(int fromRow, int fromCol, int toRow, int toCol) {
-  Serial.printf("%c%d to %c%d\n", (char)('a' + fromCol), fromRow + 1, (char)('a' + toCol), toRow + 1);
-}
-
-// Convert algebraic notation file (a-h) to column index (0-7)
-char ChessEngine::algebraicToCol(char file) {
-  return file - 'a';
-}
-
-// Convert algebraic notation rank (1-8) to row index (0-7)
-int ChessEngine::algebraicToRow(int rank) {
-  return rank - 1;
-}
-
 // ---------------------------
 // Check Detection Functions
 // ---------------------------
 
-// Find the king position for a given color
-bool ChessEngine::findKing(const char board[8][8], char kingColor, int& kingRow, int& kingCol) const {
+bool ChessEngine::findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol) const {
   char kingPiece = (kingColor == 'w') ? 'K' : 'k';
 
   for (int row = 0; row < 8; row++)
@@ -484,7 +468,6 @@ bool ChessEngine::findKing(const char board[8][8], char kingColor, int& kingRow,
   return false; // King not found (shouldn't happen in a valid game)
 }
 
-// Check if a square is under attack by the opponent
 bool ChessEngine::isSquareUnderAttack(const char board[8][8], int row, int col, char defendingColor) const {
   char attackingColor = (defendingColor == 'w') ? 'b' : 'w';
 
@@ -564,7 +547,6 @@ void ChessEngine::makeMove(char board[8][8], int fromRow, int fromCol, int toRow
   }
 }
 
-// Check if a move would leave the king in check
 bool ChessEngine::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol) const {
   // Create a copy of the board to test the move
   char testBoard[8][8];
@@ -582,7 +564,7 @@ bool ChessEngine::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow,
 
   // Find the king (it might have moved if the piece being moved was the king)
   int kingRow, kingCol;
-  bool kingFound = findKing(testBoard, movingColor, kingRow, kingCol);
+  bool kingFound = findKingPosition(testBoard, movingColor, kingRow, kingCol);
 
   if (!kingFound)
     return true; // If king not found, move is definitely illegal
@@ -593,80 +575,40 @@ bool ChessEngine::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow,
   return inCheck;
 }
 
-// Check if the king of a given color is currently in check
 bool ChessEngine::isKingInCheck(const char board[8][8], char kingColor) {
   int kingRow, kingCol;
 
-  if (!findKing(board, kingColor, kingRow, kingCol))
-    return false; // King not found
+  if (!findKingPosition(board, kingColor, kingRow, kingCol))
+    return false;
 
   return isSquareUnderAttack(board, kingRow, kingCol, kingColor);
 }
 
-// Check if the king is in checkmate
-bool ChessEngine::isCheckmate(const char board[8][8], char kingColor) {
-  // First, the king must be in check
-  if (!isKingInCheck(board, kingColor))
-    return false;
-
-  // Check if any legal move exists that would get out of check
+bool ChessEngine::hasAnyLegalMove(const char board[8][8], char color) {
   for (int fromRow = 0; fromRow < 8; fromRow++)
     for (int fromCol = 0; fromCol < 8; fromCol++) {
       char piece = board[fromRow][fromCol];
       if (piece == ' ') continue;
 
-      char pieceColor = ChessUtils::getPieceColor(piece);
-      if (pieceColor != kingColor) continue;
+      if (ChessUtils::getPieceColor(piece) != color) continue;
 
-      // Get all possible moves for this piece
       int moveCount = 0;
       int moves[28][2];
       getPossibleMoves(board, fromRow, fromCol, moveCount, moves);
 
-      // Check each possible move
       for (int i = 0; i < moveCount; i++) {
-        int toRow = moves[i][0];
-        int toCol = moves[i][1];
-
-        // If this move doesn't leave king in check, it's not checkmate
-        if (!wouldMoveLeaveKingInCheck(board, fromRow, fromCol, toRow, toCol))
-          return false; // Found a legal move
+        if (!wouldMoveLeaveKingInCheck(board, fromRow, fromCol, moves[i][0], moves[i][1]))
+          return true;
       }
     }
 
-  return true; // No legal moves found - it's checkmate
+  return false;
 }
 
-// Check if the game is in stalemate
+bool ChessEngine::isCheckmate(const char board[8][8], char kingColor) {
+  return isKingInCheck(board, kingColor) && !hasAnyLegalMove(board, kingColor);
+}
+
 bool ChessEngine::isStalemate(const char board[8][8], char colorToMove) {
-  // Stalemate: not in check, but no legal moves
-  if (isKingInCheck(board, colorToMove))
-    return false; // In check, can't be stalemate
-
-  // Check if any legal move exists
-  for (int fromRow = 0; fromRow < 8; fromRow++)
-    for (int fromCol = 0; fromCol < 8; fromCol++) {
-      char piece = board[fromRow][fromCol];
-      if (piece == ' ') continue;
-
-      char pieceColor = ChessUtils::getPieceColor(piece);
-      if (pieceColor != colorToMove) continue;
-
-      // Get all possible moves for this piece
-      int moveCount = 0;
-      int moves[28][2];
-      getPossibleMoves(board, fromRow, fromCol, moveCount, moves);
-
-      // Check each possible move
-      for (int i = 0; i < moveCount; i++) {
-        int toRow = moves[i][0];
-        int toCol = moves[i][1];
-
-        // If this move doesn't leave king in check, it's a legal move
-        if (!wouldMoveLeaveKingInCheck(board, fromRow, fromCol, toRow, toCol))
-          return false; // Found a legal move - not stalemate
-      }
-    }
-
-  return true; // No legal moves and not in check - it's stalemate
+  return !isKingInCheck(board, colorToMove) && !hasAnyLegalMove(board, colorToMove);
 }

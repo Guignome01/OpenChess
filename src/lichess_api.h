@@ -66,9 +66,6 @@ class LichessAPI {
   // Resign the game
   static bool resignGame(const String& gameId);
 
-  // Parse a move from UCI format to array coordinates
-  static bool parseUCIMove(const String& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion);
-
   // Convert array coordinates to UCI format
   static String toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 

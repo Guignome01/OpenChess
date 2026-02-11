@@ -664,8 +664,8 @@ void BoardDriver::showConnectingAnimation() {
   acquireLEDs();
   // Show each WiFi connection attempt with animated LEDs
   for (int i = 0; i < 8; i++) {
-    setSquareLED(3, i, LedColors::Blu);
-    setSquareLED(4, i, LedColors::Blu);
+    setSquareLED(3, i, LedColors::Blue);
+    setSquareLED(4, i, LedColors::Blue);
     showLEDs();
     delay(100);
   }

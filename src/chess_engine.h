@@ -54,7 +54,6 @@ class ChessEngine {
   // Check detection helpers
   void getPseudoLegalMoves(const char board[8][8], int row, int col, int& moveCount, int moves[][2], bool includeCastling = true) const;
   bool isSquareUnderAttack(const char board[8][8], int row, int col, char defendingColor) const;
-  bool findKing(const char board[8][8], char kingColor, int& kingRow, int& kingCol) const;
   bool wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol) const;
   void makeMove(char board[8][8], int fromRow, int fromCol, int toRow, int toCol, char& capturedPiece) const;
 
@@ -104,15 +103,12 @@ class ChessEngine {
   bool isValidMove(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol);
 
   // Game state checks
-  bool isPawnPromotion(char piece, int targetRow);
+  bool findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol) const;
   bool isKingInCheck(const char board[8][8], char kingColor);
+  bool isPawnPromotion(char piece, int targetRow);
+  bool hasAnyLegalMove(const char board[8][8], char color);
   bool isCheckmate(const char board[8][8], char kingColor);
   bool isStalemate(const char board[8][8], char colorToMove);
-
-  // Utility functions
-  void printMove(int fromRow, int fromCol, int toRow, int toCol);
-  char algebraicToCol(char file);
-  int algebraicToRow(int rank);
 };
 
 #endif // CHESS_ENGINE_H
