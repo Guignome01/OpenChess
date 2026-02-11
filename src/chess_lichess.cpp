@@ -139,18 +139,17 @@ void ChessLichess::update() {
   boardDriver->readSensors();
 
   int fromRow, fromCol, toRow, toCol;
-  char piece;
-  if ((currentTurn == myColor) && tryPlayerMove(myColor, fromRow, fromCol, toRow, toCol, piece)) {
+  if ((currentTurn == myColor) && tryPlayerMove(myColor, fromRow, fromCol, toRow, toCol)) {
     // Player's turn - handle physical move
-    char promotion = ' ';
-    if (chessEngine->isPawnPromotion(piece, toRow))
-      promotion = (myColor == 'w') ? 'Q' : 'q';
+    char promotedPiece = ' ';
+    if (chessEngine->isPawnPromotion(board[fromRow][fromCol], toRow))
+      promotedPiece = 'q'; // Default promotion to queen, can be enhanced to allow player choice later
     // Process locally FIRST - show animations immediately
-    processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
+    applyMove(fromRow, fromCol, toRow, toCol, promotedPiece);
     updateGameStatus();
     wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
     // Then send move to Lichess (blocking)
-    sendMoveToLichess(fromRow, fromCol, toRow, toCol, promotion);
+    sendMoveToLichess(fromRow, fromCol, toRow, toCol, promotedPiece);
     boardDriver->updateSensorPrev();
     if (stopAnimation == nullptr && !gameOver)
       stopAnimation = boardDriver->startThinkingAnimation();
@@ -164,7 +163,7 @@ void ChessLichess::update() {
   }
   lastPollTime = millis();
 
-  // Opponent's turn - poll Lichess for updates
+  // Remote player's turn - poll Lichess for updates
   LichessGameState state;
   state.myColor = myColor;
   state.gameId = currentGameId;
@@ -197,7 +196,7 @@ void ChessLichess::update() {
           stopAnimation = nullptr;
         }
         Serial.println("Lichess move received: " + state.lastMove);
-        // Process the opponent's move
+        // Process the remote move
         processLichessMove(state.lastMove);
         updateGameStatus();
         wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
@@ -207,11 +206,11 @@ void ChessLichess::update() {
   boardDriver->updateSensorPrev();
 }
 
-void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String uciMove = LichessAPI::toUCIMove(fromRow, fromCol, toRow, toCol, promotion);
+void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece) {
+  String uciMove = LichessAPI::toUCIMove(fromRow, fromCol, toRow, toCol, promotedPiece);
   Serial.println("Sending move to Lichess: " + uciMove);
 
-  // Track this move so we don't process it as an opponent move when it echoes back
+  // Track this move so we don't process it as a remote move when it echoes back
   lastSentMove = uciMove;
 
   // Retry up to 3 times if sending fails
@@ -238,14 +237,14 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
 
 void ChessLichess::processLichessMove(const String& uciMove) {
   int fromRow, fromCol, toRow, toCol;
-  char promotion;
+  char promotedPiece;
 
-  if (!LichessAPI::parseUCIMove(uciMove, fromRow, fromCol, toRow, toCol, promotion)) {
+  if (!LichessAPI::parseUCIMove(uciMove, fromRow, fromCol, toRow, toCol, promotedPiece)) {
     Serial.println("ERROR: Failed to parse Lichess move: " + uciMove);
     return;
   }
 
   Serial.printf("Lichess move: %s -> Array coords: (%d,%d) to (%d,%d)\n", uciMove.c_str(), fromRow, fromCol, toRow, toCol);
 
-  executeOpponentMove(fromRow, fromCol, toRow, toCol, promotion);
+  applyMove(fromRow, fromCol, toRow, toCol, promotedPiece, true);
 }

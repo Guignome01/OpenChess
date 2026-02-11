@@ -86,13 +86,22 @@ void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
   boardDriver->updateSensorPrev();
 }
 
-void ChessGame::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol, char piece) {
+void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece, bool isRemoteMove) {
+  char piece = board[fromRow][fromCol];
   char capturedPiece = board[toRow][toCol];
 
-  updateEnPassantTarget(fromRow, fromCol, toRow, piece);
-  if (ChessUtils::isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece)) {
-    capturedPiece = applyEnPassant(toRow, toCol, piece);
-    Serial.printf("En passant capture of %c\n", capturedPiece);
+  bool isCastling = ChessUtils::isCastlingMove(fromRow, fromCol, toRow, toCol, piece);
+  bool isEnPassantCapture = ChessUtils::isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  int enPassantCapturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, piece);
+  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
+    int enPassantRow = (fromRow + toRow) / 2;
+    chessEngine->setEnPassantTarget(enPassantRow, fromCol);
+  } else {
+    chessEngine->clearEnPassantTarget();
+  }
+  if (isEnPassantCapture) {
+    capturedPiece = board[enPassantCapturedPawnRow][toCol];
+    board[enPassantCapturedPawnRow][toCol] = ' ';
   }
 
   chessEngine->updateHalfmoveClock(piece, capturedPiece);
@@ -100,11 +109,21 @@ void ChessGame::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol
   board[toRow][toCol] = piece;
   board[fromRow][fromCol] = ' ';
 
-  if (ChessUtils::isCastlingMove(fromRow, fromCol, toRow, toCol, piece))
-    applyCastling(fromRow, fromCol, toRow, toCol, piece);
-  updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  const char* moveSource = isRemoteMove ? "Remote" : "Player";
+  if (isCastling)
+    Serial.printf("%s move: %c castling from %c%d to %c%d\n", moveSource, piece, (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
+  else if (isEnPassantCapture)
+    Serial.printf("%s move: %c en passant from %c%d to %c%d, captured pawn at %c%d\n", moveSource, piece, (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow, (char)('a' + toCol), 8 - enPassantCapturedPawnRow);
+  else
+    Serial.printf("%s move: %c from %c%d to %c%d\n", moveSource, piece, (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
 
-  Serial.printf("Player moved %c from %c%d to %c%d\n", piece, (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
+  if (isRemoteMove && !isCastling)
+    waitForRemoteMoveCompletion(fromRow, fromCol, toRow, toCol, capturedPiece != ' ', isEnPassantCapture, enPassantCapturedPawnRow);
+
+  if (isCastling)
+    applyCastling(fromRow, fromCol, toRow, toCol, piece, isRemoteMove);
+
+  updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
   if (capturedPiece != ' ') {
     Serial.printf("Captured: %c\n", capturedPiece);
@@ -114,14 +133,14 @@ void ChessGame::processPlayerMove(int fromRow, int fromCol, int toRow, int toCol
   }
 
   if (chessEngine->isPawnPromotion(piece, toRow)) {
-    char promotedPiece = ChessUtils::isWhitePiece(piece) ? 'Q' : 'q'; // For simplicity, auto-promote to queen. Can be enhanced to allow player choice later.
+    promotedPiece = promotedPiece != ' ' && promotedPiece != '\0' ? (ChessUtils::isWhitePiece(piece) ? toupper(promotedPiece) : tolower(promotedPiece)) : (ChessUtils::isWhitePiece(piece) ? 'Q' : 'q');
     board[toRow][toCol] = promotedPiece;
-    boardDriver->promotionAnimation(toCol);
     Serial.printf("Pawn promoted to %c\n", promotedPiece);
+    boardDriver->promotionAnimation(toCol);
   }
 }
 
-bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol, char& movedPiece) {
+bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
   for (int row = 0; row < 8; row++)
     for (int col = 0; col < 8; col++) {
       // Continue if nothing was picked up from this square
@@ -161,10 +180,8 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
           boardDriver->setSquareLED(r, c, LedColors::White);
         } else {
           boardDriver->setSquareLED(r, c, LedColors::Red);
-          if (isEnPassantCapture) {
-            int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(r, piece);
-            boardDriver->setSquareLED(capturedPawnRow, c, LedColors::Purple);
-          }
+          if (isEnPassantCapture)
+            boardDriver->setSquareLED(ChessUtils::getEnPassantCapturedPawnRow(r, piece), c, LedColors::Purple);
         }
       }
       boardDriver->showLEDs();
@@ -274,7 +291,6 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       fromCol = col;
       toRow = targetRow;
       toCol = targetCol;
-      movedPiece = piece;
 
       boardDriver->clearAllLEDs();
       return true;
@@ -451,22 +467,6 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
   }
 
   boardDriver->clearAllLEDs();
-}
-
-char ChessGame::applyEnPassant(int toRow, int toCol, char piece) {
-  int capturedPawnRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, piece);
-  char capturedPawn = board[capturedPawnRow][toCol];
-  board[capturedPawnRow][toCol] = ' ';
-  return capturedPawn;
-}
-
-void ChessGame::updateEnPassantTarget(int fromRow, int fromCol, int toRow, char piece) {
-  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
-    int enPassantRow = (fromRow + toRow) / 2;
-    chessEngine->setEnPassantTarget(enPassantRow, fromCol);
-  } else {
-    chessEngine->clearEnPassantTarget();
-  }
 }
 
 void ChessGame::confirmSquareCompletion(int row, int col) {

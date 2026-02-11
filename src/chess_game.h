@@ -31,8 +31,8 @@ class ChessGame {
   void initializeBoard();
   void waitForBoardSetup();
   void waitForBoardSetup(const char targetBoard[8][8]);
-  void processPlayerMove(int fromRow, int fromCol, int toRow, int toCol, char piece);
-  bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol, char& movedPiece);
+  void applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece = ' ', bool isRemoteMove = false);
+  bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
   void updateGameStatus();
 
   // Chess rule helpers
@@ -41,9 +41,8 @@ class ChessGame {
   bool findKingPosition(char colorToMove, int& kingRow, int& kingCol);
   void confirmSquareCompletion(int row, int col);
 
-  // En passant helpers
-  char applyEnPassant(int toRow, int toCol, char piece);
-  void updateEnPassantTarget(int fromRow, int fromCol, int toRow, char piece);
+  // Virtual hooks for remote move handling (overridden in subclasses)
+  virtual void waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1) {}
 
  public:
   virtual ~ChessGame() {}

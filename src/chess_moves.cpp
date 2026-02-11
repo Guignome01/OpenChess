@@ -17,9 +17,8 @@ void ChessMoves::update() {
   boardDriver->readSensors();
 
   int fromRow, fromCol, toRow, toCol;
-  char piece;
-  if (tryPlayerMove(currentTurn, fromRow, fromCol, toRow, toCol, piece)) {
-    processPlayerMove(fromRow, fromCol, toRow, toCol, piece);
+  if (tryPlayerMove(currentTurn, fromRow, fromCol, toRow, toCol)) {
+    applyMove(fromRow, fromCol, toRow, toCol);
     updateGameStatus();
     wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
   }

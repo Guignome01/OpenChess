@@ -17,7 +17,7 @@ class ChessLichess : public ChessBot {
 
   // Last known state from Lichess
   String lastKnownMoves;
-  // Track last move we sent to avoid processing it as opponent move
+  // Track last move we sent to avoid processing it as remote move
   String lastSentMove;
 
   // Polling state
@@ -28,7 +28,7 @@ class ChessLichess : public ChessBot {
   void waitForLichessGame();
   void syncBoardWithLichess(const LichessGameState& state);
   void processLichessMove(const String& uciMove);
-  void sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
+  void sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece = ' ');
 
  public:
   ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, LichessConfig cfg);
