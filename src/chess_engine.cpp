@@ -26,9 +26,19 @@ uint64_t ChessEngine::computeZobristHash(const char board[8][8], char sideToMove
   // Hash castling rights
   hash ^= ZOBRIST_CASTLING[castlingRights];
 
-  // Hash en passant file (only if en passant is possible)
-  if (enPassantTargetCol >= 0)
-    hash ^= ZOBRIST_EN_PASSANT[enPassantTargetCol];
+  // Hash en passant file
+  if (enPassantTargetRow >= 0 && enPassantTargetCol >= 0) {
+    int capturerRow = (sideToMove == 'w') ? enPassantTargetRow + 1 : enPassantTargetRow - 1;
+    char capturerPawn = (sideToMove == 'w') ? 'P' : 'p';
+    bool canCapture = false;
+    if (enPassantTargetCol > 0 && board[capturerRow][enPassantTargetCol - 1] == capturerPawn)
+      canCapture = true;
+    if (enPassantTargetCol < 7 && board[capturerRow][enPassantTargetCol + 1] == capturerPawn)
+      canCapture = true;
+    // Per FIDE rules, the en passant square only matters for repetition if an opposing pawn can actually make the capture
+    if (canCapture)
+      hash ^= ZOBRIST_EN_PASSANT[enPassantTargetCol];
+  }
 
   // Hash side to move
   if (sideToMove == 'b')
