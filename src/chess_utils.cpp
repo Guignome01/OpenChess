@@ -67,7 +67,10 @@ String ChessUtils::boardToFEN(const char board[8][8], char currentTurn, ChessEng
   fen += " " + String(currentTurn);
 
   // Castling availability
-  fen += " " + ChessUtils::castlingRightsToString(chessEngine->getCastlingRights());
+  if (chessEngine != nullptr)
+    fen += " " + ChessUtils::castlingRightsToString(chessEngine->getCastlingRights());
+  else
+    fen += " KQkq";
 
   // En passant target square
   if (chessEngine != nullptr && chessEngine->hasEnPassantTarget()) {

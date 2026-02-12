@@ -3,6 +3,7 @@
 
 #include "chess_bot.h"
 #include "lichess_api.h"
+#include <atomic>
 
 // Lichess game configuration
 struct LichessConfig {
@@ -24,10 +25,13 @@ class ChessLichess : public ChessBot {
   unsigned long lastPollTime;
   static const unsigned long POLL_INTERVAL_MS = 500;
 
+  // Animation stop flag for remote turn thinking animation
+  std::atomic<bool>* stopAnimation;
+
   // Game flow
   void waitForLichessGame();
   void syncBoardWithLichess(const LichessGameState& state);
-  void sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece = ' ');
+  void sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
  public:
   ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, LichessConfig cfg);

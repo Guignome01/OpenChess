@@ -86,7 +86,7 @@ void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
   boardDriver->updateSensorPrev();
 }
 
-void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece, bool isRemoteMove) {
+void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion, bool isRemoteMove) {
   char piece = board[fromRow][fromCol];
   char capturedPiece = board[toRow][toCol];
 
@@ -125,9 +125,9 @@ void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char p
     confirmSquareCompletion(toRow, toCol);
 
   if (chessEngine->isPawnPromotion(piece, toRow)) {
-    promotedPiece = promotedPiece != ' ' && promotedPiece != '\0' ? (ChessUtils::isWhitePiece(piece) ? toupper(promotedPiece) : tolower(promotedPiece)) : (ChessUtils::isWhitePiece(piece) ? 'Q' : 'q');
-    board[toRow][toCol] = promotedPiece;
-    Serial.printf("Pawn promoted to %c\n", promotedPiece);
+    promotion = promotion != ' ' && promotion != '\0' ? (ChessUtils::isWhitePiece(piece) ? toupper(promotion) : tolower(promotion)) : (ChessUtils::isWhitePiece(piece) ? 'Q' : 'q');
+    board[toRow][toCol] = promotion;
+    Serial.printf("Pawn promoted to %c\n", promotion);
     boardDriver->promotionAnimation(toCol);
   }
 }

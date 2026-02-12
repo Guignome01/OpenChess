@@ -114,7 +114,7 @@ void WiFiManagerESP32::handleConnectWiFi(AsyncWebServerRequest* request) {
   if (request->hasArg("password"))
     newWifiPassword = request->arg("password");
 
-  if (newWifiSSID.length() >= 1 && newWifiPassword.length() >= 5 && newWifiSSID != wifiSSID && newWifiPassword != wifiPassword) {
+  if (newWifiSSID.length() >= 1 && newWifiPassword.length() >= 5 && (newWifiSSID != wifiSSID || newWifiPassword != wifiPassword)) {
     request->send(200, "text/plain", "OK");
     if (connectToWiFi(newWifiSSID, newWifiPassword, true)) {
       if (!ChessUtils::ensureNvsInitialized())
@@ -165,7 +165,7 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
     }
   }
   // If Lichess mode, verify token exists
-  if (mode == 4) {
+  if (mode == 3) {
     if (lichessToken.length() == 0) {
       request->send(400, "text/plain", "No Lichess API token configured");
       return;

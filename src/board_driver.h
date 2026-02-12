@@ -189,6 +189,10 @@ class BoardDriver {
   void blinkSquare(int row, int col, LedRGB color, int times = 3, bool clearAfter = true);
   void showConnectingAnimation();
   void flashBoardAnimation(LedRGB color, int times = 3);
+
+  // Start a cancellable animation. Returns a non-owning pointer to a stop flag.
+  // Ownership: the animation task owns and deletes the flag after the animation loop exits.
+  // Caller must ONLY call store(true) to signal stop, never delete the pointer.
   std::atomic<bool>* startThinkingAnimation();
   std::atomic<bool>* startWaitingAnimation();
 

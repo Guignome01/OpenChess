@@ -595,11 +595,8 @@ bool ChessEngine::hasAnyLegalMove(const char board[8][8], char color) {
       int moveCount = 0;
       int moves[28][2];
       getPossibleMoves(board, fromRow, fromCol, moveCount, moves);
-
-      for (int i = 0; i < moveCount; i++) {
-        if (!wouldMoveLeaveKingInCheck(board, fromRow, fromCol, moves[i][0], moves[i][1]))
-          return true;
-      }
+      if (moveCount > 0)
+        return true;
     }
 
   return false;

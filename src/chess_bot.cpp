@@ -116,7 +116,7 @@ void ChessBot::makeBotMove() {
   std::atomic<bool>* stopAnimation = boardDriver->startThinkingAnimation();
   String bestMove;
   String response = makeStockfishRequest(ChessUtils::boardToFEN(board, currentTurn, chessEngine));
-  stopAnimation->store(true);
+  if (stopAnimation) stopAnimation->store(true);
   if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
     Serial.println("=== STOCKFISH EVALUATION ===");
     Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation > 0 ? "White" : "Black", currentEvaluation);
@@ -124,7 +124,7 @@ void ChessBot::makeBotMove() {
     int fromRow, fromCol, toRow, toCol;
     char promotion;
     if (ChessUtils::parseUCIMove(bestMove, fromRow, fromCol, toRow, toCol, promotion)) {
-      Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: " + promotion);
+      Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
       Serial.println("============================");
       // Verify the move is from the correct color piece
       char piece = board[fromRow][fromCol];

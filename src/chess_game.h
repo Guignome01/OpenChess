@@ -31,7 +31,7 @@ class ChessGame {
   void initializeBoard();
   void waitForBoardSetup();
   void waitForBoardSetup(const char targetBoard[8][8]);
-  void applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotedPiece = ' ', bool isRemoteMove = false);
+  void applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
   void updateGameStatus();
 
