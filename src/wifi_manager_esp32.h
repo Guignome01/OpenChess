@@ -1,18 +1,13 @@
 #ifndef WIFI_MANAGER_ESP32_H
 #define WIFI_MANAGER_ESP32_H
 
-// Include Arduino.h first to set up ESP32 environment
-#include <Arduino.h>
-#include <Preferences.h>
-
-// ESP32 uses built-in WiFi library from the core
-// Note: If you get WiFiNINA errors, ensure:
-// 1. You're compiling for ESP32 board (Tools -> Board -> ESP32)
-// 2. WiFiNINA library is not interfering (you may need to temporarily remove it)
 #include "board_driver.h"
 #include "stockfish_settings.h"
+#include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
+#include <Preferences.h>
 #include <WiFi.h>
 
 // Forward declaration for Lichess config

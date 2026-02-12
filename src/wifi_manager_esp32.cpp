@@ -1,7 +1,6 @@
 #include "wifi_manager_esp32.h"
 #include "chess_lichess.h"
 #include "chess_utils.h"
-#include "page_router.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -13,6 +12,14 @@ WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd) : boardDriver(bd), server(AP
 
 void WiFiManagerESP32::begin() {
   Serial.println("=== Starting OpenChess WiFi Manager (ESP32) ===");
+
+  // Mount LittleFS filesystem for serving web pages
+  if (!LittleFS.begin(true)) {
+    Serial.println("ERROR: LittleFS mount failed!");
+  } else {
+    Serial.println("LittleFS mounted successfully");
+  }
+
   if (!ChessUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - WiFi credentials not loaded");
   } else {
@@ -70,23 +77,20 @@ void WiFiManagerESP32::begin() {
     [this](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
       this->handleOtaUpload(request, filename, index, data, len, final);
     });
+
+  // Serve sound files directly (no gzip variant exists, avoids .gz probe errors)
+  server.serveStatic("/sounds/", LittleFS, "/sounds/")
+      .setTryGzipFirst(false)
+      .setCacheControl("max-age=86400");
+
+  // Serve all other static files from LittleFS (gzip handled automatically)
+  server.serveStatic("/", LittleFS, "/")
+      .setDefaultFile("index.html")
+      .setCacheControl("max-age=86400");
+
   server.onNotFound([](AsyncWebServerRequest* request) {
-    const Page* page = findPage(request->url().c_str());
-    if (!page) {
-      request->send(404, "text/plain", "Not Found");
-      return;
-    }
-    AsyncWebServerResponse* res =
-      request->beginResponse(
-        200,
-        page->mime,
-        page->data,
-        page->length
-      );
-    if (page->gzip)
-      res->addHeader("Content-Encoding", "gzip");
-    res->addHeader("Cache-Control", "max-age=86400");
-    request->send(res); });
+    request->send(404, "text/plain", "Not Found");
+  });
   server.begin();
   Serial.println("Web server started on port 80");
 }

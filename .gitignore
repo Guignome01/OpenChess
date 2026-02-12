@@ -17,3 +17,6 @@ Thumbs.db
 .vscode/
 .pio/
 .idea/
+
+# LittleFS content hash (used by upload_fs.py)
+.littlefs_hash

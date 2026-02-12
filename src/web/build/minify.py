@@ -2,6 +2,7 @@ import shutil
 from pathlib import Path
 import subprocess
 import sys
+
 Import("env")
 
 SRC = Path("src/web")
@@ -38,14 +39,26 @@ if not (has_html_minifier and has_cleancss and has_terser):
         print("  - clean-css-cli: not installed", file=sys.stderr)
     if not has_terser:
         print("  - terser: not installed", file=sys.stderr)
-    print("To enable minification, install: npm install -g html-minifier-terser clean-css-cli terser", file=sys.stderr)
+    print(
+        "To enable minification, install: npm install -g html-minifier-terser clean-css-cli terser",
+        file=sys.stderr,
+    )
 else:
-    # Only process files if minifiers are available
-    for f in SRC.iterdir():
+    # Recursively process all files, minifying where possible
+    for f in sorted(SRC.rglob("*")):
         if not f.is_file():
             continue
 
-        out = DST / f.name
+        # Skip the build directory itself
+        try:
+            f.relative_to(DST)
+            continue
+        except ValueError:
+            pass
+
+        rel = f.relative_to(SRC)
+        out = DST / rel
+        out.parent.mkdir(parents=True, exist_ok=True)
 
         if f.suffix == ".html":
             run(
@@ -61,18 +74,11 @@ else:
             run(f'cleancss -O2 "{f}" -o "{out}"')
 
         elif f.suffix == ".js":
-            run(f'terser "{f}" --compress --mangle --comments false --ecma 2020 --toplevel -o "{out}"')
+            run(
+                f'terser "{f}" --compress --mangle --comments false --ecma 2020 --toplevel -o "{out}"'
+            )
 
         else:
             shutil.copy(f, out)
-
-    # Copy directories recursively (e.g., pieces folder with SVG files)
-    for d in SRC.iterdir():
-        if d.is_dir() and d.name != "build":
-            dst_dir = DST / d.name
-            if dst_dir.exists():
-                shutil.rmtree(dst_dir)
-            shutil.copytree(d, dst_dir)
-            print(f"Copied directory: {d.name}")
 
     print("Web assets minified")

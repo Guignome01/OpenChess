@@ -11,7 +11,7 @@ ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors 
 ### Key Components
 - **`BoardDriver`** — hardware abstraction: LED strip (NeoPixel), sensor grid (shift register column scan + row GPIO reads), calibration (NVS-persisted), and async animation queue (FreeRTOS task + queue).
 - **`ChessEngine`** — pure chess logic: move generation, validation, check/checkmate/stalemate, castling rights, en passant, 50-move rule. No hardware dependencies.
-- **`WiFiManagerESP32`** — async web server (`ESPAsyncWebServer`), serves gzipped pages from PROGMEM, handles API endpoints for board state, game selection, settings. Also manages WiFi credentials and Lichess token persistence via `Preferences` (NVS).
+- **`WiFiManagerESP32`** — async web server (`ESPAsyncWebServer`), serves gzipped pages from LittleFS via `serveStatic`, handles API endpoints for board state, game selection, settings. Also manages WiFi credentials and Lichess token persistence via `Preferences` (NVS).
 - **`ChessUtils`** — static helpers: FEN ↔ board conversion, material evaluation, NVS init.
 
 ### Coordinate System
@@ -24,11 +24,12 @@ Board arrays use `[row][col]` where **row 0 = rank 8** (black's back rank), **co
 - For web asset minification (optional): `npm install -g html-minifier-terser clean-css-cli terser`
 
 ### Build Pipeline
-PlatformIO runs two **pre-build Python scripts** (defined in `platformio.ini`):
+PlatformIO runs two **pre-build Python scripts** and one **extra script** (defined in `platformio.ini`):
 1. `src/web/build/minify.py` — minifies HTML/CSS/JS from `src/web/` → `src/web/build/` (gracefully skips if npm tools absent)
-2. `src/web/build/generate_pages.py` — gzip-compresses assets and generates `web_pages.cpp`, `web_pages.h`, `page_router.cpp` as C arrays in PROGMEM
+2. `src/web/build/prepare_littlefs.py` — gzip-compresses assets and places them in `data/` for LittleFS filesystem upload, then **deletes** all minified files from `src/web/build/`
+3. `src/web/build/upload_fs.py` — hooks into `pio run -t upload`: hashes `data/` contents, compares with `.littlefs_hash`, and uploads the filesystem image only when web assets change
 
-**Do not manually edit** `web_pages.cpp`, `web_pages.h`, or `page_router.cpp` — they are auto-generated. Edit source HTML/CSS/JS in `src/web/` instead.
+The `data/` directory is **committed to git** so users without minification tools can still build and flash. `.littlefs_hash` is git-ignored. Edit source HTML/CSS/JS in `src/web/` instead.
 
 ### Commands
 PlatformIO CLI (`pio`) is not on PATH by default. Use the full path:
