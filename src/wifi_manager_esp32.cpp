@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include <Update.h>
 
 static const char* INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -64,6 +65,11 @@ void WiFiManagerESP32::begin() {
   server.on("/board-settings", HTTP_GET, [this](AsyncWebServerRequest* request) { request->send(200, "application/json", this->getBoardSettingsJSON()); });
   server.on("/board-settings", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBoardSettings(request); });
   server.on("/board-calibrate", HTTP_POST, [this](AsyncWebServerRequest* request) { this->handleBoardCalibration(request); });
+  server.on("/ota", HTTP_POST,
+    [this](AsyncWebServerRequest* request) { this->handleOtaResult(request); },
+    [this](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+      this->handleOtaUpload(request, filename, index, data, len, final);
+    });
   server.onNotFound([](AsyncWebServerRequest* request) {
     const Page* page = findPage(request->url().c_str());
     if (!page) {
@@ -275,6 +281,54 @@ void WiFiManagerESP32::handleBoardSettings(AsyncWebServerRequest* request) {
 void WiFiManagerESP32::handleBoardCalibration(AsyncWebServerRequest* request) {
   boardDriver->triggerCalibration();
   request->send(200, "text/plain", "Calibration will start on next reboot");
+}
+
+void WiFiManagerESP32::handleOtaResult(AsyncWebServerRequest* request) {
+  bool success = !Update.hasError();
+  AsyncWebServerResponse* response = request->beginResponse(success ? 200 : 500, "text/plain", success ? "OK" : "FAIL");
+  response->addHeader("Connection", "close");
+  request->send(response);
+  if (success) {
+    Serial.println("OTA update successful, scheduling reboot...");
+    // Schedule reboot on a separate task so the HTTP response has time to flush
+    xTaskCreate([](void*) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      ESP.restart();
+    }, "OtaReboot", 2048, nullptr, 1, nullptr);
+  }
+}
+
+void WiFiManagerESP32::handleOtaUpload(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+  if (index == 0) {
+    // Validate file extension
+    if (!filename.endsWith(".bin")) {
+      Serial.printf("OTA rejected: invalid file type '%s'\n", filename.c_str());
+      Update.abort();
+      return;
+    }
+    Serial.printf("OTA update starting: %s\n", filename.c_str());
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+      Update.printError(Serial);
+      return;
+    }
+  }
+
+  // Skip remaining chunks if a previous write already failed
+  if (Update.hasError())
+    return;
+
+  if (Update.write(data, len) != len) {
+    Update.printError(Serial);
+    Update.abort();
+    return;
+  }
+
+  if (final) {
+    if (Update.end(true))
+      Serial.printf("OTA update complete: %u bytes\n", index + len);
+    else
+      Update.printError(Serial);
+  }
 }
 
 LichessConfig WiFiManagerESP32::getLichessConfig() {

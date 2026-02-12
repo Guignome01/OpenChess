@@ -65,6 +65,8 @@ class WiFiManagerESP32 {
   void handleSaveLichessToken(AsyncWebServerRequest* request);
   void handleBoardSettings(AsyncWebServerRequest* request);
   void handleBoardCalibration(AsyncWebServerRequest* request);
+  void handleOtaResult(AsyncWebServerRequest* request);
+  void handleOtaUpload(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final);
 
  public:
   WiFiManagerESP32(BoardDriver* boardDriver);
