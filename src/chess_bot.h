@@ -34,7 +34,7 @@ class ChessBot : public ChessGame {
   void update() override;
 
   // Get current evaluation
-  float getEvaluation() { return currentEvaluation; }
+  float getEvaluation() const { return currentEvaluation; }
 };
 
 #endif // CHESS_BOT_H

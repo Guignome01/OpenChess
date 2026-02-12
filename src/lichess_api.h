@@ -66,15 +66,11 @@ class LichessAPI {
   // Resign the game
   static bool resignGame(const String& gameId);
 
-  // Convert array coordinates to UCI format
-  static String toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
-
  private:
   static String apiToken;
   static String makeHttpRequest(const String& method, const String& path, const String& body = "");
   static bool parseGameFullEvent(const String& json, LichessGameState& state);
   static bool parseGameStateEvent(const String& json, LichessGameState& state);
-  static bool parseStreamEvent(const String& json, LichessEvent& event);
 };
 
 #endif // LICHESS_API_H

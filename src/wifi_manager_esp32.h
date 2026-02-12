@@ -74,7 +74,7 @@ class WiFiManagerESP32 {
   String getWiFiSSID() { return wifiSSID; }
   String getWiFiPassword() { return wifiPassword; }
   // Game selection via web
-  int getSelectedGameMode() { return gameMode.toInt(); }
+  int getSelectedGameMode() const { return gameMode.toInt(); }
   void resetGameSelection() { gameMode = "0"; };
   // Bot configuration
   BotConfig getBotConfig() { return botConfig; }
@@ -83,8 +83,8 @@ class WiFiManagerESP32 {
   String getLichessToken() { return lichessToken; }
   // Board state management (FEN-based)
   void updateBoardState(const String& fen, float evaluation = 0.0f);
-  String getCurrentFen() { return currentFen; }
-  float getEvaluation() { return boardEvaluation; }
+  String getCurrentFen() const { return currentFen; }
+  float getEvaluation() const { return boardEvaluation; }
   // Board edit management (FEN-based)
   bool getPendingBoardEdit(String& fenOut);
   void clearPendingEdit();

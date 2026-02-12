@@ -255,6 +255,20 @@ float ChessUtils::evaluatePosition(const char board[8][8]) {
   return evaluation;
 }
 
+String ChessUtils::toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+  String move = "";
+  move += (char)('a' + fromCol);
+  move += (char)('0' + (8 - fromRow));
+  move += (char)('a' + toCol);
+  move += (char)('0' + (8 - toRow));
+
+  if (promotion != ' ' && promotion != '\0') {
+    move += (char)tolower(promotion);
+  }
+
+  return move;
+}
+
 bool ChessUtils::parseUCIMove(const String& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
   size_t len = move.length();
   if (len < 4 || len > 5) return false;

@@ -26,10 +26,10 @@ LichessConfig lichessConfig = {""};
 BoardDriver boardDriver;
 ChessEngine chessEngine;
 WiFiManagerESP32 wifiManager(&boardDriver);
-ChessMoves chessMoves(&boardDriver, &chessEngine, &wifiManager);
+ChessMoves* chessMoves = nullptr;
 ChessBot* chessBot = nullptr;
 ChessLichess* chessLichess = nullptr;
-SensorTest sensorTest(&boardDriver);
+SensorTest* sensorTest = nullptr;
 
 GameMode currentMode = MODE_SELECTION;
 bool modeInitialized = false;
@@ -67,8 +67,8 @@ void loop() {
   if (wifiManager.getPendingBoardEdit(editFen)) {
     Serial.println("Applying board edit from WiFi interface...");
 
-    if (currentMode == MODE_CHESS_MOVES && modeInitialized) {
-      chessMoves.setBoardStateFromFEN(editFen);
+    if (currentMode == MODE_CHESS_MOVES && modeInitialized && chessMoves != nullptr) {
+      chessMoves->setBoardStateFromFEN(editFen);
       Serial.println("Board edit applied to Chess Moves mode");
     } else if (currentMode == MODE_BOT && modeInitialized && chessBot != nullptr) {
       chessBot->setBoardStateFromFEN(editFen);
@@ -127,10 +127,12 @@ void loop() {
 
   switch (currentMode) {
     case MODE_CHESS_MOVES:
-      if (chessMoves.isGameOver())
-        showGameSelection();
-      else
-        chessMoves.update();
+      if (chessMoves != nullptr) {
+        if (chessMoves->isGameOver())
+          showGameSelection();
+        else
+          chessMoves->update();
+      }
       break;
     case MODE_BOT:
       if (chessBot != nullptr) {
@@ -149,10 +151,12 @@ void loop() {
       }
       break;
     case MODE_SENSOR_TEST:
-      if (sensorTest.isComplete())
-        showGameSelection();
-      else
-        sensorTest.update();
+      if (sensorTest != nullptr) {
+        if (sensorTest->isComplete())
+          showGameSelection();
+        else
+          sensorTest->update();
+      }
       break;
     default:
       showGameSelection();
@@ -273,29 +277,31 @@ void initializeSelectedMode(GameMode mode) {
   switch (mode) {
     case MODE_CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      chessMoves.begin();
+      if (chessMoves != nullptr)
+        delete chessMoves;
+      chessMoves = new ChessMoves(&boardDriver, &chessEngine, &wifiManager);
+      chessMoves->begin();
       break;
     case MODE_BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
-      // Clean up any existing bot instance
       if (chessBot != nullptr)
         delete chessBot;
-      // Create new bot with current configuration
       chessBot = new ChessBot(&boardDriver, &chessEngine, &wifiManager, botConfig);
       chessBot->begin();
       break;
     case MODE_LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      // Clean up any existing lichess instance
       if (chessLichess != nullptr)
         delete chessLichess;
-      // Create new lichess game with current configuration
       chessLichess = new ChessLichess(&boardDriver, &chessEngine, &wifiManager, lichessConfig);
       chessLichess->begin();
       break;
     case MODE_SENSOR_TEST:
       Serial.println("Starting 'Sensor Test'...");
-      sensorTest.begin();
+      if (sensorTest != nullptr)
+        delete sensorTest;
+      sensorTest = new SensorTest(&boardDriver);
+      sensorTest->begin();
       break;
     default:
       showGameSelection();

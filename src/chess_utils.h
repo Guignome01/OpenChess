@@ -69,6 +69,9 @@ class ChessUtils {
   // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9
   static float evaluatePosition(const char board[8][8]);
 
+  // Convert array coordinates to a UCI move string (e.g. "e2e4", "e7e8q")
+  static String toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
+
   // Parse a UCI move string (e.g. "e2e4", "e7e8q") into array coordinates
   // Returns true if the string is a valid UCI move; fills promotion with the
   // promotion character (or ' ' if none)

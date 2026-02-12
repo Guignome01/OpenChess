@@ -3,6 +3,7 @@
 #include "chess_utils.h"
 #include "page_router.h"
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <Preferences.h>
 
 static const char* INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -85,13 +86,25 @@ void WiFiManagerESP32::begin() {
 }
 
 String WiFiManagerESP32::getBoardUpdateJSON() {
-  String resp = "{\"fen\":\"" + currentFen + "\"";
-  resp += ",\"evaluation\":" + String(boardEvaluation, 2) + "}";
-  return resp;
+  JsonDocument doc;
+  doc["fen"] = currentFen;
+  doc["evaluation"] = serialized(String(boardEvaluation, 2));
+  String output;
+  serializeJson(doc, output);
+  return output;
 }
 
 String WiFiManagerESP32::getWiFiInfoJSON() {
-  return "{\"ssid\":\"" + wifiSSID + "\",\"password\":\"" + wifiPassword + "\",\"connected\":\"" + (WiFi.status() == WL_CONNECTED ? "true" : "false") + "\",\"ap_ssid\":\"" AP_SSID "\",\"ap_ip\":\"" + WiFi.softAPIP().toString() + "\",\"local_ip\":\"" + (WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "0.0.0.0") + "\"}";
+  JsonDocument doc;
+  doc["ssid"] = wifiSSID;
+  doc["password"] = wifiPassword;
+  doc["connected"] = (WiFi.status() == WL_CONNECTED) ? "true" : "false";
+  doc["ap_ssid"] = AP_SSID;
+  doc["ap_ip"] = WiFi.softAPIP().toString();
+  doc["local_ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "0.0.0.0";
+  String output;
+  serializeJson(doc, output);
+  return output;
 }
 
 void WiFiManagerESP32::handleBoardEditSuccess(AsyncWebServerRequest* request) {
@@ -177,7 +190,6 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
 }
 
 String WiFiManagerESP32::getLichessInfoJSON() {
-  String hasToken = (lichessToken.length() > 0) ? "true" : "false";
   // Don't expose the actual token, just whether it exists and a masked version
   String maskedToken = "";
   if (lichessToken.length() > 8) {
@@ -185,7 +197,12 @@ String WiFiManagerESP32::getLichessInfoJSON() {
   } else if (lichessToken.length() > 0) {
     maskedToken = "****";
   }
-  return "{\"hasToken\":" + hasToken + ",\"maskedToken\":\"" + maskedToken + "\"}";
+  JsonDocument doc;
+  doc["hasToken"] = (lichessToken.length() > 0);
+  doc["maskedToken"] = maskedToken;
+  String output;
+  serializeJson(doc, output);
+  return output;
 }
 
 void WiFiManagerESP32::handleSaveLichessToken(AsyncWebServerRequest* request) {
@@ -219,7 +236,12 @@ void WiFiManagerESP32::handleSaveLichessToken(AsyncWebServerRequest* request) {
 }
 
 String WiFiManagerESP32::getBoardSettingsJSON() {
-  return "{\"brightness\":" + String(boardDriver->getBrightness()) + ",\"dimMultiplier\":" + String(boardDriver->getDimMultiplier()) + "}";
+  JsonDocument doc;
+  doc["brightness"] = boardDriver->getBrightness();
+  doc["dimMultiplier"] = boardDriver->getDimMultiplier();
+  String output;
+  serializeJson(doc, output);
+  return output;
 }
 
 void WiFiManagerESP32::handleBoardSettings(AsyncWebServerRequest* request) {

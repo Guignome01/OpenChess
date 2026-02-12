@@ -282,6 +282,33 @@ bool LichessAPI::pollGameStream(const String& gameId, LichessGameState& state) {
   return parseGameStateEvent(jsonLine, state);
 }
 
+// Parse a space-separated UCI moves string into a move count and the last move.
+static void parseMovesList(const String& moves, int& moveCount, String& lastMove) {
+  moveCount = 0;
+  if (moves.length() > 0) {
+    moveCount = 1;
+    for (size_t i = 0; i < moves.length(); i++)
+      if (moves[i] == ' ') moveCount++;
+    int lastSpace = moves.lastIndexOf(' ');
+    lastMove = (lastSpace >= 0) ? moves.substring(lastSpace + 1) : moves;
+  } else {
+    lastMove = "";
+  }
+}
+
+// Check whether the game has ended and populate state accordingly.
+static void checkGameEndStatus(JsonObject obj, LichessGameState& state) {
+  String status = obj["status"].as<String>();
+  state.status = status;
+  if (status == "mate" || status == "resign" || status == "stalemate" || status == "timeout" || status == "draw" || status == "outoftime" || status == "aborted") {
+    state.gameEnded = true;
+    if (obj.containsKey("winner"))
+      state.winner = obj["winner"].as<String>();
+  }
+}
+
+// ---------------------------------------------------------------
+
 bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json);
@@ -322,40 +349,16 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
     JsonObject stateObj = doc["state"];
     String moves = stateObj["moves"].as<String>();
 
-    // Determine whose turn it is based on move count
     int moveCount = 0;
-    if (moves.length() > 0) {
-      moveCount = 1;
-      for (size_t i = 0; i < moves.length(); i++) {
-        if (moves[i] == ' ') moveCount++;
-      }
-    }
-
+    parseMovesList(moves, moveCount, state.lastMove);
     state.isMyTurn = ((moveCount % 2 == 0) && state.myColor == 'w') || ((moveCount % 2 == 1) && state.myColor == 'b');
-
-    // Get last move
-    if (moves.length() > 0) {
-      int lastSpace = moves.lastIndexOf(' ');
-      state.lastMove = (lastSpace >= 0) ? moves.substring(lastSpace + 1) : moves;
-    } else {
-      state.lastMove = "";
-    }
 
     // Get FEN if available
     if (stateObj.containsKey("fen")) {
       state.fen = stateObj["fen"].as<String>();
     }
 
-    // Check game status
-    String status = stateObj["status"].as<String>();
-    state.status = status;
-    if (status == "mate" || status == "resign" || status == "stalemate" ||
-        status == "timeout" || status == "draw" || status == "outoftime" || status == "aborted") {
-      state.gameEnded = true;
-      if (stateObj.containsKey("winner")) {
-        state.winner = stateObj["winner"].as<String>();
-      }
-    }
+    checkGameEndStatus(stateObj, state);
   }
 
   // Get initial FEN if provided
@@ -382,35 +385,11 @@ bool LichessAPI::parseGameStateEvent(const String& json, LichessGameState& state
 
   String moves = doc["moves"].as<String>();
 
-  // Determine whose turn based on move count
   int moveCount = 0;
-  if (moves.length() > 0) {
-    moveCount = 1;
-    for (size_t i = 0; i < moves.length(); i++) {
-      if (moves[i] == ' ') moveCount++;
-    }
-  }
-
+  parseMovesList(moves, moveCount, state.lastMove);
   state.isMyTurn = ((moveCount % 2 == 0) && state.myColor == 'w') || ((moveCount % 2 == 1) && state.myColor == 'b');
 
-  // Get last move
-  if (moves.length() > 0) {
-    int lastSpace = moves.lastIndexOf(' ');
-    state.lastMove = (lastSpace >= 0) ? moves.substring(lastSpace + 1) : moves;
-  } else {
-    state.lastMove = "";
-  }
-
-  // Check game status
-  String status = doc["status"].as<String>();
-  state.status = status;
-  if (status == "mate" || status == "resign" || status == "stalemate" ||
-      status == "timeout" || status == "draw" || status == "outoftime" || status == "aborted") {
-    state.gameEnded = true;
-    if (doc.containsKey("winner")) {
-      state.winner = doc["winner"].as<String>();
-    }
-  }
+  checkGameEndStatus(doc.as<JsonObject>(), state);
 
   return true;
 }
@@ -440,18 +419,4 @@ bool LichessAPI::resignGame(const String& gameId) {
   String path = "/api/board/game/" + gameId + "/resign";
   String response = makeHttpRequest("POST", path);
   return response.indexOf("ok") >= 0 || response.indexOf("true") >= 0;
-}
-
-String LichessAPI::toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String move = "";
-  move += (char)('a' + fromCol);
-  move += (char)('0' + (8 - fromRow));
-  move += (char)('a' + toCol);
-  move += (char)('0' + (8 - toRow));
-
-  if (promotion != ' ' && promotion != '\0') {
-    move += (char)tolower(promotion);
-  }
-
-  return move;
 }

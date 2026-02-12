@@ -212,7 +212,7 @@ void ChessLichess::update() {
 }
 
 void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String uciMove = LichessAPI::toUCIMove(fromRow, fromCol, toRow, toCol, promotion);
+  String uciMove = ChessUtils::toUCIMove(fromRow, fromCol, toRow, toCol, promotion);
   Serial.println("Sending move to Lichess: " + uciMove);
 
   // Track this move so we don't process it as a remote move when it echoes back
