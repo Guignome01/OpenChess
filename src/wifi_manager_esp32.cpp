@@ -84,9 +84,10 @@ void WiFiManagerESP32::begin() {
       .setCacheControl("max-age=86400");
 
   // Serve all other static files from LittleFS (gzip handled automatically)
+  // no-cache: browser revalidates every request — ensures OTA-updated files are served immediately
   server.serveStatic("/", LittleFS, "/")
       .setDefaultFile("index.html")
-      .setCacheControl("max-age=86400");
+      .setCacheControl("no-cache");
 
   server.onNotFound([](AsyncWebServerRequest* request) {
     request->send(404, "text/plain", "Not Found");
@@ -288,13 +289,13 @@ void WiFiManagerESP32::handleBoardCalibration(AsyncWebServerRequest* request) {
 }
 
 void WiFiManagerESP32::handleOtaResult(AsyncWebServerRequest* request) {
-  bool success = !Update.hasError();
+  bool success = !otaHasError;
   AsyncWebServerResponse* response = request->beginResponse(success ? 200 : 500, "text/plain", success ? "OK" : "FAIL");
   response->addHeader("Connection", "close");
   request->send(response);
+  otaHasError = false; // reset for next OTA attempt
   if (success) {
     Serial.println("OTA update successful, scheduling reboot...");
-    // Schedule reboot on a separate task so the HTTP response has time to flush
     xTaskCreate([](void*) {
       vTaskDelay(pdMS_TO_TICKS(1000));
       ESP.restart();
@@ -304,34 +305,44 @@ void WiFiManagerESP32::handleOtaResult(AsyncWebServerRequest* request) {
 
 void WiFiManagerESP32::handleOtaUpload(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
   if (index == 0) {
-    // Validate file extension
-    if (!filename.endsWith(".bin")) {
-      Serial.printf("OTA rejected: invalid file type '%s'\n", filename.c_str());
-      Update.abort();
+    // Skip this file entirely if a previous file in the same request failed
+    if (otaHasError) {
+      Serial.printf("OTA skipping '%s' due to previous error\n", filename.c_str());
       return;
     }
-    Serial.printf("OTA update starting: %s\n", filename.c_str());
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+    if (!filename.endsWith(".bin")) {
+      Serial.printf("OTA rejected: invalid file type '%s'\n", filename.c_str());
+      otaHasError = true;
+      return;
+    }
+    // Auto-detect partition type from filename
+    bool isFilesystem = filename.indexOf("littlefs") >= 0 || filename.indexOf("spiffs") >= 0;
+    int command = isFilesystem ? U_SPIFFS : U_FLASH;
+    Serial.printf("OTA %s update starting: %s\n", isFilesystem ? "filesystem" : "firmware", filename.c_str());
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, command)) {
       Update.printError(Serial);
+      otaHasError = true;
       return;
     }
   }
 
-  // Skip remaining chunks if a previous write already failed
-  if (Update.hasError())
+  if (otaHasError || Update.hasError())
     return;
 
   if (Update.write(data, len) != len) {
     Update.printError(Serial);
     Update.abort();
+    otaHasError = true;
     return;
   }
 
   if (final) {
-    if (Update.end(true))
+    if (Update.end(true)) {
       Serial.printf("OTA update complete: %u bytes\n", index + len);
-    else
+    } else {
       Update.printError(Serial);
+      otaHasError = true;
+    }
   }
 }
 

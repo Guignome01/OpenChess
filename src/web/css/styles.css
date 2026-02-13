@@ -496,6 +496,41 @@ input[type="submit"]:hover,
     width: 100%;
 }
 
+.ota-file-list {
+    width: 100%;
+}
+
+.ota-file-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: #3a3a3a;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+.ota-file-name {
+    flex: 1;
+    font-size: 14px;
+    color: #ddd;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ota-file-remove {
+    cursor: pointer;
+    color: #999;
+    font-size: 14px;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+
+.ota-file-remove:hover {
+    color: #f44336;
+}
+
 .progress-bar {
     width: 100%;
     height: 20px;

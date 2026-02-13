@@ -96,23 +96,22 @@
             </div>
         </div>
 
-        <!-- OTA Firmware Update Section -->
+        <!-- OTA Update Section -->
         <div class="settings-section">
             <div class="section-header" onclick="toggleSection('ota')">
                 <span class="section-icon" id="ota-icon">▶</span>
-                <h3>Firmware Update</h3>
+                <h3>OTA Update</h3>
             </div>
             <div class="section-content" id="ota-content">
                 <p class="section-description">
-                    Upload a new firmware binary (.bin) to update the board over-the-air.
-                    Build the firmware with PlatformIO and upload the generated .bin file.
+                    Drop or select <code>firmware.bin</code> and <code>littlefs.bin</code> to update over-the-air.
                 </p>
                 <div class="form-group">
-                    <label for="firmwareFile">Firmware File:</label>
-                    <div class="dropzone" id="dropzone" onclick="document.getElementById('firmwareFile').click()">
-                        <input type="file" id="firmwareFile" accept=".bin" style="display: none;">
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="otaFiles" accept=".bin" multiple style="display: none;">
                         <span class="dropzone-icon">&#128194;</span>
-                        <span class="dropzone-text" id="dropzone-text">Click or drag a .bin file here</span>
+                        <span class="dropzone-text" id="dropzone-text">Click or drag .bin files here</span>
+                        <div id="ota-file-list" class="ota-file-list"></div>
                         <div id="ota-progress-container" style="display: none;">
                             <div class="progress-bar">
                                 <div class="progress-fill" id="ota-progress-fill"></div>
@@ -122,7 +121,7 @@
                     </div>
                 </div>
                 <button type="button" id="otaBtn" class="button" style="background-color: #4CAF50;">
-                    Upload Firmware
+                    Update
                 </button>
                 <div id="ota-status-text" class="ota-status" style="display: none;"></div>
             </div>
@@ -299,147 +298,134 @@
                 });
         });
 
-        // Dropzone interactions
-        var dropzone = document.getElementById('dropzone');
-        var dropzoneText = document.getElementById('dropzone-text');
-        var firmwareInput = document.getElementById('firmwareFile');
+        // OTA Update
+        var ota = {
+            dropzone: document.getElementById('dropzone'),
+            input: document.getElementById('otaFiles'),
+            fileList: document.getElementById('ota-file-list'),
+            text: document.getElementById('dropzone-text'),
+            progress: document.getElementById('ota-progress-container'),
+            fill: document.getElementById('ota-progress-fill'),
+            pct: document.getElementById('ota-progress-text'),
+            status: document.getElementById('ota-status-text'),
+            btn: document.getElementById('otaBtn')
+        };
+        var otaFiles = [];
 
-        firmwareInput.addEventListener('change', function () {
-            if (firmwareInput.files.length) {
-                dropzoneText.textContent = firmwareInput.files[0].name;
-                dropzone.classList.add('has-file');
+        function otaSetState(state, msg) {
+            var busy = state !== 'idle';
+            ota.progress.style.display = state === 'uploading' ? 'block' : 'none';
+            ota.dropzone.classList.toggle('disabled', busy);
+            ota.btn.disabled = busy;
+            ota.btn.textContent = { idle: 'Upload', uploading: 'Uploading...', rebooting: 'Rebooting...' }[state];
+            if (msg) {
+                ota.status.textContent = msg;
+                ota.status.style.display = 'block';
+                ota.status.style.color = '#f44336';
             } else {
-                dropzoneText.textContent = 'Click or drag a .bin file here';
-                dropzone.classList.remove('has-file');
+                ota.status.style.display = 'none';
             }
-        });
+        }
 
-        dropzone.addEventListener('dragover', function (e) {
+        function otaSetProgress(pct) {
+            ota.fill.style.width = pct + '%';
+            ota.pct.textContent = pct + '%';
+        }
+
+        function otaRenderFiles() {
+            ota.fileList.innerHTML = '';
+            ota.text.style.display = otaFiles.length ? 'none' : '';
+            ota.dropzone.classList.toggle('has-file', otaFiles.length > 0);
+            otaFiles.forEach(function (file, idx) {
+                var row = document.createElement('div');
+                row.className = 'ota-file-row';
+                var name = document.createElement('span');
+                name.className = 'ota-file-name';
+                name.textContent = file.name;
+                var remove = document.createElement('span');
+                remove.className = 'ota-file-remove';
+                remove.textContent = '\u2715';
+                remove.onclick = function (e) {
+                    e.stopPropagation();
+                    otaFiles.splice(idx, 1);
+                    otaRenderFiles();
+                };
+                row.appendChild(name);
+                row.appendChild(remove);
+                ota.fileList.appendChild(row);
+            });
+        }
+
+        function otaAddFiles(newFiles) {
+            for (var i = 0; i < newFiles.length; i++) {
+                var f = newFiles[i];
+                otaFiles = otaFiles.filter(function (e) { return e.name !== f.name; });
+                otaFiles.push(f);
+            }
+            otaRenderFiles();
+        }
+
+        function otaPollReboot() {
+            otaSetState('rebooting');
+            var attempts = 0, offline = false;
+            var poll = setInterval(function () {
+                attempts++;
+                fetch('/wifi', { signal: AbortSignal.timeout(3000) })
+                    .then(function (r) {
+                        if (r.ok && offline) {
+                            clearInterval(poll);
+                            setTimeout(function () { location.reload(); }, 500);
+                        }
+                    })
+                    .catch(function () {
+                        offline = true;
+                        if (attempts >= 20) {
+                            clearInterval(poll);
+                            otaSetState('idle', 'Board did not come back online. Try refreshing manually.');
+                        }
+                    });
+            }, 3000);
+        }
+
+        // Dropzone interactions
+        ota.dropzone.addEventListener('click', function () { ota.input.click(); });
+        ota.input.addEventListener('change', function () {
+            if (ota.input.files.length) otaAddFiles(ota.input.files);
+            ota.input.value = '';
+        });
+        ota.dropzone.addEventListener('dragover', function (e) { e.preventDefault(); ota.dropzone.classList.add('dragover'); });
+        ota.dropzone.addEventListener('dragleave', function () { ota.dropzone.classList.remove('dragover'); });
+        ota.dropzone.addEventListener('drop', function (e) {
             e.preventDefault();
-            dropzone.classList.add('dragover');
+            ota.dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) otaAddFiles(e.dataTransfer.files);
         });
 
-        dropzone.addEventListener('dragleave', function () {
-            dropzone.classList.remove('dragover');
-        });
+        // Upload
+        ota.btn.addEventListener('click', function () {
+            if (!otaFiles.length) return otaSetState('idle', 'Please select at least one .bin file');
 
-        dropzone.addEventListener('drop', function (e) {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                firmwareInput.files = e.dataTransfer.files;
-                firmwareInput.dispatchEvent(new Event('change'));
-            }
-        });
+            otaSetState('uploading');
+            otaSetProgress(0);
 
-        // Handle OTA firmware upload
-        document.getElementById('otaBtn').addEventListener('click', function () {
-            const fileInput = document.getElementById('firmwareFile');
-            const progressContainer = document.getElementById('ota-progress-container');
-            const progressFill = document.getElementById('ota-progress-fill');
-            const progressText = document.getElementById('ota-progress-text');
-            const statusEl = document.getElementById('ota-status-text');
-            const btn = document.getElementById('otaBtn');
+            var formData = new FormData();
+            otaFiles.forEach(function (f) { formData.append('ota', f, f.name); });
 
-            if (!fileInput.files.length) {
-                statusEl.textContent = 'Please select a firmware file (.bin)';
-                statusEl.style.display = 'block';
-                statusEl.style.color = '#f44336';
-                return;
-            }
-
-            const file = fileInput.files[0];
-            const formData = new FormData();
-            formData.append('firmware', file, file.name);
-
-            const xhr = new XMLHttpRequest();
-
-            progressContainer.style.display = 'block';
-            dropzone.classList.add('disabled');
-            fileInput.disabled = true;
-            btn.disabled = true;
-            btn.textContent = 'Uploading...';
-            statusEl.textContent = '';
-            statusEl.style.display = 'none';
-
-            var uploadComplete = false;
+            var xhr = new XMLHttpRequest();
 
             xhr.upload.addEventListener('progress', function (e) {
                 if (e.lengthComputable) {
-                    var pct = Math.round((e.loaded / e.total) * 100);
-                    progressFill.style.width = pct + '%';
-                    progressText.textContent = pct + '%';
-                    if (pct >= 100 && !uploadComplete) {
-                        uploadComplete = true;
-                        btn.textContent = 'Flashing...';
-                    }
+                    otaSetProgress(Math.round((e.loaded / e.total) * 100));
                 }
             });
 
-            function waitForReboot() {
-                progressContainer.style.display = 'none';
-                let attempts = 0;
-                let boardWentOffline = false;
-                const maxAttempts = 20;
-                const poll = setInterval(function () {
-                    attempts++;
-                    fetch('/wifi', { signal: AbortSignal.timeout(3000) })
-                        .then(function (r) {
-                            if (r.ok && boardWentOffline) {
-                                clearInterval(poll);
-                                setTimeout(function () { location.reload(); }, 500);
-                            }
-                        })
-                        .catch(function () {
-                            if (!boardWentOffline) {
-                                boardWentOffline = true;
-                                btn.textContent = 'Rebooting...';
-                            }
-                            if (attempts >= maxAttempts) {
-                                clearInterval(poll);
-                                statusEl.textContent = 'Board did not come back online. Try refreshing manually.';
-                                statusEl.style.display = 'block';
-                                statusEl.style.color = '#f44336';
-                                dropzone.classList.remove('disabled');
-                                fileInput.disabled = false;
-                                btn.disabled = false;
-                                btn.textContent = 'Upload Firmware';
-                            }
-                        });
-                }, 3000);
-            }
-
             xhr.addEventListener('load', function () {
-                if (xhr.status === 200) {
-                    progressFill.style.width = '100%';
-                    progressText.textContent = '100%';
-                    waitForReboot();
-                } else {
-                    progressContainer.style.display = 'none';
-                    statusEl.textContent = 'Update failed: ' + xhr.responseText;
-                    statusEl.style.display = 'block';
-                    statusEl.style.color = '#f44336';
-                    dropzone.classList.remove('disabled');
-                    fileInput.disabled = false;
-                    btn.disabled = false;
-                    btn.textContent = 'Upload Firmware';
-                }
+                if (xhr.status === 200) otaPollReboot();
+                else otaSetState('idle', 'Update failed: ' + xhr.responseText);
             });
 
             xhr.addEventListener('error', function () {
-                if (uploadComplete) {
-                    // Board likely rebooted before sending the response — treat as success
-                    waitForReboot();
-                } else {
-                    statusEl.textContent = 'Upload failed: connection error.';
-                    statusEl.style.display = 'block';
-                    statusEl.style.color = '#f44336';
-                    dropzone.classList.remove('disabled');
-                    fileInput.disabled = false;
-                    btn.disabled = false;
-                    btn.textContent = 'Upload Firmware';
-                    progressContainer.style.display = 'none';
-                }
+                otaSetState('idle', 'Upload failed: connection error.');
             });
 
             xhr.open('POST', '/ota');

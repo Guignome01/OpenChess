@@ -49,6 +49,9 @@ class WiFiManagerESP32 {
   String pendingFenEdit;
   bool hasPendingEdit;
 
+  // tracks errors across multi-file OTA uploads
+  bool otaHasError = false;
+
   // Web interface methods
   String getWiFiInfoJSON();
   String getBoardUpdateJSON();
