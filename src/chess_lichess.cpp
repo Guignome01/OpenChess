@@ -8,7 +8,7 @@
 static BotConfig dummyBotConfig = {StockfishSettings::medium(), false};
 
 ChessLichess::ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, LichessConfig cfg)
-    : ChessBot(bd, ce, wm, dummyBotConfig),
+    : ChessBot(bd, ce, wm, nullptr, dummyBotConfig),
       lichessConfig(cfg),
       currentGameId(""),
       myColor('w'),
@@ -118,14 +118,11 @@ void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
   currentGameId = state.gameId;
 
   // If FEN is provided, use it directly
-  if (state.fen.length() > 0 && state.fen != "startpos") {
-    ChessUtils::fenToBoard(state.fen, board, currentTurn, chessEngine);
-    chessEngine->clearPositionHistory();
-    chessEngine->recordPosition(board, currentTurn);
-    Serial.println("Board synced from FEN: " + state.fen);
-  } else {
-    Serial.println("No FEN provided, assuming starting position.");
-  }
+  if (state.fen.length() > 0 && state.fen != "startpos")
+    setBoardStateFromFEN(state.fen);
+  else
+    Serial.println("No FEN provided, assuming starting position");
+
   lastKnownMoves = "";
   currentTurn = state.isMyTurn ? myColor : (myColor == 'w' ? 'b' : 'w');
 

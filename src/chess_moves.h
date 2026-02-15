@@ -3,12 +3,14 @@
 
 #include "chess_game.h"
 
+class MoveHistory;
+
 // ---------------------------
 // Chess Game Mode Class
 // ---------------------------
 class ChessMoves : public ChessGame {
  public:
-  ChessMoves(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm);
+  ChessMoves(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, MoveHistory* mh);
   void begin() override;
   void update() override;
 };

@@ -1,11 +1,12 @@
 #include "chess_bot.h"
 #include "chess_utils.h"
 #include "led_colors.h"
+#include "move_history.h"
 #include "stockfish_api.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessBot::ChessBot(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, BotConfig cfg) : ChessGame(bd, ce, wm), botConfig(cfg), currentEvaluation(0.0) {}
+ChessBot::ChessBot(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, MoveHistory* mh, BotConfig cfg) : ChessGame(bd, ce, wm, mh), botConfig(cfg), currentEvaluation(0.0) {}
 
 void ChessBot::begin() {
   Serial.println("=== Starting Chess Bot Mode ===");
@@ -15,7 +16,17 @@ void ChessBot::begin() {
   Serial.println("====================================");
   if (wifiManager->connectToWiFi(wifiManager->getWiFiSSID(), wifiManager->getWiFiPassword())) {
     initializeBoard();
-    waitForBoardSetup();
+    if (moveHistory->hasLiveGame()) {
+      Serial.println("Resuming live bot game...");
+      replaying = true;
+      moveHistory->replayIntoGame(this);
+      replaying = false;
+      wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
+    } else {
+      moveHistory->startGame(GAME_MODE_BOT, botConfig.playerIsWhite ? 'w' : 'b', (uint8_t)botConfig.stockfishSettings.depth);
+      moveHistory->addFen(ChessUtils::boardToFEN(board, currentTurn, chessEngine));
+    }
+    waitForBoardSetup(board);
   } else {
     Serial.println("Failed to connect to WiFi. Bot mode unavailable.");
     boardDriver->flashBoardAnimation(LedColors::Red);

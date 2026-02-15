@@ -1,5 +1,6 @@
 #include "chess_game.h"
 #include "chess_utils.h"
+#include "move_history.h"
 #include "wifi_manager_esp32.h"
 #include <string.h>
 
@@ -14,7 +15,7 @@ const char ChessGame::INITIAL_BOARD[8][8] = {
     {'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'}  // row 7 = rank 1 (White pieces, bottom row)
 };
 
-ChessGame::ChessGame(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm) : boardDriver(bd), chessEngine(ce), wifiManager(wm), currentTurn('w'), gameOver(false) {}
+ChessGame::ChessGame(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, MoveHistory* mh) : boardDriver(bd), chessEngine(ce), wifiManager(wm), moveHistory(mh), currentTurn('w'), gameOver(false), replaying(false) {}
 
 void ChessGame::initializeBoard() {
   currentTurn = 'w';
@@ -22,11 +23,7 @@ void ChessGame::initializeBoard() {
   memcpy(board, INITIAL_BOARD, sizeof(INITIAL_BOARD));
   chessEngine->reset();
   chessEngine->recordPosition(board, currentTurn);
-  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), 0);
-}
-
-void ChessGame::waitForBoardSetup() {
-  waitForBoardSetup(INITIAL_BOARD);
+  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
 }
 
 void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
@@ -111,7 +108,7 @@ void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char p
 
   Serial.printf("%s %s: %c %c%d -> %c%d\n", isRemoteMove ? "Remote" : "Player", isCastling ? "castling" : (isEnPassantCapture ? "en passant" : (capturedPiece != ' ' ? "capture" : "move")), piece, (char)('a' + fromCol), 8 - fromRow, (char)('a' + toCol), 8 - toRow);
 
-  if (isRemoteMove && !isCastling)
+  if (isRemoteMove && !isCastling && !replaying)
     waitForRemoteMoveCompletion(fromRow, fromCol, toRow, toCol, capturedPiece != ' ', isEnPassantCapture, enPassantCapturedPawnRow);
 
   if (isCastling)
@@ -119,17 +116,21 @@ void ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char p
 
   updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
-  if (capturedPiece != ' ')
-    boardDriver->captureAnimation(toRow, toCol);
-  else
-    confirmSquareCompletion(toRow, toCol);
+  if (capturedPiece != ' ') {
+    if (!replaying) boardDriver->captureAnimation(toRow, toCol);
+  } else {
+    if (!replaying) confirmSquareCompletion(toRow, toCol);
+  }
 
   if (chessEngine->isPawnPromotion(piece, toRow)) {
     promotion = promotion != ' ' && promotion != '\0' ? (ChessUtils::isWhitePiece(piece) ? toupper(promotion) : tolower(promotion)) : (ChessUtils::isWhitePiece(piece) ? 'Q' : 'q');
     board[toRow][toCol] = promotion;
     Serial.printf("Pawn promoted to %c\n", promotion);
-    boardDriver->promotionAnimation(toCol);
+    if (!replaying) boardDriver->promotionAnimation(toCol);
   }
+
+  if (moveHistory && moveHistory->isRecording())
+    moveHistory->addMove(fromRow, fromCol, toRow, toCol, promotion);
 }
 
 bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
@@ -291,16 +292,21 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
   return false;
 }
 
-void ChessGame::updateGameStatus() {
+void ChessGame::advanceTurn() {
   chessEngine->incrementFullmoveClock(currentTurn);
   currentTurn = (currentTurn == 'w') ? 'b' : 'w';
   chessEngine->recordPosition(board, currentTurn);
+}
+
+void ChessGame::updateGameStatus() {
+  advanceTurn();
 
   if (chessEngine->isCheckmate(board, currentTurn)) {
     char winnerColor = (currentTurn == 'w') ? 'b' : 'w';
     Serial.printf("CHECKMATE! %s wins!\n", ChessUtils::colorName(winnerColor));
     boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
     gameOver = true;
+    if (moveHistory) moveHistory->finishGame(RESULT_CHECKMATE, winnerColor);
     return;
   }
 
@@ -308,6 +314,7 @@ void ChessGame::updateGameStatus() {
     Serial.println("STALEMATE! Game is a draw.");
     boardDriver->fireworkAnimation(LedColors::Cyan);
     gameOver = true;
+    if (moveHistory) moveHistory->finishGame(RESULT_STALEMATE, 'd');
     return;
   }
 
@@ -315,6 +322,7 @@ void ChessGame::updateGameStatus() {
     Serial.println("DRAW by 50-move rule! No captures or pawn moves in the last 50 moves.");
     boardDriver->fireworkAnimation(LedColors::Cyan);
     gameOver = true;
+    if (moveHistory) moveHistory->finishGame(RESULT_DRAW_50, 'd');
     return;
   }
 
@@ -322,6 +330,7 @@ void ChessGame::updateGameStatus() {
     Serial.println("DRAW by threefold repetition! Same position occurred 3 times.");
     boardDriver->fireworkAnimation(LedColors::Cyan);
     gameOver = true;
+    if (moveHistory) moveHistory->finishGame(RESULT_DRAW_3FOLD, 'd');
     return;
   }
 
@@ -340,11 +349,10 @@ void ChessGame::updateGameStatus() {
 
 void ChessGame::setBoardStateFromFEN(const String& fen) {
   ChessUtils::fenToBoard(fen, board, currentTurn, chessEngine);
-  chessEngine->clearPositionHistory();
   chessEngine->recordPosition(board, currentTurn);
-  // Update sensor previous state to match new board
-  boardDriver->readSensors();
-  boardDriver->updateSensorPrev();
+  if (moveHistory && moveHistory->isRecording())
+    moveHistory->addFen(fen);
+  wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
   Serial.println("Board state set from FEN: " + fen);
   ChessUtils::printBoard(board);
 }
@@ -391,6 +399,9 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
   // Update board state
   board[kingToRow][rookToCol] = rookPiece;
   board[kingToRow][rookFromCol] = ' ';
+
+  // Skip all LED prompts and physical waits during replay
+  if (replaying) return;
 
   if (waitForKingCompletion) {
     // Handle LED prompts and wait for king move

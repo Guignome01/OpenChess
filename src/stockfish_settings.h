@@ -7,7 +7,7 @@ struct StockfishSettings {
   int timeoutMs;  // API timeout in milliseconds
   int maxRetries; // Max API call retries on failure
 
-  StockfishSettings(int depth = 5, int timeoutMs = 15000, int maxRetries = 3) : depth(depth), timeoutMs(timeoutMs), maxRetries(maxRetries) {}
+  StockfishSettings(int depth = 5, int timeoutMs = 60000, int maxRetries = 3) : depth(depth), timeoutMs(timeoutMs), maxRetries(maxRetries) {}
 
   // Difficulty presets
   static StockfishSettings easy() { return {5, 15000}; }

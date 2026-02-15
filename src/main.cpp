@@ -5,8 +5,11 @@
 #include "chess_moves.h"
 #include "chess_utils.h"
 #include "led_colors.h"
+#include "move_history.h"
 #include "sensor_test.h"
 #include "wifi_manager_esp32.h"
+#include <LittleFS.h>
+#include <time.h>
 
 // ---------------------------
 // Game State and Configuration
@@ -25,7 +28,8 @@ LichessConfig lichessConfig = {""};
 
 BoardDriver boardDriver;
 ChessEngine chessEngine;
-WiFiManagerESP32 wifiManager(&boardDriver);
+MoveHistory moveHistory;
+WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
 ChessMoves* chessMoves = nullptr;
 ChessBot* chessBot = nullptr;
 ChessLichess* chessLichess = nullptr;
@@ -33,31 +37,60 @@ SensorTest* sensorTest = nullptr;
 
 GameMode currentMode = MODE_SELECTION;
 bool modeInitialized = false;
+bool resumingGame = false;
+bool resetGameSelection = true;
 
-// ---------------------------
-// Function Prototypes
-// ---------------------------
 void showGameSelection();
 void handleGameSelection();
 void handleBotConfigSelection();
 void initializeSelectedMode(GameMode mode);
 
-// ---------------------------
-// SETUP
-// ---------------------------
 void setup() {
   Serial.begin(115200);
   delay(3000);
-
   Serial.println();
   Serial.println("================================================");
   Serial.println("         OpenChess Starting Up");
   Serial.println("================================================");
   if (!ChessUtils::ensureNvsInitialized())
     Serial.println("WARNING: NVS init failed (Preferences may not work)");
+  if (!LittleFS.begin(true))
+    Serial.println("ERROR: LittleFS mount failed!");
+  else
+    Serial.println("LittleFS mounted successfully");
+  moveHistory.begin();
   boardDriver.begin();
   wifiManager.begin();
   Serial.println();
+  // Kick off NTP time sync (non-blocking, will resolve in background)
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  // Check for a live game that can be resumed
+  uint8_t resumeMode = 0, resumePlayerColor = 0, resumeBotDepth = 0;
+  if (moveHistory.hasLiveGame() && moveHistory.getLiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth)) {
+    Serial.println("========== Live game found on flash ==========");
+    switch (resumeMode) {
+      case GAME_MODE_CHESS_MOVES:
+        Serial.println("Resuming Chess Moves game...");
+        currentMode = MODE_CHESS_MOVES;
+        resumingGame = true;
+        break;
+      case GAME_MODE_BOT:
+        Serial.printf("Resuming Bot game (player=%c, depth=%d)...\n", (char)resumePlayerColor, resumeBotDepth);
+        currentMode = MODE_BOT;
+        resumingGame = true;
+        botConfig.playerIsWhite = (resumePlayerColor == 'w');
+        botConfig.stockfishSettings = StockfishSettings(resumeBotDepth);
+        break;
+      default:
+        Serial.println("Unknown live game mode, discarding");
+        moveHistory.discardLiveGame();
+        break;
+    }
+    Serial.println("================================================");
+    if (currentMode != MODE_SELECTION)
+      return; // Skip showing game selection
+  }
+
   showGameSelection();
 }
 
@@ -166,13 +199,10 @@ void loop() {
   delay(SENSOR_READ_DELAY_MS);
 }
 
-// ---------------------------
-// GAME SELECTION FUNCTIONS
-// ---------------------------
-
 void showGameSelection() {
   currentMode = MODE_SELECTION;
   modeInitialized = false;
+  resetGameSelection = true;
   boardDriver.acquireLEDs();
   boardDriver.clearAllLEDs(false);
   // Light up the 4 selector positions in the middle of the board
@@ -207,14 +237,14 @@ void handleGameSelection() {
   };
   const int DEBOUNCE_CYCLES = (DEBOUNCE_MS / SENSOR_READ_DELAY_MS) + 2;
   static SelectorState selectorStates[4] = {};
-  static bool initializedStates = false;
-  if (!initializedStates) {
+
+  if (resetGameSelection) {
     for (int i = 0; i < 4; ++i) {
       selectorStates[i].emptyCount = 0;
       selectorStates[i].occupiedCount = 0;
       selectorStates[i].readyForSelection = false;
     }
-    initializedStates = true;
+    resetGameSelection = false;
   }
   for (int i = 0; i < 4; ++i) {
     if (!currState[i]) {
@@ -265,7 +295,6 @@ void handleGameSelection() {
           boardDriver.clearAllLEDs();
           break;
       }
-      initializedStates = false;
       break;
     }
   }
@@ -274,19 +303,23 @@ void handleGameSelection() {
 }
 
 void initializeSelectedMode(GameMode mode) {
+  if (resumingGame)
+    resumingGame = false;
+  else
+    moveHistory.discardLiveGame(); // Discard any incomplete live game that wasn't properly finished or resumed (finishGame already removes live files for completed games)
   switch (mode) {
     case MODE_CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
       if (chessMoves != nullptr)
         delete chessMoves;
-      chessMoves = new ChessMoves(&boardDriver, &chessEngine, &wifiManager);
+      chessMoves = new ChessMoves(&boardDriver, &chessEngine, &wifiManager, &moveHistory);
       chessMoves->begin();
       break;
     case MODE_BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
       if (chessBot != nullptr)
         delete chessBot;
-      chessBot = new ChessBot(&boardDriver, &chessEngine, &wifiManager, botConfig);
+      chessBot = new ChessBot(&boardDriver, &chessEngine, &wifiManager, &moveHistory, botConfig);
       chessBot->begin();
       break;
     case MODE_LICHESS:

@@ -5,17 +5,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chess Board</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="/css/chessboard-1.0.0.min.css">
-    <script src="/scripts/jquery-4.0.0.min.js"></script>
-    <script src="/scripts/chessboard-1.0.0.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="stylesheet" href="./css/styles.css">
+    <link rel="stylesheet" href="./css/chessboard-1.0.0.min.css">
+    <script src="./scripts/jquery-4.0.0.min.js"></script>
+    <script src="./scripts/chessboard-1.0.0.min.js"></script>
+    <script>var exports = {};</script>
+    <script src="https://unpkg.com/chess.js@1.4.0/dist/cjs/chess.js"></script>
+    <script>var Chess = exports.Chess;</script>
 </head>
 
 <body>
     <!-- Audio elements for move sounds -->
-    <audio id="moveSound" src="/sounds/move.mp3" preload="auto"></audio>
-    <audio id="captureSound" src="/sounds/capture.mp3" preload="auto"></audio>
+    <audio id="moveSound" src="./sounds/move.mp3" preload="auto"></audio>
+    <audio id="captureSound" src="./sounds/capture.mp3" preload="auto"></audio>
+
+    <!-- Game selector overlay -->
+    <div id="gameSelectorOverlay" class="settings-overlay">
+        <div class="settings-popup" style="width: 400px; max-height: 85vh;">
+            <h3>
+                <button id="deleteToggleBtn" class="game-lib-delete-toggle" title="Delete games">🗑</button>
+                <span>Game History</span>
+                <button class="settings-close-btn" id="closeGameSelector">×</button>
+            </h3>
+            <div id="gameGrid" class="game-selector-grid"></div>
+            <div id="deleteConfirmBar" class="delete-confirm-bar" style="display:none;">
+                <span id="deleteConfirmText">Delete selected games?</span>
+                <button id="deleteConfirmYes" class="delete-confirm-btn yes">Delete</button>
+                <button id="deleteConfirmNo" class="delete-confirm-btn no">Cancel</button>
+            </div>
+            <div id="noGamesMsg" style="display:none; text-align:center; color:#aaa; padding:20px;">No games found</div>
+        </div>
+    </div>
 
     <!-- Settings popup overlay -->
     <div id="settingsPopup" class="settings-overlay">
@@ -65,12 +86,7 @@
             <div class="settings-group">
                 <label>Piece Theme</label>
                 <div class="piece-theme-row">
-                    <select id="settingPieceTheme">
-                        <option value="/pieces/{piece}.svg">Local SVG (default)</option>
-                        <option value="https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png">Wikipedia
-                        </option>
-                        <option value="https://chessboardjs.com/img/chesspieces/alpha/{piece}.png">Alpha</option>
-                    </select>
+                    <select id="settingPieceTheme"></select>
                     <button id="addThemeBtn" class="fen-btn" title="Add custom theme">+</button>
                     <button id="deleteThemeBtn" class="fen-btn" title="Delete custom theme"
                         style="display:none;">−</button>
@@ -80,8 +96,8 @@
         </div>
     </div>
 
-    <div class="container">
-        <h2>Chess Board</h2>
+    <div class="container" style="padding-top: 43px;">
+        <!-- <h2>Chess Board</h2> -->
 
         <!-- Chess board wrapper -->
         <div class="board-wrapper">
@@ -92,23 +108,33 @@
                 <button id="flipBtn" class="board-ctrl-btn" title="Flip board">⇅</button>
                 <button id="focusBtn" class="board-ctrl-btn" title="Focus mode">⛶</button>
             </div>
+            <div class="board-controls-center">
+                <button id="navFirst" class="board-ctrl-btn nav-btn" title="First move">⏮</button>
+                <button id="navPrev" class="board-ctrl-btn nav-btn" title="Previous move">◀</button>
+                <span id="moveCounter" class="move-counter">live</span>
+                <button id="navNext" class="board-ctrl-btn nav-btn" title="Next move">▶</button>
+                <button id="navLast" class="board-ctrl-btn nav-btn" title="Last move / Live">⏭</button>
+            </div>
             <div class="board-controls-right">
+                <button id="gameSelectorBtn" class="board-ctrl-btn" title="Game history">↺</button>
                 <button id="settingsBtn" class="board-ctrl-btn" title="Settings">⚙</button>
             </div>
         </div>
 
-        <!-- Evaluation bar (hidden in edit mode) -->
-        <div class="info" id="eval-container">
-            <div class="eval-bar-container">
-                <div id="eval-bar"></div>
-                <div id="eval-text">--</div>
-            </div>
+        <!-- Evaluation bar (hidden in edit mode and review mode) -->
+        <div class="eval-bar-container" id="eval-container">
+            <div id="eval-bar"></div>
+            <div id="eval-text">--</div>
+        </div>
+
+        <!-- Game review panel (shown in review mode) -->
+        <div id="review-panel" class="review-panel anim-panel">
+            <div class="review-meta" id="reviewMeta"></div>
+            <div class="review-moves" id="reviewMoves"></div>
         </div>
 
         <!-- Edit mode instructions (above board, hidden on interaction) -->
-        <div class="status anim-panel" id="edit-instructions">
-            Drag pieces to edit the board
-        </div>
+        <div class="status anim-panel" id="edit-instructions">Drag pieces to edit the board</div>
 
         <!-- FEN display/edit section (shown in edit mode) -->
         <div id="fen-section" class="config-panel anim-panel">
@@ -156,10 +182,17 @@
         <!-- Mode toggle button -->
         <button id="modeToggleBtn" class="button">Edit Board</button>
 
-        <a href="/" class="back-button">OpenChess Home</a>
+        <!-- Exit review mode button (hidden by default) -->
+        <button id="exitReviewBtn" class="button" style="display:none;">View Board</button>
+
+        <a href="./index.html" class="back-button">OpenChess Home</a>
     </div>
 
     <script>
+        // Constants
+        const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        const START_POSITION = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+
         // State variables
         let board = null;
         let editMode = false;
@@ -168,13 +201,27 @@
         let enPassantSquare = '-';
         let halfmoveClock = 0;
         let fullmoveNumber = 1;
-        let previousValidFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR';
+        let previousValidFen = START_POSITION;
         let isEditingFen = false;
         let updateInterval = null;
-        let instructionsHidden = false;
         let boardOrientation = 'white';
         let focusMode = false;
         let previousPosition = null;
+
+        // Move history / scrubbing state (segment-based)
+        // Each segment: { fen, engine, moveCount, globalOffset, span }
+        let liveSegments = [];        // segments for the live game
+        let moveIndex = 0;            // current global scrub position
+        let totalMoves = 0;           // max global index
+        let isLive = true;            // whether showing the live (latest) position
+        let liveGameLoaded = false;   // whether we loaded the initial live game history
+
+        // Game review state (segment-based)
+        let reviewMode = false;       // viewing a completed game
+        let reviewSegments = [];      // segments for the reviewed game
+        let reviewMoveIndex = 0;
+        let reviewTotalMoves = 0;
+        let reviewGameMeta = null;    // metadata of the game being reviewed
 
         // Settings (loaded from localStorage)
         let settings = {
@@ -182,13 +229,14 @@
             playSound: true,
             lightSquareColor: '#f0d9b5',
             darkSquareColor: '#b58863',
-            pieceTheme: '/pieces/{piece}.svg',
-            customThemes: []
+            pieceTheme: './pieces/{piece}.svg',
+            customThemes: [],
+            instructionsHidden: false
         };
 
         // Default piece themes
         const defaultThemes = [
-            { value: '/pieces/{piece}.svg', label: 'Local SVG (default)' },
+            { value: './pieces/{piece}.svg', label: 'Local SVG (default)' },
             { value: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png', label: 'Wikipedia' },
             { value: 'https://chessboardjs.com/img/chesspieces/alpha/{piece}.png', label: 'Alpha' }
         ];
@@ -317,22 +365,604 @@
             return settings.pieceTheme.replace('{piece}', piece);
         }
 
-        // Initialize the board in view mode
-        function initBoard() {
+        // ==========================================
+        // Binary game file parsing (MoveHistory format)
+        // ==========================================
+
+        const GAME_HEADER_SIZE = 16;
+        const FEN_MARKER = 0xFFFF;
+
+        const RESULT_NAMES = ['In Progress', 'Checkmate', 'Stalemate', 'Draw (50-move)', 'Draw (3-fold)', 'Resignation'];
+        const MODE_NAMES = { 1: 'Human vs Human', 2: 'vs Stockfish' };
+        const DEPTH_NAMES = { 5: 'Easy', 8: 'Medium', 11: 'Hard', 15: 'Expert' };
+
+        function promoCodeToChar(code) {
+            switch (code) {
+                case 1: return 'q';
+                case 2: return 'r';
+                case 3: return 'b';
+                case 4: return 'n';
+                default: return '';
+            }
+        }
+
+        function decodeMove(encoded) {
+            const from = (encoded >> 10) & 0x3F;
+            const to = (encoded >> 4) & 0x3F;
+            const promo = encoded & 0x0F;
+            const files = 'abcdefgh';
+            // row 0 = rank 8, row 7 = rank 1
+            const fromSq = files[from % 8] + (8 - Math.floor(from / 8));
+            const toSq = files[to % 8] + (8 - Math.floor(to / 8));
+            return fromSq + toSq + promoCodeToChar(promo);
+        }
+
+        // Shared helpers for binary parsing
+        const sharedTextDecoder = new TextDecoder();
+
+        function parseMoves(dataView, moveCount, startOffset) {
+            const moves = [];
+            let offset = startOffset;
+            for (let i = 0; i < moveCount; i++) {
+                moves.push(dataView.getUint16(offset, true));
+                offset += 2;
+            }
+            return { moves, endOffset: offset };
+        }
+
+        function parseFenTable(buffer, startOffset, count) {
+            const fens = [];
+            const dv = new DataView(buffer);
+            let offset = startOffset;
+            for (let i = 0; i < count; i++) {
+                if (offset >= buffer.byteLength) break;
+                const len = dv.getUint8(offset);
+                offset++;
+                fens.push(sharedTextDecoder.decode(new Uint8Array(buffer, offset, len)));
+                offset += len;
+            }
+            return fens;
+        }
+
+        function createSegment(fen, moveBuffer) {
+            const engine = new Chess(fen);
+            for (const uci of moveBuffer) {
+                try { engine.move(uci); } catch (e) { console.warn('Replay failed:', uci, e); }
+            }
+            return { fen, engine, moveCount: engine.history().length, globalOffset: 0, span: 0 };
+        }
+
+        function parseGameHeader(dataView) {
+            return {
+                version: dataView.getUint8(0),
+                mode: dataView.getUint8(1),
+                result: dataView.getUint8(2),
+                winnerColor: String.fromCharCode(dataView.getUint8(3)),
+                playerColor: String.fromCharCode(dataView.getUint8(4)),
+                botDepth: dataView.getUint8(5),
+                moveCount: dataView.getUint16(6, true),
+                fenEntryCnt: dataView.getUint16(8, true),
+                lastFenOffset: dataView.getUint16(10, true),
+                timestamp: dataView.getUint32(12, true)
+            };
+        }
+
+        // Parse a completed game binary (header + moves + FEN table appended)
+        function parseCompletedGame(buffer) {
+            const dv = new DataView(buffer);
+            const hdr = parseGameHeader(dv);
+            const { moves, endOffset } = parseMoves(dv, hdr.moveCount, GAME_HEADER_SIZE);
+            const fens = parseFenTable(buffer, endOffset, hdr.fenEntryCnt);
+            return { header: hdr, moves, fens };
+        }
+
+        // Parse live game (header + moves from live.bin, FENs from live_fen.bin)
+        function parseLiveGame(movesBuffer, fenBuffer) {
+            const dv = new DataView(movesBuffer);
+            const hdr = parseGameHeader(dv);
+            const { moves } = parseMoves(dv, hdr.moveCount, GAME_HEADER_SIZE);
+            const fens = (fenBuffer && fenBuffer.byteLength > 0) ? parseFenTable(fenBuffer, 0, hdr.fenEntryCnt) : [];
+            return { header: hdr, moves, fens };
+        }
+
+        // Build game segments from parsed game data.
+        // Each FEN marker starts a new segment with its own chess.js engine.
+        function buildGameSegments(parsed) {
+            const { moves, fens } = parsed;
+            const segments = [];
+            let fenIdx = -1;
+            let currentFen = null;
+            let currentMoveBuffer = [];
+
+            for (let i = 0; i < moves.length; i++) {
+                if (moves[i] === FEN_MARKER) {
+                    if (currentFen !== null) {
+                        segments.push(createSegment(currentFen, currentMoveBuffer));
+                    }
+                    fenIdx++;
+                    currentFen = (fenIdx < fens.length) ? fens[fenIdx] : currentFen;
+                    currentMoveBuffer = [];
+                } else {
+                    if (currentFen === null) currentFen = START_FEN;
+                    currentMoveBuffer.push(decodeMove(moves[i]));
+                }
+            }
+
+            if (currentFen !== null) {
+                segments.push(createSegment(currentFen, currentMoveBuffer));
+            }
+
+            if (segments.length === 0) {
+                segments.push(createSegment(START_FEN, []));
+            }
+
+            computeSegmentOffsets(segments);
+            return segments;
+        }
+
+        // Compute globalOffset and span for each segment.
+        // Each segment occupies: 1 (its starting FEN position) + moveCount.
+        function computeSegmentOffsets(segments) {
+            let offset = 0;
+            for (let s = 0; s < segments.length; s++) {
+                segments[s].globalOffset = offset;
+                segments[s].span = 1 + segments[s].moveCount;
+                offset += segments[s].span;
+            }
+        }
+
+        // Get the maximum navigable global index
+        function computeGlobalTotal(segments) {
+            if (segments.length === 0) return 0;
+            const last = segments[segments.length - 1];
+            return last.globalOffset + last.moveCount;
+        }
+
+        // Resolve a global index into segment index and local move index
+        function resolveGlobalIndex(segments, globalIdx) {
+            for (let s = 0; s < segments.length; s++) {
+                const seg = segments[s];
+                const localIdx = globalIdx - seg.globalOffset;
+                if (localIdx >= 0 && localIdx <= seg.moveCount) {
+                    return { segmentIdx: s, localMoveIdx: localIdx, isBoardEdit: (s > 0 && localIdx === 0) };
+                }
+            }
+            const last = segments[segments.length - 1];
+            return { segmentIdx: segments.length - 1, localMoveIdx: last.moveCount, isBoardEdit: false };
+        }
+
+        // Get full FEN string at a given global index
+        function getSegmentsFenAtIndex(segments, globalIdx) {
+            if (!segments || segments.length === 0) return null;
+            const { segmentIdx, localMoveIdx } = resolveGlobalIndex(segments, globalIdx);
+            const seg = segments[segmentIdx];
+            if (localMoveIdx === 0) {
+                return seg.fen;
+            }
+            const hist = seg.engine.history({ verbose: true });
+            if (localMoveIdx > hist.length) return seg.engine.fen();
+            return hist[localMoveIdx - 1].after;
+        }
+
+        // ==========================================
+        // Move navigation (scrubbing) — segment-based
+        // ==========================================
+
+        function getActiveSegments() {
+            return reviewMode ? reviewSegments : liveSegments;
+        }
+
+        function getActiveMoveIndex() {
+            return reviewMode ? reviewMoveIndex : moveIndex;
+        }
+
+        function setActiveMoveIndex(idx) {
+            if (reviewMode) reviewMoveIndex = idx;
+            else moveIndex = idx;
+        }
+
+        function getActiveTotalMoves() {
+            return reviewMode ? reviewTotalMoves : totalMoves;
+        }
+
+        function updateMoveCounter() {
+            const idx = getActiveMoveIndex();
+            const total = getActiveTotalMoves();
+            const counter = $('#moveCounter');
+
+            if (total === 0) {
+                counter.text('--');
+                return;
+            }
+
+            if (!reviewMode && isLive) {
+                counter.text('live');
+                counter.addClass('live');
+            } else {
+                counter.text(idx + '/' + total);
+                counter.removeClass('live');
+            }
+        }
+
+        function navigateToMove(idx) {
+            const segments = getActiveSegments();
+            if (!segments || segments.length === 0) return;
+
+            const total = getActiveTotalMoves();
+            if (idx < 0) idx = 0;
+            if (idx > total) idx = total;
+
+            setActiveMoveIndex(idx);
+
+            if (!reviewMode) {
+                isLive = (idx === total);
+            }
+
+            const fen = getSegmentsFenAtIndex(segments, idx);
+            if (fen) {
+                const posFen = fen.split(' ')[0];
+                board.position(posFen, true);
+            }
+
+            updateMoveCounter();
+            if (reviewMode) highlightReviewMove();
+        }
+
+        function navFirst() { navigateToMove(0); }
+        function navPrev() { navigateToMove(getActiveMoveIndex() - 1); }
+        function navNext() { navigateToMove(getActiveMoveIndex() + 1); }
+        function navLast() { navigateToMove(getActiveTotalMoves()); }
+
+        // ==========================================
+        // Live game loading
+        // ==========================================
+
+        async function loadLiveGame() {
+            try {
+                const [movesResp, fenResp] = await Promise.all([
+                    fetch('/games?id=live1'),
+                    fetch('/games?id=live2')
+                ]);
+
+                if (!movesResp.ok) return false; // No live game
+
+                const movesBuffer = await movesResp.arrayBuffer();
+                const fenBuffer = fenResp.ok ? await fenResp.arrayBuffer() : new ArrayBuffer(0);
+
+                if (movesBuffer.byteLength < GAME_HEADER_SIZE) return false;
+
+                const parsed = parseLiveGame(movesBuffer, fenBuffer);
+                liveSegments = buildGameSegments(parsed);
+                totalMoves = computeGlobalTotal(liveSegments);
+                moveIndex = totalMoves;
+                isLive = true;
+                liveGameLoaded = true;
+
+                updateMoveCounter();
+                return true;
+            } catch (e) {
+                console.log('Failed to load live game:', e);
+                return false;
+            }
+        }
+
+        // ==========================================
+        // Game review mode
+        // ==========================================
+
+        function enterReviewMode(segments, meta) {
+            reviewMode = true;
+            reviewSegments = segments;
+            reviewGameMeta = meta;
+            reviewTotalMoves = computeGlobalTotal(segments);
+            reviewMoveIndex = reviewTotalMoves; // Start at last position
+
+            // Stop polling
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+
+            // Hide eval bar, show review panel
+            $('#eval-container').hide();
+            $('#review-panel').addClass('visible');
+            $('#modeToggleBtn').hide();
+            $('#exitReviewBtn').show();
+
+            // Build review panel content
+            buildReviewPanel();
+
+            // Show last position
+            const fen = getSegmentsFenAtIndex(segments, reviewTotalMoves);
+            if (fen) {
+                board.position(fen.split(' ')[0], false);
+            }
+
+            updateMoveCounter();
+            highlightReviewMove();
+        }
+
+        function exitReviewMode() {
+            reviewMode = false;
+            reviewSegments = [];
+            reviewGameMeta = null;
+            reviewMoveIndex = 0;
+            reviewTotalMoves = 0;
+
+            // Show eval bar, hide review panel
+            $('#eval-container').show();
+            $('#review-panel').removeClass('visible');
+            $('#modeToggleBtn').show();
+            $('#exitReviewBtn').hide();
+
+            // Restore live position
+            if (liveSegments.length > 0 && liveGameLoaded) {
+                const fen = getSegmentsFenAtIndex(liveSegments, totalMoves);
+                if (fen) {
+                    board.position(fen.split(' ')[0], false);
+                }
+                moveIndex = totalMoves;
+                isLive = true;
+            }
+
+            updateMoveCounter();
+            startPolling();
+        }
+
+        function buildReviewPanel() {
+            const meta = reviewGameMeta;
+            const segments = reviewSegments;
+            if (!meta || !segments || segments.length === 0) return;
+
+            // Build metadata display (same layout as game card)
+            let metaHtml = '<div class=\"review-meta-info\">';
+            const date = formatDate(meta.timestamp);
+            const result = RESULT_NAMES[meta.result] || 'Unknown';
+            const winner = formatWinner(meta.winnerColor, meta.result);
+            const opponent = formatOpponent(meta);
+
+            metaHtml += '<span class=\"meta-date\">' + date + '</span>';
+            metaHtml += '<span class=\"meta-mode\">' + opponent + '</span>';
+            metaHtml += '<span class=\"meta-result\">' + winner + ' \u2014 ' + result + '</span>';
+            metaHtml += '</div>';
+
+            $('#reviewMeta').html(metaHtml);
+
+            // Build move list with segments
+            let movesHtml = '';
+
+            for (let s = 0; s < segments.length; s++) {
+                const seg = segments[s];
+                const hist = seg.engine.history({ verbose: true });
+
+                // Board Edit header (skip segment 0 — it's the game start)
+                if (s > 0) {
+                    const editGlobalIdx = seg.globalOffset;
+                    movesHtml += '<div class="board-edit-marker" data-gidx="' + editGlobalIdx + '">\u270f\ufe0f Board Edit #' + s + '</div>';
+                }
+
+                if (hist.length === 0) continue;
+
+                // Determine starting turn and fullmove number from segment FEN
+                const fenParts = seg.fen.split(' ');
+                const startTurn = fenParts[1] || 'w';
+                const startFullmove = parseInt(fenParts[5]) || 1;
+
+                movesHtml += '<div class="pgn-segment">';
+
+                let moveNum = startFullmove;
+                let isWhiteTurn = (startTurn === 'w');
+
+                for (let m = 0; m < hist.length; m++) {
+                    const globalIdx = seg.globalOffset + 1 + m;
+
+                    if (isWhiteTurn) {
+                        // White move — start a new row
+                        movesHtml += '<span class="pgn-move-num">' + moveNum + '.</span>';
+                        movesHtml += '<span class="pgn-move" data-gidx="' + globalIdx + '">' + hist[m].san + '</span>';
+                        isWhiteTurn = false;
+                    } else {
+                        if (m === 0) {
+                            // Black starts this segment — show number + empty white cell
+                            movesHtml += '<span class="pgn-move-num">' + moveNum + '.</span>';
+                            movesHtml += '<span class="pgn-move-empty"></span>';
+                        }
+                        movesHtml += '<span class="pgn-move" data-gidx="' + globalIdx + '">' + hist[m].san + '</span>';
+                        isWhiteTurn = true;
+                        moveNum++;
+                    }
+                }
+
+                movesHtml += '</div>';
+            }
+
+            // Add result
+            if (meta.result === 1 || meta.result === 5) {
+                movesHtml += '<span class="pgn-result">' + (meta.winnerColor === 'w' ? '1-0' : '0-1') + '</span>';
+            } else if (meta.result >= 2 && meta.result <= 4) {
+                movesHtml += '<span class="pgn-result">\u00bd-\u00bd</span>';
+            }
+
+            $('#reviewMoves').html(movesHtml);
+
+            // Click handler for moves and board edits (delegate on data-gidx attribute)
+            $('#reviewMoves').off('click', '[data-gidx]').on('click', '[data-gidx]', function () {
+                const gidx = parseInt($(this).data('gidx'));
+                if (!isNaN(gidx)) navigateToMove(gidx);
+            });
+        }
+
+        function highlightReviewMove() {
+            $('#reviewMoves .pgn-move, #reviewMoves .board-edit-marker').removeClass('active');
+            if (reviewMoveIndex >= 0) {
+                const el = $('#reviewMoves [data-gidx="' + reviewMoveIndex + '"]');
+                el.addClass('active');
+                if (el[0]) el[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
+        // ==========================================
+        // Game selector overlay
+        // ==========================================
+
+        async function loadGameList() {
+            try {
+                const resp = await fetch('/games');
+                const data = await resp.json();
+                return data.games || [];
+            } catch (e) {
+                console.log('Failed to load game list:', e);
+                return [];
+            }
+        }
+
+        function openGameSelector() {
+            loadGameList().then(games => {
+                const grid = $('#gameGrid');
+                grid.empty();
+
+                if (games.length === 0) {
+                    $('#noGamesMsg').show();
+                    grid.hide();
+                } else {
+                    $('#noGamesMsg').hide();
+                    grid.show();
+
+                    // Show most recent first
+                    games.reverse();
+
+                    games.forEach(game => {
+                        const date = formatDate(game.timestamp);
+                        const winner = formatWinnerCard(game.winner);
+
+                        let subtitle = MODE_NAMES[game.mode] || 'Game';
+                        if (game.mode === 2) {
+                            subtitle = 'vs Stockfish (' + (DEPTH_NAMES[game.botDepth] || 'D' + game.botDepth) + ')';
+                        }
+
+                        const card = $('<div class=\"game-card\" data-id=\"' + game.id + '\"></div>');
+                        card.html(
+                            '<span class=\"game-card-check\"><span class=\"check-icon\"></span></span>' +
+                            '<div class=\"game-card-date\">' + date + '</div>' +
+                            '<div class=\"game-card-mode\">' + subtitle + '</div>' +
+                            '<div class=\"game-card-result\">' + winner + '</div>' +
+                            '<div class=\"game-card-moves\">' + game.moveCount + ' moves</div>'
+                        );
+                        grid.append(card);
+                    });
+                }
+
+                $('#gameSelectorOverlay').addClass('visible');
+
+                // Reset delete mode when opening
+                deleteMode = false;
+                $('#deleteToggleBtn').removeClass('active');
+                $('#gameGrid').removeClass('delete-mode');
+                $('.game-card').removeClass('selected-for-delete');
+                $('#deleteConfirmBar').hide();
+            });
+        }
+
+        async function selectGame(gameId) {
+            try {
+                const resp = await fetch('/games?id=' + gameId);
+                if (!resp.ok) {
+                    alert('Failed to load game');
+                    return;
+                }
+                const buffer = await resp.arrayBuffer();
+                const parsed = parseCompletedGame(buffer);
+                const segments = buildGameSegments(parsed);
+
+                // Build metadata for review panel
+                const meta = parsed.header;
+                meta.gameId = gameId;
+
+                // Close overlay and enter review mode
+                $('#gameSelectorOverlay').removeClass('visible');
+
+                // If in edit mode, switch to view mode first
+                if (editMode) enableViewMode();
+
+                enterReviewMode(segments, meta);
+            } catch (e) {
+                console.log('Failed to select game:', e);
+                alert('Error loading game data');
+            }
+        }
+
+        // Helper: create a Chessboard instance with shared config
+        function createBoard(position, isEdit) {
             const config = {
-                draggable: false,
-                position: 'start',
+                draggable: isEdit,
+                position: position,
                 pieceTheme: pieceTheme,
                 showNotation: settings.showNotation,
                 orientation: boardOrientation
             };
-            board = Chessboard('board', config);
-            $(window).on('resize', board.resize);
+            if (isEdit) {
+                config.dropOffBoard = 'trash';
+                config.sparePieces = true;
+                config.onChange = onBoardChange;
+            }
+            return Chessboard('board', config);
+        }
+
+        // Format date in: DD/MM/YYYY HH:MM (24h, no seconds)
+        function formatDate(timestamp) {
+            if (!timestamp || timestamp <= 0) return 'Unknown date';
+            const d = new Date(timestamp * 1000);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return day + '/' + month + '/' + year + ' ' + hours + ':' + minutes;
+        }
+
+        // Helper: format winner text from game metadata (with color square)
+        function formatWinner(winnerColor, result) {
+            if (winnerColor === 'w') return '<span class="winner-square white-square"></span> White wins';
+            if (winnerColor === 'b') return '<span class="winner-square black-square"></span> Black wins';
+            if (winnerColor === 'd') return 'Draw';
+            return RESULT_NAMES[result] || 'Unknown';
+        }
+
+        // Helper: format winner text for game cards (with color square)
+        function formatWinnerCard(winnerChar) {
+            if (winnerChar === 'w') return '<span class="winner-square white-square"></span> White wins';
+            if (winnerChar === 'b') return '<span class="winner-square black-square"></span> Black wins';
+            if (winnerChar === 'd') return '\u00bd Draw';
+            return '\u2014';
+        }
+
+        // Helper: format opponent/mode text from game metadata
+        function formatOpponent(meta) {
+            if (meta.mode === 2) {
+                const diff = DEPTH_NAMES[meta.botDepth] || ('Depth ' + meta.botDepth);
+                const color = meta.playerColor === 'w' ? 'White' : 'Black';
+                return 'vs Stockfish (' + diff + ') as ' + color;
+            }
+            return MODE_NAMES[meta.mode] || ('Mode ' + meta.mode);
+        }
+
+        // Initialize the board in view mode
+        function initBoard() {
+            board = createBoard('start', false);
+            $(window).on('resize', function () { if (board) board.resize(); });
             applyBoardColors();
         }
 
         // Switch to edit mode
         function enableEditMode() {
+            // Exit review mode if active
+            if (reviewMode) exitReviewMode();
+
+            // Restore live position before entering edit mode
+            if (liveSegments.length > 0 && !isLive) {
+                navLast();
+            }
+
             editMode = true;
             if (updateInterval) {
                 clearInterval(updateInterval);
@@ -342,16 +972,7 @@
             const currentPosition = board.position();
 
             board.destroy();
-            board = Chessboard('board', {
-                draggable: true,
-                dropOffBoard: 'trash',
-                sparePieces: true,
-                position: currentPosition,
-                pieceTheme: pieceTheme,
-                showNotation: settings.showNotation,
-                orientation: boardOrientation,
-                onChange: onBoardChange
-            });
+            board = createBoard(currentPosition, true);
 
             applyBoardColors();
 
@@ -364,7 +985,7 @@
 
             $('#modeToggleBtn').text('View Board');
             $('#eval-container').hide();
-            if (!instructionsHidden) {
+            if (!settings.instructionsHidden) {
                 $('#edit-instructions').addClass('visible');
             }
             $('#fen-section').addClass('visible');
@@ -379,13 +1000,7 @@
             const currentPosition = board.position();
 
             board.destroy();
-            board = Chessboard('board', {
-                draggable: false,
-                position: currentPosition,
-                pieceTheme: pieceTheme,
-                showNotation: settings.showNotation,
-                orientation: boardOrientation
-            });
+            board = createBoard(currentPosition, false);
 
             applyBoardColors();
 
@@ -404,9 +1019,10 @@
         // Board change handler - immediately update FEN display after any board change
         function onBoardChange(oldPos, newPos) {
             // Permanently hide instructions when board is interacted with
-            if (!instructionsHidden) {
-                instructionsHidden = true;
+            if (!settings.instructionsHidden) {
+                settings.instructionsHidden = true;
                 $('#edit-instructions').removeClass('visible');
+                saveSettings();
             }
 
             // Play sound for piece movement in edit mode
@@ -783,15 +1399,79 @@
 
         // Fetch board state from server
         function fetchBoardState() {
-            if (editMode) return;
+            if (editMode || reviewMode) return;
 
             fetch('/board-update')
                 .then(response => response.json())
                 .then(data => {
                     if (data.fen) {
-                        parseFullFen(data.fen);
+                        if (liveSegments.length > 0) {
+                            const lastSeg = liveSegments[liveSegments.length - 1];
+                            const serverPosFen = data.fen.split(' ')[0];
+                            const engineFen = lastSeg.engine.fen().split(' ')[0];
+                            if (serverPosFen !== engineFen) {
+                                // Try to find a move that leads to this position
+                                const legalMoves = lastSeg.engine.moves({ verbose: true });
+                                let foundMove = false;
+                                for (const m of legalMoves) {
+                                    if (m.after.split(' ')[0] === serverPosFen) {
+                                        lastSeg.engine.move(m.san);
+                                        lastSeg.moveCount = lastSeg.engine.history().length;
+                                        computeSegmentOffsets(liveSegments);
+                                        totalMoves = computeGlobalTotal(liveSegments);
+                                        if (isLive) moveIndex = totalMoves;
+                                        foundMove = true;
+                                        break;
+                                    }
+                                }
+                                if (!foundMove) {
+                                    // Position changed dramatically (board edit) — add new segment
+                                    try {
+                                        const newEngine = new Chess(data.fen);
+                                        liveSegments.push({
+                                            fen: data.fen,
+                                            engine: newEngine,
+                                            moveCount: 0,
+                                            globalOffset: 0,
+                                            span: 0
+                                        });
+                                        computeSegmentOffsets(liveSegments);
+                                        totalMoves = computeGlobalTotal(liveSegments);
+                                        moveIndex = totalMoves;
+                                        isLive = true;
+                                    } catch (e) {
+                                        console.log('Failed to create new segment:', e);
+                                    }
+                                }
+                                updateMoveCounter();
+                            }
+                        } else {
+                            // Initialize first segment
+                            try {
+                                const engine = new Chess(data.fen);
+                                liveSegments.push({
+                                    fen: data.fen,
+                                    engine: engine,
+                                    moveCount: 0,
+                                    globalOffset: 0,
+                                    span: 1
+                                });
+                                computeSegmentOffsets(liveSegments);
+                                totalMoves = computeGlobalTotal(liveSegments);
+                                moveIndex = 0;
+                                isLive = true;
+                                updateMoveCounter();
+                            } catch (e) {
+                                console.log('Failed to init segments:', e);
+                            }
+                        }
+
+                        // Only update board display if viewing live position
+                        if (isLive) {
+                            parseFullFen(data.fen);
+                        }
                     }
-                    if (data.evaluation !== undefined) {
+                    if (data.evaluation !== undefined && isLive) {
                         updateEvaluationBar(data.evaluation);
                     }
                 })
@@ -835,15 +1515,18 @@
                 });
         }
 
+        // Show copy success feedback
+        function showCopyFeedback() {
+            const btn = $('#fen-copy-btn');
+            btn.text('✓');
+            setTimeout(function () { btn.text('📋'); }, 1000);
+        }
+
         // Copy FEN to clipboard
         function copyFen() {
             const fenText = $('#fen-input').val();
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(fenText).then(function () {
-                    const btn = $('#fen-copy-btn');
-                    btn.text('✓');
-                    setTimeout(function () { btn.text('📋'); }, 1000);
-                }).catch(function () {
+                navigator.clipboard.writeText(fenText).then(showCopyFeedback).catch(function () {
                     fallbackCopy(fenText);
                 });
             } else {
@@ -861,9 +1544,7 @@
             textarea.select();
             try {
                 document.execCommand('copy');
-                const btn = $('#fen-copy-btn');
-                btn.text('✓');
-                setTimeout(function () { btn.text('📋'); }, 1000);
+                showCopyFeedback();
             } catch (e) {
                 alert('Failed to copy. Please select and copy manually.');
             }
@@ -878,22 +1559,16 @@
 
             if (isEditingFen) {
                 const newFen = fenInput.val();
-                // Use strong validation
                 const validation = isLegalPosition(newFen);
-                if (validation.valid && parseFullFen(newFen, false)) {
-                    isEditingFen = false;
-                    fenInput.prop('readonly', true);
-                    editBtn.text('✏️');
-                    updateFenDisplay();
-                } else {
+                if (!validation.valid || !parseFullFen(newFen, false)) {
                     const errorMsg = validation.error || 'Invalid FEN format';
                     alert('Invalid FEN: ' + errorMsg + '. Reverting to previous position.');
                     parseFullFen(fenBeforeEdit, false);
-                    isEditingFen = false;
-                    fenInput.prop('readonly', true);
-                    editBtn.text('✏️');
-                    updateFenDisplay();
                 }
+                isEditingFen = false;
+                fenInput.prop('readonly', true);
+                editBtn.text('✏️');
+                updateFenDisplay();
             } else {
                 fenBeforeEdit = getFullFen();
                 isEditingFen = true;
@@ -922,7 +1597,11 @@
         $(document).ready(function () {
             loadSettings();
             initBoard();
-            startPolling();
+
+            // Try to load live game history before starting polling
+            loadLiveGame().then(() => {
+                startPolling();
+            });
 
             $('#modeToggleBtn').on('click', function () {
                 if (editMode) {
@@ -1004,6 +1683,133 @@
                 if (board) {
                     setTimeout(() => board.resize(), 100);
                 }
+            });
+
+            // Move navigation buttons
+            $('#navFirst').on('click', navFirst);
+            $('#navPrev').on('click', navPrev);
+            $('#navNext').on('click', navNext);
+            $('#navLast').on('click', navLast);
+
+            // Keyboard navigation and shortcuts
+            $(document).on('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    if ($('#settingsPopup').hasClass('visible')) {
+                        $('#settingsPopup').removeClass('visible');
+                    } else if ($('#gameSelectorOverlay').hasClass('visible')) {
+                        exitDeleteMode();
+                        $('#gameSelectorOverlay').removeClass('visible');
+                    } else if (reviewMode) {
+                        exitReviewMode();
+                    } else if (focusMode) {
+                        focusMode = false;
+                        $('#focusBtn').removeClass('active');
+                        $('body').removeClass('focus-mode');
+                        if (board) {
+                            setTimeout(() => board.resize(), 100);
+                        }
+                    }
+                    return;
+                }
+                if (isEditingFen) return;
+                if (e.key === 'ArrowLeft') { e.preventDefault(); navPrev(); }
+                else if (e.key === 'ArrowRight') { e.preventDefault(); navNext(); }
+                else if (e.key === 'Home') { e.preventDefault(); navFirst(); }
+                else if (e.key === 'End') { e.preventDefault(); navLast(); }
+            });
+
+            // Game selector button
+            $('#gameSelectorBtn').on('click', openGameSelector);
+
+            // Close game selector
+            $('#closeGameSelector').on('click', function () {
+                exitDeleteMode();
+                $('#gameSelectorOverlay').removeClass('visible');
+            });
+
+            // Close game selector when clicking outside
+            $('#gameSelectorOverlay').on('click', function (e) {
+                if (e.target === this) {
+                    exitDeleteMode();
+                    $(this).removeClass('visible');
+                }
+            });
+
+            // Delete mode state
+            let deleteMode = false;
+
+            function exitDeleteMode() {
+                deleteMode = false;
+                $('#deleteToggleBtn').removeClass('active');
+                $('#gameGrid').removeClass('delete-mode');
+                $('.game-card').removeClass('selected-for-delete');
+                $('#deleteConfirmBar').slideUp(150);
+            }
+
+            function updateDeleteConfirmBar() {
+                const count = $('.game-card.selected-for-delete').length;
+                if (count > 0) {
+                    $('#deleteConfirmText').text('Delete ' + count + ' selected game' + (count > 1 ? 's' : '') + '?');
+                    $('#deleteConfirmBar').slideDown(150);
+                } else {
+                    $('#deleteConfirmBar').slideUp(150);
+                }
+            }
+
+            // Toggle delete mode
+            $('#deleteToggleBtn').on('click', function () {
+                deleteMode = !deleteMode;
+                $(this).toggleClass('active');
+                $('#gameGrid').toggleClass('delete-mode', deleteMode);
+                if (!deleteMode) {
+                    $('.game-card').removeClass('selected-for-delete');
+                    $('#deleteConfirmBar').slideUp(150);
+                }
+            });
+
+            // Game card click handler
+            $(document).on('click', '.game-card', function (e) {
+                const gameId = $(this).data('id');
+                if (deleteMode) {
+                    $(this).toggleClass('selected-for-delete');
+                    updateDeleteConfirmBar();
+                } else {
+                    selectGame(gameId);
+                }
+            });
+
+            $('#deleteConfirmNo').on('click', function () {
+                exitDeleteMode();
+            });
+
+            $('#deleteConfirmYes').on('click', function () {
+                const selected = $('.game-card.selected-for-delete');
+                if (selected.length === 0) return;
+                const ids = [];
+                selected.each(function () { ids.push($(this).data('id')); });
+
+                // Delete all selected games sequentially
+                let chain = Promise.resolve();
+                ids.forEach(id => {
+                    chain = chain.then(() =>
+                        fetch('/games?id=' + id, { method: 'DELETE' }).then(resp => {
+                            if (!resp.ok) console.log('Failed to delete game ' + id);
+                            // If reviewing a deleted game, exit review
+                            if (reviewMode && reviewGameMeta && reviewGameMeta.gameId === id) {
+                                exitReviewMode();
+                            }
+                        })
+                    );
+                });
+                chain.then(() => {
+                    exitDeleteMode();
+                    openGameSelector();
+                }).catch(() => alert('Network error while deleting games'));
+            });
+
+            // Exit review mode button
+            $('#exitReviewBtn').on('click', function () {
+                exitReviewMode();
             });
 
             // Settings button
@@ -1093,50 +1899,13 @@
                     alert('Theme URL must contain {piece} placeholder');
                 }
             });
-
-            // ESC key to exit focus mode or close settings
-            $(document).on('keydown', function (e) {
-                if (e.key === 'Escape') {
-                    if ($('#settingsPopup').hasClass('visible')) {
-                        $('#settingsPopup').removeClass('visible');
-                    } else if (focusMode) {
-                        focusMode = false;
-                        $('#focusBtn').removeClass('active');
-                        $('body').removeClass('focus-mode');
-                        if (board) {
-                            setTimeout(() => board.resize(), 100);
-                        }
-                    }
-                }
-            });
         });
 
         // Rebuild board with current settings (for notation toggle)
         function rebuildBoard() {
             const currentPosition = board.position();
             board.destroy();
-
-            if (editMode) {
-                board = Chessboard('board', {
-                    draggable: true,
-                    dropOffBoard: 'trash',
-                    sparePieces: true,
-                    position: currentPosition,
-                    pieceTheme: pieceTheme,
-                    showNotation: settings.showNotation,
-                    orientation: boardOrientation,
-                    onChange: onBoardChange
-                });
-            } else {
-                board = Chessboard('board', {
-                    draggable: false,
-                    position: currentPosition,
-                    pieceTheme: pieceTheme,
-                    showNotation: settings.showNotation,
-                    orientation: boardOrientation
-                });
-            }
-
+            board = createBoard(currentPosition, editMode);
             applyBoardColors();
         }
     </script>

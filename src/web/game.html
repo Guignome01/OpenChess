@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GameMode Selection</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="stylesheet" href="./css/styles.css">
 </head>
 
 <body>
@@ -65,8 +65,8 @@
             </button>
         </div>
 
-        <a href="/board.html" class="button">View Board</a>
-        <a href="/" class="back-button">OpenChess Home</a>
+        <a href="./board.html" class="button">View Board</a>
+        <a href="./index.html" class="back-button">OpenChess Home</a>
     </div>
     <script>
         function showBotConfig() {
@@ -82,7 +82,7 @@
                 requestBody = 'gamemode=' + mode;
                 if (mode === 2)
                     requestBody += '&playerColor=' + document.getElementById('botPlayerColor').value + '&difficulty=' + document.getElementById('botDifficulty').value;
-                fetch('/gameselect', {
+                fetch('./gameselect', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
@@ -100,7 +100,7 @@
                     return response.text();
                 }).then(data => {
                     if (data && mode != 4) // Don't redirect for sensor test
-                        window.location.href = "/board.html";
+                        window.location.href = "./board.html";
                 }).catch(error => {
                     console.error('Error:', error);
                     alert('Failed to select game mode. Please try again.');

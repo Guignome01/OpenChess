@@ -138,6 +138,8 @@ void ChessUtils::fenToBoard(const String& fen, char board[8][8], char& currentTu
       }
     }
   }
+  if (chessEngine != nullptr)
+    chessEngine->reset();
 
   // Parse active color
   if (remainingParts.length() > 0) {
@@ -172,9 +174,6 @@ void ChessUtils::fenToBoard(const String& fen, char board[8][8], char& currentTu
         if (chessEngine != nullptr)
           chessEngine->setEnPassantTarget(epRow, epCol);
       }
-    } else {
-      if (chessEngine != nullptr)
-        chessEngine->clearEnPassantTarget();
     }
     remainingParts = (fourthSpace > 0) ? remainingParts.substring(fourthSpace + 1) : "";
   }
