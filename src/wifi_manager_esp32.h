@@ -48,6 +48,9 @@ class WiFiManagerESP32 {
   String pendingFenEdit;
   bool hasPendingEdit;
 
+  // tracks errors across multi-file OTA uploads
+  bool otaHasError = false;
+
   // Web interface methods
   String getWiFiInfoJSON();
   String getBoardUpdateJSON();
@@ -59,6 +62,8 @@ class WiFiManagerESP32 {
   void handleSaveLichessToken(AsyncWebServerRequest* request);
   void handleBoardSettings(AsyncWebServerRequest* request);
   void handleBoardCalibration(AsyncWebServerRequest* request);
+  void handleOtaResult(AsyncWebServerRequest* request);
+  void handleOtaUpload(AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final);
   void handleGamesRequest(AsyncWebServerRequest* request);
   void handleDeleteGame(AsyncWebServerRequest* request);
 

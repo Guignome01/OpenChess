@@ -96,6 +96,37 @@
             </div>
         </div>
 
+        <!-- OTA Update Section -->
+        <div class="settings-section">
+            <div class="section-header" onclick="toggleSection('ota')">
+                <span class="section-icon" id="ota-icon">▶</span>
+                <h3>OTA Update</h3>
+            </div>
+            <div class="section-content" id="ota-content">
+                <p class="section-description">
+                    Drop or select <code>firmware.bin</code> and <code>littlefs.bin</code> to update over-the-air.
+                </p>
+                <div class="form-group">
+                    <div class="dropzone" id="dropzone">
+                        <input type="file" id="otaFiles" accept=".bin" multiple style="display: none;">
+                        <span class="dropzone-icon">&#128194;</span>
+                        <span class="dropzone-text" id="dropzone-text">Click or drag .bin files here</span>
+                        <div id="ota-file-list" class="ota-file-list"></div>
+                        <div id="ota-progress-container" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="ota-progress-fill"></div>
+                                <span class="ota-progress-text" id="ota-progress-text">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" id="otaBtn" class="button" style="background-color: #4CAF50;">
+                    Update
+                </button>
+                <div id="ota-status-text" class="ota-status" style="display: none;"></div>
+            </div>
+        </div>
+
         <a href="./game.html" class="button">GameMode Selection</a>
         <a href="./board.html" class="button">View Board</a>
     </div>
@@ -104,7 +135,8 @@
         const sectionStates = {
             wifi: false,
             lichess: false,
-            board: false
+            board: false,
+            ota: false
         };
 
         function toggleSection(name) {
@@ -264,6 +296,140 @@
                     document.getElementById('status').textContent = 'Connecting... (retrying)';
                     setTimeout(() => updateWiFiInfo(0, 20), 1000);
                 });
+        });
+
+        // OTA Update
+        var ota = {
+            dropzone: document.getElementById('dropzone'),
+            input: document.getElementById('otaFiles'),
+            fileList: document.getElementById('ota-file-list'),
+            text: document.getElementById('dropzone-text'),
+            progress: document.getElementById('ota-progress-container'),
+            fill: document.getElementById('ota-progress-fill'),
+            pct: document.getElementById('ota-progress-text'),
+            status: document.getElementById('ota-status-text'),
+            btn: document.getElementById('otaBtn')
+        };
+        var otaFiles = [];
+
+        function otaSetState(state, msg) {
+            var busy = state !== 'idle';
+            ota.progress.style.display = state === 'uploading' ? 'block' : 'none';
+            ota.dropzone.classList.toggle('disabled', busy);
+            ota.btn.disabled = busy;
+            ota.btn.textContent = { idle: 'Upload', uploading: 'Uploading...', rebooting: 'Rebooting...' }[state];
+            if (msg) {
+                ota.status.textContent = msg;
+                ota.status.style.display = 'block';
+                ota.status.style.color = '#f44336';
+            } else {
+                ota.status.style.display = 'none';
+            }
+        }
+
+        function otaSetProgress(pct) {
+            ota.fill.style.width = pct + '%';
+            ota.pct.textContent = pct + '%';
+        }
+
+        function otaRenderFiles() {
+            ota.fileList.innerHTML = '';
+            ota.text.style.display = otaFiles.length ? 'none' : '';
+            ota.dropzone.classList.toggle('has-file', otaFiles.length > 0);
+            otaFiles.forEach(function (file, idx) {
+                var row = document.createElement('div');
+                row.className = 'ota-file-row';
+                var name = document.createElement('span');
+                name.className = 'ota-file-name';
+                name.textContent = file.name;
+                var remove = document.createElement('span');
+                remove.className = 'ota-file-remove';
+                remove.textContent = '\u2715';
+                remove.onclick = function (e) {
+                    e.stopPropagation();
+                    otaFiles.splice(idx, 1);
+                    otaRenderFiles();
+                };
+                row.appendChild(name);
+                row.appendChild(remove);
+                ota.fileList.appendChild(row);
+            });
+        }
+
+        function otaAddFiles(newFiles) {
+            for (var i = 0; i < newFiles.length; i++) {
+                var f = newFiles[i];
+                otaFiles = otaFiles.filter(function (e) { return e.name !== f.name; });
+                otaFiles.push(f);
+            }
+            otaRenderFiles();
+        }
+
+        function otaPollReboot() {
+            otaSetState('rebooting');
+            var attempts = 0, offline = false;
+            var poll = setInterval(function () {
+                attempts++;
+                fetch('/wifi', { signal: AbortSignal.timeout(3000) })
+                    .then(function (r) {
+                        if (r.ok && offline) {
+                            clearInterval(poll);
+                            setTimeout(function () { location.reload(); }, 500);
+                        }
+                    })
+                    .catch(function () {
+                        offline = true;
+                        if (attempts >= 20) {
+                            clearInterval(poll);
+                            otaSetState('idle', 'Board did not come back online. Try refreshing manually.');
+                        }
+                    });
+            }, 3000);
+        }
+
+        // Dropzone interactions
+        ota.dropzone.addEventListener('click', function () { ota.input.click(); });
+        ota.input.addEventListener('change', function () {
+            if (ota.input.files.length) otaAddFiles(ota.input.files);
+            ota.input.value = '';
+        });
+        ota.dropzone.addEventListener('dragover', function (e) { e.preventDefault(); ota.dropzone.classList.add('dragover'); });
+        ota.dropzone.addEventListener('dragleave', function () { ota.dropzone.classList.remove('dragover'); });
+        ota.dropzone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            ota.dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) otaAddFiles(e.dataTransfer.files);
+        });
+
+        // Upload
+        ota.btn.addEventListener('click', function () {
+            if (!otaFiles.length) return otaSetState('idle', 'Please select at least one .bin file');
+
+            otaSetState('uploading');
+            otaSetProgress(0);
+
+            var formData = new FormData();
+            otaFiles.forEach(function (f) { formData.append('ota', f, f.name); });
+
+            var xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', function (e) {
+                if (e.lengthComputable) {
+                    otaSetProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                if (xhr.status === 200) otaPollReboot();
+                else otaSetState('idle', 'Update failed: ' + xhr.responseText);
+            });
+
+            xhr.addEventListener('error', function () {
+                otaSetState('idle', 'Upload failed: connection error.');
+            });
+
+            xhr.open('POST', '/ota');
+            xhr.send(formData);
         });
 
         // Handle Lichess form submission
