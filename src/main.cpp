@@ -203,19 +203,16 @@ void showGameSelection() {
   currentMode = MODE_SELECTION;
   modeInitialized = false;
   resetGameSelection = true;
-  boardDriver.acquireLEDs();
-  boardDriver.clearAllLEDs(false);
-  // Light up the 4 selector positions in the middle of the board
-  // Position 1: Chess Moves (row 3, col 3) - Blue
-  boardDriver.setSquareLED(3, 3, LedColors::Blue);
-  // Position 2: Chess Bot (row 3, col 4) - Green
-  boardDriver.setSquareLED(3, 4, LedColors::Green);
-  // Position 3: Lichess (row 4, col 3) - Yellow
-  boardDriver.setSquareLED(4, 3, LedColors::Yellow);
-  // Position 4: Sensor Test (row 4, col 4) - Red
-  boardDriver.setSquareLED(4, 4, LedColors::Red);
-  boardDriver.showLEDs();
-  boardDriver.releaseLEDs();
+  {
+    BoardDriver::LedGuard guard(&boardDriver);
+    boardDriver.clearAllLEDs(false);
+    // Light up the 4 selector positions in the middle of the board
+    boardDriver.setSquareLED(3, 3, LedColors::Blue);   // Chess Moves
+    boardDriver.setSquareLED(3, 4, LedColors::Green);  // Chess Bot
+    boardDriver.setSquareLED(4, 3, LedColors::Yellow); // Lichess
+    boardDriver.setSquareLED(4, 4, LedColors::Red);    // Sensor Test
+    boardDriver.showLEDs();
+  }
   Serial.println("=============== Game Selection Mode ===============");
   Serial.println("Four LEDs are lit in the center of the board:");
   Serial.println("  Blue:   Chess Moves (Human vs Human)");
@@ -354,25 +351,26 @@ void handleBotConfigSelection() {
   Serial.println("- File H: Expert");
   Serial.println("Example: Place piece at Rank 3, File D = White Bot Medium");
 
-  boardDriver.acquireLEDs();
-  // Easy (col 1) - Green
-  boardDriver.setSquareLED(2, 1, LedColors::Green);
-  boardDriver.setSquareLED(5, 1, LedColors::Green);
+  {
+    BoardDriver::LedGuard guard(&boardDriver);
+    // Easy (col 1) - Green
+    boardDriver.setSquareLED(2, 1, LedColors::Green);
+    boardDriver.setSquareLED(5, 1, LedColors::Green);
 
-  // Medium (col 3) - Orange/Gold
-  boardDriver.setSquareLED(2, 3, LedColors::Yellow);
-  boardDriver.setSquareLED(5, 3, LedColors::Yellow);
+    // Medium (col 3) - Orange/Gold
+    boardDriver.setSquareLED(2, 3, LedColors::Yellow);
+    boardDriver.setSquareLED(5, 3, LedColors::Yellow);
 
-  // Hard (col 5) - Red
-  boardDriver.setSquareLED(2, 5, LedColors::Red);
-  boardDriver.setSquareLED(5, 5, LedColors::Red);
+    // Hard (col 5) - Red
+    boardDriver.setSquareLED(2, 5, LedColors::Red);
+    boardDriver.setSquareLED(5, 5, LedColors::Red);
 
-  // Expert (col 7) - Purple
-  boardDriver.setSquareLED(2, 7, LedColors::Purple);
-  boardDriver.setSquareLED(5, 7, LedColors::Purple);
+    // Expert (col 7) - Purple
+    boardDriver.setSquareLED(2, 7, LedColors::Purple);
+    boardDriver.setSquareLED(5, 7, LedColors::Purple);
 
-  boardDriver.showLEDs();
-  boardDriver.releaseLEDs();
+    boardDriver.showLEDs();
+  }
 
   // Wait for selection
   Serial.println("Waiting for bot configuration selection...");

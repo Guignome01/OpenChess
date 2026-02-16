@@ -29,53 +29,54 @@ void ChessGame::initializeBoard() {
 void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
   Serial.println("Set up the board in the required position...");
 
-  boardDriver->acquireLEDs();
-  boardDriver->clearAllLEDs(false);
-  bool allCorrect = false;
-  while (!allCorrect) {
-    boardDriver->readSensors();
-    allCorrect = true;
+  {
+    BoardDriver::LedGuard guard(boardDriver);
+    boardDriver->clearAllLEDs(false);
+    bool allCorrect = false;
+    while (!allCorrect) {
+      boardDriver->readSensors();
+      allCorrect = true;
 
-    // Check every square
-    for (int row = 0; row < 8; row++) {
-      for (int col = 0; col < 8; col++) {
-        bool shouldHavePiece = (targetBoard[row][col] != ' ');
-        bool hasPiece = boardDriver->getSensorState(row, col);
-        if (shouldHavePiece != hasPiece) {
-          allCorrect = false;
+      // Check every square
+      for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+          bool shouldHavePiece = (targetBoard[row][col] != ' ');
+          bool hasPiece = boardDriver->getSensorState(row, col);
+          if (shouldHavePiece != hasPiece) {
+            allCorrect = false;
+            break;
+          }
+        }
+        if (!allCorrect)
           break;
+      }
+
+      // Update LED display to show required setup
+      for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+          bool shouldHavePiece = (targetBoard[row][col] != ' ');
+          bool hasPiece = boardDriver->getSensorState(row, col);
+
+          if (shouldHavePiece && !hasPiece) {
+            // Need to place a piece here - show where pieces should go
+            if (ChessUtils::isWhitePiece(targetBoard[row][col]))
+              boardDriver->setSquareLED(row, col, ChessUtils::colorLed('w'));
+            else
+              boardDriver->setSquareLED(row, col, ChessUtils::colorLed('b'));
+          } else if (!shouldHavePiece && hasPiece) {
+            // Need to remove a piece from here - show in red
+            boardDriver->setSquareLED(row, col, LedColors::Red);
+          } else {
+            // Correct state - no LED
+            boardDriver->setSquareLED(row, col, LedColors::Off);
+          }
         }
       }
-      if (!allCorrect)
-        break;
+      boardDriver->showLEDs();
+
+      delay(SENSOR_READ_DELAY_MS);
     }
-
-    // Update LED display to show required setup
-    for (int row = 0; row < 8; row++) {
-      for (int col = 0; col < 8; col++) {
-        bool shouldHavePiece = (targetBoard[row][col] != ' ');
-        bool hasPiece = boardDriver->getSensorState(row, col);
-
-        if (shouldHavePiece && !hasPiece) {
-          // Need to place a piece here - show where pieces should go
-          if (ChessUtils::isWhitePiece(targetBoard[row][col]))
-            boardDriver->setSquareLED(row, col, ChessUtils::colorLed('w'));
-          else
-            boardDriver->setSquareLED(row, col, ChessUtils::colorLed('b'));
-        } else if (!shouldHavePiece && hasPiece) {
-          // Need to remove a piece from here - show in red
-          boardDriver->setSquareLED(row, col, LedColors::Red);
-        } else {
-          // Correct state - no LED
-          boardDriver->setSquareLED(row, col, LedColors::Off);
-        }
-      }
-    }
-    boardDriver->showLEDs();
-
-    delay(SENSOR_READ_DELAY_MS);
-  }
-  boardDriver->releaseLEDs();
+  } // LedGuard released
 
   Serial.println("Board setup complete! Game starting...");
   boardDriver->fireworkAnimation();
@@ -160,8 +161,13 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       int moves[28][2];
       chessEngine->getPossibleMoves(board, row, col, moveCount, moves);
 
+      // Drain any stale queued animations so highlights appear on a clean strip
+      boardDriver->waitForAnimationQueueDrain();
+
       // Light up current square and possible move squares
-      boardDriver->setSquareLED(row, col, LedColors::Cyan);
+      {
+        BoardDriver::LedGuard guard(boardDriver);
+        boardDriver->setSquareLED(row, col, LedColors::Cyan);
 
       // Highlight possible move squares (different colors for empty vs capture)
       for (int i = 0; i < moveCount; i++) {
@@ -178,6 +184,7 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
         }
       }
       boardDriver->showLEDs();
+      } // LedGuard released
 
       // Wait for piece placement - handle both normal moves and captures
       int targetRow = -1, targetCol = -1;
@@ -229,8 +236,11 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
               targetRow = r2;
               targetCol = c2;
               piecePlaced = true;
-              if (isEnPassantCapture)
+              if (isEnPassantCapture) {
+                BoardDriver::LedGuard guard(boardDriver);
                 boardDriver->setSquareLED(enPassantCapturedPawnRow, c2, LedColors::Off);
+                boardDriver->showLEDs();
+              }
               // Blink the capture square to indicate waiting for piece placement
               boardDriver->blinkSquare(r2, c2, LedColors::Red, 1, false);
               // Wait for the capturing piece to be placed (or returned to origin to cancel)
@@ -261,9 +271,14 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
         delay(SENSOR_READ_DELAY_MS);
       }
 
+      // Clear highlights (single cleanup for all exit paths)
+      {
+        BoardDriver::LedGuard guard(boardDriver);
+        boardDriver->clearAllLEDs();
+      }
+
       if (targetRow == row && targetCol == col) {
         Serial.println("Pickup cancelled");
-        boardDriver->clearAllLEDs();
         return false;
       }
 
@@ -276,7 +291,6 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
 
       if (!legalMove) {
         Serial.println("Illegal move, reverting");
-        boardDriver->clearAllLEDs();
         return false;
       }
 
@@ -285,7 +299,6 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       toRow = targetRow;
       toCol = targetCol;
 
-      boardDriver->clearAllLEDs();
       return true;
     }
 
@@ -336,12 +349,11 @@ void ChessGame::updateGameStatus() {
 
   if (chessEngine->isKingInCheck(board, currentTurn)) {
     Serial.printf("%s is in CHECK!\n", ChessUtils::colorName(currentTurn));
-    boardDriver->clearAllLEDs(false);
 
     int kingRow = -1;
     int kingCol = -1;
     if (chessEngine->findKingPosition(board, currentTurn, kingRow, kingCol))
-      boardDriver->blinkSquare(kingRow, kingCol, LedColors::Yellow);
+      boardDriver->blinkSquare(kingRow, kingCol, LedColors::Yellow, 3, true, true);
   }
 
   Serial.printf("It's %s's turn !\n", ChessUtils::colorName(currentTurn));
@@ -403,6 +415,8 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
   // Skip all LED prompts and physical waits during replay
   if (replaying) return;
 
+  BoardDriver::LedGuard guard(boardDriver);
+
   if (waitForKingCompletion) {
     // Handle LED prompts and wait for king move
     Serial.printf("Castling: please move king from %c%d to %c%d\n", (char)('a' + kingFromCol), 8 - kingFromRow, (char)('a' + kingToCol), 8 - kingToRow);
@@ -456,7 +470,7 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
   }
 
   boardDriver->clearAllLEDs();
-}
+} // LedGuard released
 
 void ChessGame::confirmSquareCompletion(int row, int col) {
   boardDriver->blinkSquare(row, col, LedColors::Green, 1);

@@ -64,7 +64,7 @@ void ChessLichess::waitForLichessGame() {
     }
     break;
   }
-  if (stopAnimation) stopAnimation->store(true);
+  boardDriver->stopAndWaitForAnimation(stopAnimation);
   currentGameId = event.gameId;
   myColor = event.myColor;
 
@@ -152,8 +152,10 @@ void ChessLichess::update() {
   }
 
   // Start thinking animation when it's remote player's turn and not already running
-  if (currentTurn != myColor && stopAnimation == nullptr && !gameOver)
+  if (currentTurn != myColor && stopAnimation == nullptr && !gameOver) {
+    boardDriver->waitForAnimationQueueDrain();
     stopAnimation = boardDriver->startThinkingAnimation();
+  }
 
   // Polling interval check
   if ((currentTurn == myColor) || millis() - lastPollTime < POLL_INTERVAL_MS) {
@@ -171,10 +173,7 @@ void ChessLichess::update() {
       Serial.println("Game ended! Status: " + state.status);
       if (state.winner.length() > 0)
         Serial.println("Winner: " + state.winner);
-      if (stopAnimation) {
-        stopAnimation->store(true);
-        stopAnimation = nullptr;
-      }
+      boardDriver->stopAndWaitForAnimation(stopAnimation);
       if (state.status == "draw" || state.status == "stalemate" || state.winner == "draw")
         boardDriver->fireworkAnimation(LedColors::Cyan);
       else
@@ -191,10 +190,7 @@ void ChessLichess::update() {
       } else {
         Serial.println("Lichess move received: " + state.lastMove);
         if (ChessUtils::parseUCIMove(state.lastMove, fromRow, fromCol, toRow, toCol, promotion)) {
-          if (stopAnimation) {
-            stopAnimation->store(true);
-            stopAnimation = nullptr;
-          }
+          boardDriver->stopAndWaitForAnimation(stopAnimation);
           Serial.printf("Lichess UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", state.lastMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
           applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
           updateGameStatus();

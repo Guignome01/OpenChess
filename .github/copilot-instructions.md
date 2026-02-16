@@ -9,7 +9,7 @@ ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors 
 `ChessGame` (abstract base) → `ChessMoves` (human v human) → inherited by `ChessBot` (v Stockfish) → inherited by `ChessLichess` (online play). Each mode implements `begin()` and `update()` called from the main loop. `BoardDriver` and `ChessEngine` are shared via pointer injection — never duplicated.
 
 ### Key Components
-- **`BoardDriver`** — hardware abstraction: LED strip (NeoPixel), sensor grid (shift register column scan + row GPIO reads), calibration (NVS-persisted), and async animation queue (FreeRTOS task + queue).
+- **`BoardDriver`** — hardware abstraction: LED strip (NeoPixelBus, I2S DMA output), sensor grid (shift register column scan + row GPIO reads), calibration (NVS-persisted), and async animation queue (FreeRTOS task + queue).
 - **`ChessEngine`** — pure chess logic: move generation, validation, check/checkmate/stalemate, castling rights, en passant, 50-move rule. No hardware dependencies.
 - **`WiFiManagerESP32`** — async web server (`ESPAsyncWebServer`), serves gzipped pages from LittleFS via `serveStatic`, handles API endpoints for board state, game selection, settings. Also manages WiFi credentials and Lichess token persistence via `Preferences` (NVS).
 - **`ChessUtils`** — static helpers: FEN ↔ board conversion, material evaluation, NVS init.
@@ -45,10 +45,10 @@ PlatformIO CLI (`pio`) is not on PATH by default. Use the full path:
 ## Patterns & Conventions
 
 ### LED Mutex
-LED strip access is guarded by a FreeRTOS mutex. For multi-step LED updates, wrap in `acquireLEDs()` / `releaseLEDs()`. Single animation calls (e.g., `blinkSquare`, `captureAnimation`) are queued and acquire the mutex automatically.
+LED strip access is guarded by a FreeRTOS mutex via `BoardDriver::LedGuard` (RAII). For multi-step LED updates, use a scoped `{ BoardDriver::LedGuard guard(boardDriver); ... }` block. Single animation calls (e.g., `blinkSquare`, `captureAnimation`) are queued and acquire the mutex automatically.
 
 ### Async Animations
-Animations run on a dedicated FreeRTOS task via a queue (`AnimationJob`). Long-running animations (`waiting`, `thinking`) return an `std::atomic<bool>*` stop flag — set it to `true` to cancel.
+Animations run on a dedicated FreeRTOS task via a queue (`AnimationJob`). Long-running animations (`waiting`, `thinking`) return an `std::atomic<bool>*` stop flag — use `stopAndWaitForAnimation(flag)` to cancel, block until finished, and free the flag (single-owner lifecycle). Use `waitForAnimationQueueDrain()` as a barrier before writing LEDs directly, to ensure all queued animations have completed.
 
 ### Sensor Debouncing
 Sensors are polled every `SENSOR_READ_DELAY_MS` (40ms) with `DEBOUNCE_MS` (125ms) debounce. The game selection screen implements a two-phase debounce (must see empty→occupied transition). Always call `boardDriver.readSensors()` before reading state.

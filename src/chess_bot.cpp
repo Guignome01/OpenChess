@@ -124,10 +124,11 @@ bool ChessBot::parseStockfishResponse(const String& response, String& bestMove, 
 
 void ChessBot::makeBotMove() {
   Serial.println("=== BOT MOVE CALCULATION ===");
+  boardDriver->waitForAnimationQueueDrain();
   std::atomic<bool>* stopAnimation = boardDriver->startThinkingAnimation();
   String bestMove;
   String response = makeStockfishRequest(ChessUtils::boardToFEN(board, currentTurn, chessEngine));
-  if (stopAnimation) stopAnimation->store(true);
+  boardDriver->stopAndWaitForAnimation(stopAnimation);
   if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
     Serial.println("=== STOCKFISH EVALUATION ===");
     Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation > 0 ? "White" : "Black", currentEvaluation);
@@ -157,7 +158,7 @@ void ChessBot::makeBotMove() {
 }
 
 void ChessBot::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant, int enPassantCapturedPawnRow) {
-  boardDriver->acquireLEDs();
+  BoardDriver::LedGuard guard(boardDriver);
   boardDriver->clearAllLEDs(false);
   // Show source square (where to pick up from)
   boardDriver->setSquareLED(fromRow, fromCol, LedColors::Cyan);
@@ -212,5 +213,4 @@ void ChessBot::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, 
   }
 
   boardDriver->clearAllLEDs();
-  boardDriver->releaseLEDs();
-}
+} // LedGuard released

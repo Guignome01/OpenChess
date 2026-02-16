@@ -19,6 +19,7 @@ static char shiftRegOutput(int col) {
 QueueHandle_t BoardDriver::animationQueue = nullptr;
 TaskHandle_t BoardDriver::animationTaskHandle = nullptr;
 SemaphoreHandle_t BoardDriver::ledMutex = nullptr;
+SemaphoreHandle_t BoardDriver::animationDoneSemaphore = nullptr;
 BoardDriver* BoardDriver::instance = nullptr;
 
 static constexpr int rowPins[NUM_ROWS] = {ROW_PIN_0, ROW_PIN_1, ROW_PIN_2, ROW_PIN_3, ROW_PIN_4, ROW_PIN_5, ROW_PIN_6, ROW_PIN_7};
@@ -36,7 +37,7 @@ static constexpr int DefaultRowColToLEDindexMap[NUM_ROWS][NUM_COLS] = {
     {63, 62, 61, 60, 59, 58, 57, 56},
 };
 
-BoardDriver::BoardDriver() : strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800), lastEnabledCol(-2), brightness(BRIGHTNESS), dimMultiplier(70), swapAxes(0), calibrationLoaded(false) {
+BoardDriver::BoardDriver() : strip(LED_COUNT, LED_PIN), lastEnabledCol(-2), brightness(BRIGHTNESS), dimMultiplier(70), swapAxes(0), calibrationLoaded(false) {
   for (int i = 0; i < NUM_ROWS; i++)
     toLogicalRow[i] = i;
   for (int i = 0; i < NUM_COLS; i++)
@@ -50,10 +51,10 @@ BoardDriver::BoardDriver() : strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800), la
 
 void BoardDriver::begin() {
   // Initialize NeoPixel strip
-  strip.begin();
+  strip.Begin();
   showLEDs();        // turn off all LEDs
   loadLedSettings(); // Load LED settings from NVS (brightness, dim multiplier)
-  strip.setBrightness(brightness);
+  strip.SetBrightness(brightness);
   // Shift register pins as outputs
   pinMode(SR_SER_DATA_PIN, OUTPUT);
   pinMode(SR_CLK_PIN, OUTPUT);
@@ -74,6 +75,7 @@ void BoardDriver::begin() {
   // Initialize animation queue system
   instance = this;
   ledMutex = xSemaphoreCreateMutex();
+  animationDoneSemaphore = xSemaphoreCreateBinary();
   animationQueue = xQueueCreate(8, sizeof(AnimationJob));
   xTaskCreatePinnedToCore(animationWorkerTask, "AnimWorker", 4096, nullptr, 1, &animationTaskHandle, 1);
 
@@ -94,6 +96,9 @@ void BoardDriver::animationWorkerTask(void* param) {
       xSemaphoreTake(ledMutex, portMAX_DELAY);
       instance->executeAnimation(job);
       xSemaphoreGive(ledMutex);
+      // Signal completion for cancellable/sync animations (after mutex release)
+      if (job.type == AnimationType::THINKING || job.type == AnimationType::WAITING || job.type == AnimationType::SYNC)
+        xSemaphoreGive(animationDoneSemaphore);
     }
   }
 }
@@ -107,7 +112,7 @@ void BoardDriver::executeAnimation(const AnimationJob& job) {
       doPromotion(job.params.promotion.col);
       break;
     case AnimationType::BLINK:
-      doBlink(job.params.blink.row, job.params.blink.col, job.params.blink.color, job.params.blink.times, job.params.blink.clearAfter);
+      doBlink(job.params.blink.row, job.params.blink.col, job.params.blink.color, job.params.blink.times, job.params.blink.clearAfter, job.params.blink.clearBefore);
       break;
     case AnimationType::WAITING:
       doWaiting(job.stopFlag);
@@ -121,6 +126,8 @@ void BoardDriver::executeAnimation(const AnimationJob& job) {
     case AnimationType::FLASH:
       doFlash(job.params.flash.color, job.params.flash.times);
       break;
+    case AnimationType::SYNC:
+      break; // No-op — worker signals completion in animationWorkerTask
   }
 }
 
@@ -317,7 +324,7 @@ bool BoardDriver::waitForSingleRawPress(int& rawRow, int& rawCol, unsigned long 
 
 void BoardDriver::showCalibrationError() {
   for (int i = 0; i < LED_COUNT; i++)
-    strip.setPixelColor(i, strip.Color(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b));
+    strip.SetPixelColor(i, RgbColor(LedColors::Red.r, LedColors::Red.g, LedColors::Red.b));
   showLEDs();
   delay(500);
   waitForBoardEmpty();
@@ -450,7 +457,7 @@ bool BoardDriver::calibrateAxis(Axis axis, uint8_t* axisPinsOrder, size_t NUM_PI
 bool BoardDriver::runCalibration() {
   // Calibration animation - light up each pixel sequentially
   for (int i = 0; i < LED_COUNT; i++) {
-    strip.setPixelColor(i, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
+    strip.SetPixelColor(i, RgbColor(LedColors::White.r, LedColors::White.g, LedColors::White.b));
     showLEDs();
     delay(50);
   }
@@ -510,13 +517,13 @@ bool BoardDriver::runCalibration() {
 
   auto displayCalibrationLEDs = [&](int currentPixel) {
     for (int i = 0; i < LED_COUNT; i++)
-      strip.setPixelColor(i, 0);
+      strip.SetPixelColor(i, RgbColor(0));
     for (int r = 0; r < NUM_ROWS; r++)
       for (int c = 0; c < NUM_COLS; c++)
         if (logicalUsed[r][c])
-          strip.setPixelColor(ledIndexMap[r][c], strip.Color(LedColors::Green.r, LedColors::Green.g, LedColors::Green.b));
+          strip.SetPixelColor(ledIndexMap[r][c], RgbColor(LedColors::Green.r, LedColors::Green.g, LedColors::Green.b));
     if (currentPixel < LED_COUNT)
-      strip.setPixelColor(currentPixel, strip.Color(LedColors::White.r, LedColors::White.g, LedColors::White.b));
+      strip.SetPixelColor(currentPixel, RgbColor(LedColors::White.r, LedColors::White.g, LedColors::White.b));
     showLEDs();
   };
 
@@ -653,7 +660,7 @@ void BoardDriver::clearAllLEDs(bool show) {
     for (int col = 0; col < NUM_COLS; col++)
       currentColors[row][col] = LedColors::Off;
   for (int i = 0; i < LED_COUNT; i++)
-    strip.setPixelColor(i, 0);
+    strip.SetPixelColor(i, RgbColor(0));
   if (show)
     showLEDs();
 }
@@ -663,16 +670,15 @@ void BoardDriver::setSquareLED(int row, int col, LedRGB color) {
   float multiplier = 1.0f;
   if ((row + col) % 2 == 1)
     multiplier = dimMultiplier / 100.0f; // Dim dark squares based on user setting
-  strip.setPixelColor(getPixelIndex(row, col), strip.Color(color.r * multiplier, color.g * multiplier, color.b * multiplier));
+  strip.SetPixelColor(getPixelIndex(row, col), RgbColor(color.r * multiplier, color.g * multiplier, color.b * multiplier));
 }
 
 void BoardDriver::showLEDs() {
-  strip.show();
+  strip.Show();
 }
 
 void BoardDriver::showConnectingAnimation() {
-  acquireLEDs();
-  // Show each WiFi connection attempt with animated LEDs
+  LedGuard guard(this);
   for (int i = 0; i < 8; i++) {
     setSquareLED(3, i, LedColors::Blue);
     setSquareLED(4, i, LedColors::Blue);
@@ -680,16 +686,17 @@ void BoardDriver::showConnectingAnimation() {
     delay(100);
   }
   clearAllLEDs();
-  releaseLEDs();
 }
 
-void BoardDriver::blinkSquare(int row, int col, LedRGB color, int times, bool clearAfter) {
+void BoardDriver::blinkSquare(int row, int col, LedRGB color, int times, bool clearAfter, bool clearBefore) {
   AnimationJob job = {AnimationType::BLINK, nullptr, {}};
-  job.params.blink = {row, col, color, times, clearAfter};
+  job.params.blink = {row, col, color, times, clearAfter, clearBefore};
   xQueueSend(animationQueue, &job, portMAX_DELAY);
 }
 
-void BoardDriver::doBlink(int row, int col, LedRGB color, int times, bool clearAfter) {
+void BoardDriver::doBlink(int row, int col, LedRGB color, int times, bool clearAfter, bool clearBefore) {
+  if (clearBefore)
+    clearAllLEDs(false);
   for (int i = 0; i < times; i++) {
     setSquareLED(row, col, color);
     showLEDs();
@@ -945,7 +952,25 @@ void BoardDriver::doThinking(std::atomic<bool>* stopFlag) {
     vTaskDelay(pdMS_TO_TICKS(30));
   }
   clearAllLEDs();
-  delete stopFlag;
+}
+
+void BoardDriver::stopAndWaitForAnimation(std::atomic<bool>*& stopFlag) {
+  if (!stopFlag) return;
+  stopFlag->store(true);
+  // Block until the animation worker finishes and signals completion.
+  // The semaphore is given after the worker releases the LED mutex, so the caller is
+  // guaranteed that both the animation and its cleanup (clearAllLEDs) are done.
+  xSemaphoreTake(animationDoneSemaphore, portMAX_DELAY);
+  delete stopFlag; // Caller owns the flag — safe to free now that the worker is done with it
+  stopFlag = nullptr;
+}
+
+void BoardDriver::waitForAnimationQueueDrain() {
+  // Enqueue a no-op SYNC job. When the worker reaches it, all preceding animations
+  // have finished. The worker signals the completion semaphore after processing SYNC.
+  AnimationJob job = {AnimationType::SYNC, nullptr, {}};
+  xQueueSend(animationQueue, &job, portMAX_DELAY);
+  xSemaphoreTake(animationDoneSemaphore, portMAX_DELAY);
 }
 
 std::atomic<bool>* BoardDriver::startWaitingAnimation() {
@@ -974,17 +999,18 @@ void BoardDriver::doWaiting(std::atomic<bool>* stopFlag) {
     vTaskDelay(pdMS_TO_TICKS(200));
   }
   clearAllLEDs();
-  delete stopFlag;
 }
 
 // LED settings methods
 void BoardDriver::setBrightness(uint8_t value) {
+  LedGuard guard(this);
   brightness = value > 255 ? 255 : (value < 10 ? 10 : value);
-  strip.setBrightness(brightness);
+  strip.SetBrightness(brightness);
   showLEDs();
 }
 
 void BoardDriver::setDimMultiplier(uint8_t value) {
+  LedGuard guard(this);
   dimMultiplier = value > 100 ? 100 : (value < 20 ? 20 : value);
   // Re-apply all current colors with new dim multiplier
   for (int row = 0; row < NUM_ROWS; row++)
