@@ -1,10 +1,12 @@
 #include "board_driver.h"
+#include "board_menu.h"
 #include "chess_bot.h"
 #include "chess_engine.h"
 #include "chess_lichess.h"
 #include "chess_moves.h"
 #include "chess_utils.h"
 #include "led_colors.h"
+#include "menu_navigator.h"
 #include "move_history.h"
 #include "sensor_test.h"
 #include "wifi_manager_esp32.h"
@@ -38,11 +40,55 @@ SensorTest* sensorTest = nullptr;
 GameMode currentMode = MODE_SELECTION;
 bool modeInitialized = false;
 bool resumingGame = false;
-bool resetGameSelection = true;
 
-void showGameSelection();
-void handleGameSelection();
-void handleBotConfigSelection();
+// ---------------------------
+// Menu System
+// ---------------------------
+
+// Menu item IDs — distinct ranges per menu level for easy routing
+namespace MenuId {
+  constexpr int8_t CHESS_MOVES = 0;
+  constexpr int8_t BOT         = 1;
+  constexpr int8_t LICHESS     = 2;
+  constexpr int8_t SENSOR_TEST = 3;
+
+  constexpr int8_t EASY   = 10;
+  constexpr int8_t MEDIUM = 11;
+  constexpr int8_t HARD   = 12;
+  constexpr int8_t EXPERT = 13;
+
+  constexpr int8_t PLAY_WHITE  = 20;
+  constexpr int8_t PLAY_BLACK  = 21;
+  constexpr int8_t PLAY_RANDOM = 22;
+}
+
+static constexpr MenuItem gameMenuItems[] = {
+    {3, 3, LedColors::Blue,   MenuId::CHESS_MOVES},  // Chess Moves (Human vs Human)
+    {3, 4, LedColors::Green,  MenuId::BOT},           // Chess Bot (Human vs AI)
+    {4, 3, LedColors::Yellow, MenuId::LICHESS},        // Lichess (Online play)
+    {4, 4, LedColors::Red,    MenuId::SENSOR_TEST},    // Sensor Test
+};
+
+static constexpr MenuItem botDifficultyItems[] = {
+    {3, 2, LedColors::Green,  MenuId::EASY},
+    {3, 3, LedColors::Yellow, MenuId::MEDIUM},
+    {3, 4, LedColors::Red,    MenuId::HARD},
+    {3, 5, LedColors::Purple, MenuId::EXPERT},
+};
+
+static constexpr MenuItem botColorItems[] = {
+    {3, 3, LedColors::White,  MenuId::PLAY_WHITE},
+    {3, 4, {40, 40, 40},      MenuId::PLAY_BLACK},   // Dim white = black side
+    {3, 5, LedColors::Yellow, MenuId::PLAY_RANDOM},
+};
+
+BoardMenu gameMenu(&boardDriver);
+BoardMenu botDifficultyMenu(&boardDriver);
+BoardMenu botColorMenu(&boardDriver);
+MenuNavigator navigator(&boardDriver);
+
+void enterGameSelection();
+void handleMenuResult(int result);
 void initializeSelectedMode(GameMode mode);
 
 void setup() {
@@ -62,6 +108,14 @@ void setup() {
   boardDriver.begin();
   wifiManager.begin();
   Serial.println();
+
+  // Configure menu system
+  gameMenu.setItems(gameMenuItems, sizeof(gameMenuItems) / sizeof(gameMenuItems[0]));
+  botDifficultyMenu.setItems(botDifficultyItems, sizeof(botDifficultyItems) / sizeof(botDifficultyItems[0]));
+  botDifficultyMenu.setBackButton(4, 4);
+  botColorMenu.setItems(botColorItems, sizeof(botColorItems) / sizeof(botColorItems[0]));
+  botColorMenu.setBackButton(4, 4);
+
   // Kick off NTP time sync (non-blocking, will resolve in background)
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   // Check for a live game that can be resumed
@@ -91,7 +145,7 @@ void setup() {
       return; // Skip showing game selection
   }
 
-  showGameSelection();
+  enterGameSelection();
 }
 
 void loop() {
@@ -142,13 +196,18 @@ void loop() {
     }
     if (selectedMode > 0) {
       modeInitialized = false;
+      navigator.clear();
       wifiManager.resetGameSelection();
       boardDriver.clearAllLEDs();
     }
   }
 
   if (currentMode == MODE_SELECTION) {
-    handleGameSelection();
+    boardDriver.readSensors();
+    int result = navigator.poll();
+    if (result != BoardMenu::RESULT_NONE)
+      handleMenuResult(result);
+    delay(SENSOR_READ_DELAY_MS);
     return;
   }
   // Game mode selected
@@ -162,7 +221,7 @@ void loop() {
     case MODE_CHESS_MOVES:
       if (chessMoves != nullptr) {
         if (chessMoves->isGameOver())
-          showGameSelection();
+          enterGameSelection();
         else
           chessMoves->update();
       }
@@ -170,7 +229,7 @@ void loop() {
     case MODE_BOT:
       if (chessBot != nullptr) {
         if (chessBot->isGameOver())
-          showGameSelection();
+          enterGameSelection();
         else
           chessBot->update();
       }
@@ -178,7 +237,7 @@ void loop() {
     case MODE_LICHESS:
       if (chessLichess != nullptr) {
         if (chessLichess->isGameOver())
-          showGameSelection();
+          enterGameSelection();
         else
           chessLichess->update();
       }
@@ -186,33 +245,24 @@ void loop() {
     case MODE_SENSOR_TEST:
       if (sensorTest != nullptr) {
         if (sensorTest->isComplete())
-          showGameSelection();
+          enterGameSelection();
         else
           sensorTest->update();
       }
       break;
     default:
-      showGameSelection();
+      enterGameSelection();
       break;
   }
 
   delay(SENSOR_READ_DELAY_MS);
 }
 
-void showGameSelection() {
+void enterGameSelection() {
   currentMode = MODE_SELECTION;
   modeInitialized = false;
-  resetGameSelection = true;
-  {
-    BoardDriver::LedGuard guard(&boardDriver);
-    boardDriver.clearAllLEDs(false);
-    // Light up the 4 selector positions in the middle of the board
-    boardDriver.setSquareLED(3, 3, LedColors::Blue);   // Chess Moves
-    boardDriver.setSquareLED(3, 4, LedColors::Green);  // Chess Bot
-    boardDriver.setSquareLED(4, 3, LedColors::Yellow); // Lichess
-    boardDriver.setSquareLED(4, 4, LedColors::Red);    // Sensor Test
-    boardDriver.showLEDs();
-  }
+  navigator.clear();
+  navigator.push(&gameMenu);
   Serial.println("=============== Game Selection Mode ===============");
   Serial.println("Four LEDs are lit in the center of the board:");
   Serial.println("  Blue:   Chess Moves (Human vs Human)");
@@ -223,80 +273,83 @@ void showGameSelection() {
   Serial.println("===================================================");
 }
 
-void handleGameSelection() {
-  boardDriver.readSensors();
-  bool currState[4] = {boardDriver.getSensorState(3, 3), boardDriver.getSensorState(3, 4), boardDriver.getSensorState(4, 3), boardDriver.getSensorState(4, 4)};
-
-  struct SelectorState {
-    int emptyCount;
-    int occupiedCount;
-    bool readyForSelection;
-  };
-  const int DEBOUNCE_CYCLES = (DEBOUNCE_MS / SENSOR_READ_DELAY_MS) + 2;
-  static SelectorState selectorStates[4] = {};
-
-  if (resetGameSelection) {
-    for (int i = 0; i < 4; ++i) {
-      selectorStates[i].emptyCount = 0;
-      selectorStates[i].occupiedCount = 0;
-      selectorStates[i].readyForSelection = false;
-    }
-    resetGameSelection = false;
-  }
-  for (int i = 0; i < 4; ++i) {
-    if (!currState[i]) {
-      if (selectorStates[i].emptyCount < DEBOUNCE_CYCLES)
-        selectorStates[i].emptyCount++;
-      selectorStates[i].occupiedCount = 0;
-      if (selectorStates[i].emptyCount >= DEBOUNCE_CYCLES)
-        selectorStates[i].readyForSelection = true;
-    } else {
-      selectorStates[i].emptyCount = 0;
-      if (selectorStates[i].readyForSelection) {
-        if (selectorStates[i].occupiedCount < DEBOUNCE_CYCLES)
-          selectorStates[i].occupiedCount++;
-      } else {
-        selectorStates[i].occupiedCount = 0;
-      }
-    }
-  }
-
-  // Check for valid rising edge (empty for DEBOUNCE_CYCLES, then occupied for DEBOUNCE_CYCLES)
-  for (int i = 0; i < 4; ++i) {
-    if (selectorStates[i].readyForSelection && selectorStates[i].occupiedCount >= DEBOUNCE_CYCLES) {
-      switch (i) {
-        case 0:
-          Serial.println("Mode: 'Chess Moves' selected!");
-          currentMode = MODE_CHESS_MOVES;
-          modeInitialized = false;
-          boardDriver.clearAllLEDs();
-          break;
-        case 1:
-          Serial.println("Mode: 'Chess Bot' Selected! Showing bot configuration...");
-          currentMode = MODE_BOT;
-          modeInitialized = false;
-          boardDriver.clearAllLEDs();
-          handleBotConfigSelection();
-          break;
-        case 2:
-          Serial.println("Mode: 'Lichess' Selected!");
-          currentMode = MODE_LICHESS;
-          modeInitialized = false;
-          boardDriver.clearAllLEDs();
-          lichessConfig = wifiManager.getLichessConfig();
-          break;
-        case 3:
-          Serial.println("Mode: 'Sensor Test' Selected!");
-          currentMode = MODE_SENSOR_TEST;
-          modeInitialized = false;
-          boardDriver.clearAllLEDs();
-          break;
-      }
+void handleMenuResult(int result) {
+  switch (result) {
+    // Game selection menu
+    case MenuId::CHESS_MOVES:
+      Serial.println("Mode: 'Chess Moves' selected!");
+      currentMode = MODE_CHESS_MOVES;
+      modeInitialized = false;
+      navigator.clear();
       break;
-    }
-  }
+    case MenuId::BOT:
+      Serial.println("Mode: 'Chess Bot' selected! Choose difficulty...");
+      navigator.push(&botDifficultyMenu);
+      break;
+    case MenuId::LICHESS:
+      Serial.println("Mode: 'Lichess' selected!");
+      currentMode = MODE_LICHESS;
+      modeInitialized = false;
+      lichessConfig = wifiManager.getLichessConfig();
+      navigator.clear();
+      break;
+    case MenuId::SENSOR_TEST:
+      Serial.println("Mode: 'Sensor Test' selected!");
+      currentMode = MODE_SENSOR_TEST;
+      modeInitialized = false;
+      navigator.clear();
+      break;
 
-  delay(SENSOR_READ_DELAY_MS);
+    // Bot difficulty menu
+    case MenuId::EASY:
+      Serial.println("Difficulty: Easy");
+      botConfig.stockfishSettings = StockfishSettings::easy();
+      navigator.push(&botColorMenu);
+      break;
+    case MenuId::MEDIUM:
+      Serial.println("Difficulty: Medium");
+      botConfig.stockfishSettings = StockfishSettings::medium();
+      navigator.push(&botColorMenu);
+      break;
+    case MenuId::HARD:
+      Serial.println("Difficulty: Hard");
+      botConfig.stockfishSettings = StockfishSettings::hard();
+      navigator.push(&botColorMenu);
+      break;
+    case MenuId::EXPERT:
+      Serial.println("Difficulty: Expert");
+      botConfig.stockfishSettings = StockfishSettings::expert();
+      navigator.push(&botColorMenu);
+      break;
+
+    // Bot color menu
+    case MenuId::PLAY_WHITE:
+      Serial.println("Playing as White");
+      botConfig.playerIsWhite = true;
+      currentMode = MODE_BOT;
+      modeInitialized = false;
+      navigator.clear();
+      break;
+    case MenuId::PLAY_BLACK:
+      Serial.println("Playing as Black");
+      botConfig.playerIsWhite = false;
+      currentMode = MODE_BOT;
+      modeInitialized = false;
+      navigator.clear();
+      break;
+    case MenuId::PLAY_RANDOM:
+      Serial.println("Playing as Random");
+      botConfig.playerIsWhite = (random(2) == 0);
+      Serial.printf("  -> Assigned: %s\n", botConfig.playerIsWhite ? "White" : "Black");
+      currentMode = MODE_BOT;
+      modeInitialized = false;
+      navigator.clear();
+      break;
+
+    default:
+      Serial.printf("Unknown menu result: %d\n", result);
+      break;
+  }
 }
 
 void initializeSelectedMode(GameMode mode) {
@@ -334,83 +387,7 @@ void initializeSelectedMode(GameMode mode) {
       sensorTest->begin();
       break;
     default:
-      showGameSelection();
+      enterGameSelection();
       break;
-  }
-}
-
-void handleBotConfigSelection() {
-  Serial.println("====== Bot Configuration Selection ======");
-  Serial.println("Select Bot Color:");
-  Serial.println("- Rank 6: Bot is Black");
-  Serial.println("- Rank 3: Bot is White");
-  Serial.println("Select Difficulty:");
-  Serial.println("- File B: Easy");
-  Serial.println("- File D: Medium");
-  Serial.println("- File F: Hard");
-  Serial.println("- File H: Expert");
-  Serial.println("Example: Place piece at Rank 3, File D = White Bot Medium");
-
-  {
-    BoardDriver::LedGuard guard(&boardDriver);
-    // Easy (col 1) - Green
-    boardDriver.setSquareLED(2, 1, LedColors::Green);
-    boardDriver.setSquareLED(5, 1, LedColors::Green);
-
-    // Medium (col 3) - Orange/Gold
-    boardDriver.setSquareLED(2, 3, LedColors::Yellow);
-    boardDriver.setSquareLED(5, 3, LedColors::Yellow);
-
-    // Hard (col 5) - Red
-    boardDriver.setSquareLED(2, 5, LedColors::Red);
-    boardDriver.setSquareLED(5, 5, LedColors::Red);
-
-    // Expert (col 7) - Purple
-    boardDriver.setSquareLED(2, 7, LedColors::Purple);
-    boardDriver.setSquareLED(5, 7, LedColors::Purple);
-
-    boardDriver.showLEDs();
-  }
-
-  // Wait for selection
-  Serial.println("Waiting for bot configuration selection...");
-
-  static bool prevState[2][8] = {};
-  bool firstLoop = true;
-
-  while (true) {
-    boardDriver.readSensors();
-
-    for (int rowIdx = 0; rowIdx < 2; ++rowIdx) {
-      int row = (rowIdx == 0) ? 2 : 5;
-      for (int col : {1, 3, 5, 7}) {
-        bool curr = boardDriver.getSensorState(row, col);
-        // Only accept selection if square was previously empty and is now occupied
-        if (!firstLoop && !prevState[rowIdx][col] && curr) {
-          botConfig.playerIsWhite = (row == 2);
-          const char* colorName = botConfig.playerIsWhite ? "White" : "Black";
-          if (col == 1) {
-            botConfig.stockfishSettings = StockfishSettings::easy();
-            Serial.printf("Configuration: Play as %s, Easy difficulty\n", colorName);
-          } else if (col == 3) {
-            botConfig.stockfishSettings = StockfishSettings::medium();
-            Serial.printf("Configuration: Play as %s, Medium difficulty\n", colorName);
-          } else if (col == 5) {
-            botConfig.stockfishSettings = StockfishSettings::hard();
-            Serial.printf("Configuration: Play as %s, Hard difficulty\n", colorName);
-          } else if (col == 7) {
-            botConfig.stockfishSettings = StockfishSettings::expert();
-            Serial.printf("Configuration: Play as %s, Expert difficulty\n", colorName);
-          }
-          firstLoop = true;
-          boardDriver.clearAllLEDs();
-          return;
-        }
-        prevState[rowIdx][col] = curr;
-      }
-    }
-
-    firstLoop = false;
-    delay(SENSOR_READ_DELAY_MS);
   }
 }
