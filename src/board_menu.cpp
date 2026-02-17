@@ -97,6 +97,7 @@ int BoardMenu::trySelect(SelectorState& state, int8_t row, int8_t col, LedRGB co
   bool occupied = bd_->getSensorState(r, c);
   if (updateDebounce(state, occupied)) {
     bd_->blinkSquare(r, c, color, 1);
+    bd_->waitForAnimationQueueDrain();
     // Wait for piece removal so the next menu starts with a clean square
     while (bd_->getSensorState(r, c)) {
       bd_->readSensors();

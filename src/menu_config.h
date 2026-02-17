@@ -15,11 +15,15 @@ namespace MenuId {
   constexpr int8_t LICHESS     = 2;
   constexpr int8_t SENSOR_TEST = 3;
 
-  // Bot difficulty
-  constexpr int8_t EASY   = 10;
-  constexpr int8_t MEDIUM = 11;
-  constexpr int8_t HARD   = 12;
-  constexpr int8_t EXPERT = 13;
+  // Bot difficulty (1-based level, offset by 10)
+  constexpr int8_t DIFF_1 = 10; // Beginner
+  constexpr int8_t DIFF_2 = 11; // Easy
+  constexpr int8_t DIFF_3 = 12; // Intermediate
+  constexpr int8_t DIFF_4 = 13; // Medium
+  constexpr int8_t DIFF_5 = 14; // Advanced
+  constexpr int8_t DIFF_6 = 15; // Hard
+  constexpr int8_t DIFF_7 = 16; // Expert
+  constexpr int8_t DIFF_8 = 17; // Master
 
   // Bot color
   constexpr int8_t PLAY_WHITE  = 20;
@@ -41,15 +45,19 @@ static constexpr MenuItem gameMenuItems[] = {
 };
 
 static constexpr MenuItem botDifficultyItems[] = {
-    {3, 2, LedColors::Green,  MenuId::EASY},
-    {3, 3, LedColors::Yellow, MenuId::MEDIUM},
-    {3, 4, LedColors::Red,    MenuId::HARD},
-    {3, 5, LedColors::Purple, MenuId::EXPERT},
+    {3, 0, LedColors::Green,   MenuId::DIFF_1}, // Beginner
+    {3, 1, LedColors::Lime,    MenuId::DIFF_2}, // Easy
+    {3, 2, LedColors::Yellow,  MenuId::DIFF_3}, // Intermediate
+    {3, 3, LedColors::Orange,  MenuId::DIFF_4}, // Medium
+    {3, 4, LedColors::Red,     MenuId::DIFF_5}, // Advanced
+    {3, 5, LedColors::Crimson, MenuId::DIFF_6}, // Hard
+    {3, 6, LedColors::Purple,  MenuId::DIFF_7}, // Expert
+    {3, 7, LedColors::Blue,    MenuId::DIFF_8}, // Master
 };
 
 static constexpr MenuItem botColorItems[] = {
     {3, 3, LedColors::White,  MenuId::PLAY_WHITE},
-    {3, 4, {40, 40, 40},      MenuId::PLAY_BLACK},  // Dim white = black side
+    {3, 4, LedColors::DimWhite, MenuId::PLAY_BLACK},  // Dim white = black side
     {3, 5, LedColors::Yellow, MenuId::PLAY_RANDOM},
 };
 

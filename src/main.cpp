@@ -249,27 +249,15 @@ void handleMenuResult(int result) {
       navigator.clear();
       break;
 
-    // Bot difficulty menu
-    case MenuId::EASY:
-      Serial.println("Difficulty: Easy");
-      botConfig.stockfishSettings = StockfishSettings::easy();
+    // Bot difficulty menu (ids 10–17 → level 1–8)
+    case MenuId::DIFF_1: case MenuId::DIFF_2: case MenuId::DIFF_3: case MenuId::DIFF_4:
+    case MenuId::DIFF_5: case MenuId::DIFF_6: case MenuId::DIFF_7: case MenuId::DIFF_8: {
+      int level = result - MenuId::DIFF_1 + 1;
+      botConfig.stockfishSettings = StockfishSettings::fromLevel(level);
+      Serial.printf("Difficulty: Level %d (depth %d)\n", level, botConfig.stockfishSettings.depth);
       navigator.push(&botColorMenu);
       break;
-    case MenuId::MEDIUM:
-      Serial.println("Difficulty: Medium");
-      botConfig.stockfishSettings = StockfishSettings::medium();
-      navigator.push(&botColorMenu);
-      break;
-    case MenuId::HARD:
-      Serial.println("Difficulty: Hard");
-      botConfig.stockfishSettings = StockfishSettings::hard();
-      navigator.push(&botColorMenu);
-      break;
-    case MenuId::EXPERT:
-      Serial.println("Difficulty: Expert");
-      botConfig.stockfishSettings = StockfishSettings::expert();
-      navigator.push(&botColorMenu);
-      break;
+    }
 
     // Bot color menu
     case MenuId::PLAY_WHITE:
