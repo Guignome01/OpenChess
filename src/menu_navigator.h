@@ -19,11 +19,15 @@ class MenuNavigator {
  public:
   static constexpr int8_t MAX_DEPTH = 4;
 
+  MenuNavigator() : bd_(nullptr), stack_{}, depth_(-1) {}
   explicit MenuNavigator(BoardDriver* bd);
 
-  // Delete copy/move
+  // Delete copy
   MenuNavigator(const MenuNavigator&) = delete;
   MenuNavigator& operator=(const MenuNavigator&) = delete;
+
+  /// Set or change the BoardDriver pointer (for two-phase init).
+  void setBoardDriver(BoardDriver* bd) { bd_ = bd; }
 
   /// Push a menu onto the stack. Calls menu->reset() and menu->show().
   /// Asserts depth < MAX_DEPTH.

@@ -56,9 +56,10 @@ Animations run on a dedicated FreeRTOS task via a queue (`AnimationJob`). Long-r
 Sensors are polled every `SENSOR_READ_DELAY_MS` (40ms) with `DEBOUNCE_MS` (125ms) debounce. Always call `boardDriver.readSensors()` before reading state.
 
 ### Menu System
-The board doubles as a primitive 8×8 pixel GUI via `BoardMenu` and `MenuNavigator` (defined in `board_menu.h/cpp` and `menu_navigator.h/cpp`).
+The board doubles as a primitive 8×8 pixel GUI via `BoardMenu` and `MenuNavigator` (defined in `board_menu.h/cpp` and `menu_navigator.h/cpp`). Menu configuration (item layouts, IDs, instances) lives in `menu_config.h/cpp`.
 
 - **`MenuItem`** — `{row, col, color, id}` struct. Positions authored in white-side orientation (row 7 = rank 1). Use `constexpr` file-scoped arrays so data lives in flash.
+- **`menu_config.h/cpp`** — centralizes `MenuId` namespace (distinct id ranges per level), `constexpr MenuItem[]` layout arrays, `extern` menu/navigator instances, and `initMenus(BoardDriver*)` for two-phase initialization. Call `initMenus()` once in `setup()`.
 - **Two-phase debounce** — every menu square must be seen empty for `DEBOUNCE_CYCLES` (5) consecutive polls, then occupied for the same count. This prevents false triggers from pieces already on the board. Implemented in `BoardMenu::updateDebounce()`.
 - **Selection feedback** — on confirmed selection, the square blinks once in its own color via `blinkSquare()` before returning the id.
 - **Back button** — set via `setBackButton(row, col)`, lit in `LedColors::White`. Omit for root menus. The navigator auto-pops on back and re-shows the parent.

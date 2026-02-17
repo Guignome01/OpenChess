@@ -1,12 +1,11 @@
 #include "board_driver.h"
-#include "board_menu.h"
 #include "chess_bot.h"
 #include "chess_engine.h"
 #include "chess_lichess.h"
 #include "chess_moves.h"
 #include "chess_utils.h"
 #include "led_colors.h"
-#include "menu_navigator.h"
+#include "menu_config.h"
 #include "move_history.h"
 #include "sensor_test.h"
 #include "wifi_manager_esp32.h"
@@ -41,52 +40,6 @@ GameMode currentMode = MODE_SELECTION;
 bool modeInitialized = false;
 bool resumingGame = false;
 
-// ---------------------------
-// Menu System
-// ---------------------------
-
-// Menu item IDs — distinct ranges per menu level for easy routing
-namespace MenuId {
-  constexpr int8_t CHESS_MOVES = 0;
-  constexpr int8_t BOT         = 1;
-  constexpr int8_t LICHESS     = 2;
-  constexpr int8_t SENSOR_TEST = 3;
-
-  constexpr int8_t EASY   = 10;
-  constexpr int8_t MEDIUM = 11;
-  constexpr int8_t HARD   = 12;
-  constexpr int8_t EXPERT = 13;
-
-  constexpr int8_t PLAY_WHITE  = 20;
-  constexpr int8_t PLAY_BLACK  = 21;
-  constexpr int8_t PLAY_RANDOM = 22;
-}
-
-static constexpr MenuItem gameMenuItems[] = {
-    {3, 3, LedColors::Blue,   MenuId::CHESS_MOVES},  // Chess Moves (Human vs Human)
-    {3, 4, LedColors::Green,  MenuId::BOT},           // Chess Bot (Human vs AI)
-    {4, 3, LedColors::Yellow, MenuId::LICHESS},        // Lichess (Online play)
-    {4, 4, LedColors::Red,    MenuId::SENSOR_TEST},    // Sensor Test
-};
-
-static constexpr MenuItem botDifficultyItems[] = {
-    {3, 2, LedColors::Green,  MenuId::EASY},
-    {3, 3, LedColors::Yellow, MenuId::MEDIUM},
-    {3, 4, LedColors::Red,    MenuId::HARD},
-    {3, 5, LedColors::Purple, MenuId::EXPERT},
-};
-
-static constexpr MenuItem botColorItems[] = {
-    {3, 3, LedColors::White,  MenuId::PLAY_WHITE},
-    {3, 4, {40, 40, 40},      MenuId::PLAY_BLACK},   // Dim white = black side
-    {3, 5, LedColors::Yellow, MenuId::PLAY_RANDOM},
-};
-
-BoardMenu gameMenu(&boardDriver);
-BoardMenu botDifficultyMenu(&boardDriver);
-BoardMenu botColorMenu(&boardDriver);
-MenuNavigator navigator(&boardDriver);
-
 void enterGameSelection();
 void handleMenuResult(int result);
 void initializeSelectedMode(GameMode mode);
@@ -110,11 +63,7 @@ void setup() {
   Serial.println();
 
   // Configure menu system
-  gameMenu.setItems(gameMenuItems, sizeof(gameMenuItems) / sizeof(gameMenuItems[0]));
-  botDifficultyMenu.setItems(botDifficultyItems, sizeof(botDifficultyItems) / sizeof(botDifficultyItems[0]));
-  botDifficultyMenu.setBackButton(4, 4);
-  botColorMenu.setItems(botColorItems, sizeof(botColorItems) / sizeof(botColorItems[0]));
-  botColorMenu.setBackButton(4, 4);
+  initMenus(&boardDriver);
 
   // Kick off NTP time sync (non-blocking, will resolve in background)
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");

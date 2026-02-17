@@ -30,15 +30,24 @@ class BoardMenu {
   static constexpr int RESULT_BACK = -2;
   static constexpr int MAX_ITEMS = 16;
 
+  BoardMenu() : bd_(nullptr), items_(nullptr), itemCount_(0),
+    flipped_(false), hasBack_(false), backRow_(0), backCol_(0), states_{} {}
   explicit BoardMenu(BoardDriver* bd);
 
-  // Delete copy/move — menus are not transferable
+  // Delete copy — menus should not be duplicated
   BoardMenu(const BoardMenu&) = delete;
   BoardMenu& operator=(const BoardMenu&) = delete;
+
+  /// Set or change the BoardDriver pointer (for two-phase init).
+  void setBoardDriver(BoardDriver* bd) { bd_ = bd; }
 
   /// Configure menu options. Items pointer must outlive the menu
   /// (use constexpr file-scoped arrays). Does NOT copy the array.
   void setItems(const MenuItem* items, uint8_t count);
+
+  /// Convenience: configure items with automatic count deduction.
+  template <uint8_t N>
+  void setItems(const MenuItem (&items)[N]) { setItems(items, N); }
 
   /// Designate a corner/edge square as a back button (lit with LedColors::White).
   /// Omit for root menus that have no parent.
