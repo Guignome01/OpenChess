@@ -91,30 +91,33 @@ bool BoardMenu::updateDebounce(SelectorState& state, bool occupied) {
   return state.readyForSelection && state.occupiedCount >= DEBOUNCE_CYCLES;
 }
 
+int BoardMenu::trySelect(SelectorState& state, int8_t row, int8_t col, LedRGB color, int id) {
+  int8_t r = transformRow(row);
+  int8_t c = transformCol(col);
+  bool occupied = bd_->getSensorState(r, c);
+  if (updateDebounce(state, occupied)) {
+    bd_->blinkSquare(r, c, color, 1);
+    // Wait for piece removal so the next menu starts with a clean square
+    while (bd_->getSensorState(r, c)) {
+      bd_->readSensors();
+      delay(SENSOR_READ_DELAY_MS);
+    }
+    return id;
+  }
+  return RESULT_NONE;
+}
+
 int BoardMenu::poll() {
-  // Check menu items
   for (uint8_t i = 0; i < itemCount_; ++i) {
-    int8_t r = transformRow(items_[i].row);
-    int8_t c = transformCol(items_[i].col);
-    bool occupied = bd_->getSensorState(r, c);
-    if (updateDebounce(states_[i], occupied)) {
-      // Selection confirmed — blink feedback in the item's color
-      bd_->blinkSquare(r, c, items_[i].color, 1);
-      return items_[i].id;
-    }
+    int result = trySelect(states_[i], items_[i].row, items_[i].col, items_[i].color, items_[i].id);
+    if (result != RESULT_NONE)
+      return result;
   }
-
-  // Check back button
   if (hasBack_) {
-    int8_t r = transformRow(backRow_);
-    int8_t c = transformCol(backCol_);
-    bool occupied = bd_->getSensorState(r, c);
-    if (updateDebounce(states_[itemCount_], occupied)) {
-      bd_->blinkSquare(r, c, BACK_BUTTON_COLOR, 1);
-      return RESULT_BACK;
-    }
+    int result = trySelect(states_[itemCount_], backRow_, backCol_, BACK_BUTTON_COLOR, RESULT_BACK);
+    if (result != RESULT_NONE)
+      return result;
   }
-
   return RESULT_NONE;
 }
 

@@ -95,6 +95,11 @@ class BoardMenu {
   /// Apply two-phase debounce to a single square.
   /// Returns true when the occupied-after-empty transition is confirmed.
   bool updateDebounce(SelectorState& state, bool occupied);
+
+  /// Check one square for a confirmed selection. Handles debounce,
+  /// blink feedback, and waiting for piece removal.
+  /// Returns the given id on selection, or RESULT_NONE.
+  int trySelect(SelectorState& state, int8_t row, int8_t col, LedRGB color, int id);
 };
 
 /// Blocking yes/no confirmation dialog.
