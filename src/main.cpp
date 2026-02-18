@@ -83,6 +83,7 @@ void checkForResumableGame() {
 
   LedRGB indicatorColor = LedColors::White;
   const char* modeName = "Unknown";
+  bool flipped = false;
 
   switch (resumeMode) {
     case GAME_MODE_CHESS_MOVES:
@@ -92,6 +93,7 @@ void checkForResumableGame() {
     case GAME_MODE_BOT:
       indicatorColor = LedColors::Green;
       modeName = "Bot";
+      flipped = (resumePlayerColor == 'b');
       Serial.printf("  Mode: Bot (player=%c, depth=%d)\n", (char)resumePlayerColor, resumeBotDepth);
       break;
     default:
@@ -106,7 +108,7 @@ void checkForResumableGame() {
   boardDriver.blinkSquare(3, 3, indicatorColor, 2);
   boardDriver.waitForAnimationQueueDrain();
 
-  if (boardConfirm(&boardDriver, false)) {
+  if (boardConfirm(&boardDriver, flipped)) {
     Serial.println("  -> Player chose to RESUME");
     switch (resumeMode) {
       case GAME_MODE_CHESS_MOVES:
