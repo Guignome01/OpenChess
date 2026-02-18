@@ -43,6 +43,7 @@ bool resumingGame = false;
 void enterGameSelection();
 void handleMenuResult(int result);
 void initializeSelectedMode(GameMode mode);
+void checkForResumableGame();
 
 void setup() {
   Serial.begin(115200);
@@ -68,33 +69,65 @@ void setup() {
   // Kick off NTP time sync (non-blocking, will resolve in background)
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   // Check for a live game that can be resumed
+  checkForResumableGame();
+  if (currentMode != MODE_SELECTION)
+    return; // Resuming a game — skip showing game selection
+
+  enterGameSelection();
+}
+
+void checkForResumableGame() {
   uint8_t resumeMode = 0, resumePlayerColor = 0, resumeBotDepth = 0;
-  if (moveHistory.hasLiveGame() && moveHistory.getLiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth)) {
-    Serial.println("========== Live game found on flash ==========");
+  if (!moveHistory.hasLiveGame() || !moveHistory.getLiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
+    return;
+
+  Serial.println("========== Live game found on flash ==========");
+
+  LedRGB indicatorColor = LedColors::White;
+  const char* modeName = "Unknown";
+
+  switch (resumeMode) {
+    case GAME_MODE_CHESS_MOVES:
+      indicatorColor = LedColors::Blue;
+      modeName = "Chess Moves";
+      break;
+    case GAME_MODE_BOT:
+      indicatorColor = LedColors::Green;
+      modeName = "Bot";
+      Serial.printf("  Mode: Bot (player=%c, depth=%d)\n", (char)resumePlayerColor, resumeBotDepth);
+      break;
+    default:
+      Serial.println("Unknown live game mode, discarding");
+      moveHistory.discardLiveGame();
+      Serial.println("================================================");
+      return;
+  }
+
+  Serial.printf("  Found: %s game — confirm resume?\n", modeName);
+  Serial.println("  Green = Resume, Red = Discard");
+  boardDriver.blinkSquare(3, 3, indicatorColor, 2);
+  boardDriver.waitForAnimationQueueDrain();
+
+  if (boardConfirm(&boardDriver, false)) {
+    Serial.println("  -> Player chose to RESUME");
     switch (resumeMode) {
       case GAME_MODE_CHESS_MOVES:
-        Serial.println("Resuming Chess Moves game...");
         currentMode = MODE_CHESS_MOVES;
         resumingGame = true;
         break;
       case GAME_MODE_BOT:
-        Serial.printf("Resuming Bot game (player=%c, depth=%d)...\n", (char)resumePlayerColor, resumeBotDepth);
         currentMode = MODE_BOT;
         resumingGame = true;
         botConfig.playerIsWhite = (resumePlayerColor == 'w');
         botConfig.stockfishSettings = StockfishSettings(resumeBotDepth);
         break;
-      default:
-        Serial.println("Unknown live game mode, discarding");
-        moveHistory.discardLiveGame();
-        break;
     }
-    Serial.println("================================================");
-    if (currentMode != MODE_SELECTION)
-      return; // Skip showing game selection
+  } else {
+    Serial.println("  -> Player chose to DISCARD");
+    moveHistory.discardLiveGame();
   }
 
-  enterGameSelection();
+  Serial.println("================================================");
 }
 
 void loop() {
