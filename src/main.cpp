@@ -31,9 +31,7 @@ BoardDriver boardDriver;
 ChessEngine chessEngine;
 MoveHistory moveHistory;
 WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
-ChessMoves* chessMoves = nullptr;
-ChessBot* chessBot = nullptr;
-ChessLichess* chessLichess = nullptr;
+ChessGame* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 
 GameMode currentMode = MODE_SELECTION;
@@ -136,15 +134,9 @@ void loop() {
   if (wifiManager.getPendingBoardEdit(editFen)) {
     Serial.println("Applying board edit from WiFi interface...");
 
-    if (currentMode == MODE_CHESS_MOVES && modeInitialized && chessMoves != nullptr) {
-      chessMoves->setBoardStateFromFEN(editFen);
-      Serial.println("Board edit applied to Chess Moves mode");
-    } else if (currentMode == MODE_BOT && modeInitialized && chessBot != nullptr) {
-      chessBot->setBoardStateFromFEN(editFen);
-      Serial.println("Board edit applied to Chess Bot mode");
-    } else if (currentMode == MODE_LICHESS && modeInitialized && chessLichess != nullptr) {
-      chessLichess->setBoardStateFromFEN(editFen);
-      Serial.println("Board edit applied to Lichess mode");
+    if (activeGame != nullptr && modeInitialized) {
+      activeGame->setBoardStateFromFEN(editFen);
+      Serial.println("Board edit applied");
     } else {
       Serial.println("Warning: Board edit received but no active game mode");
     }
@@ -201,27 +193,13 @@ void loop() {
 
   switch (currentMode) {
     case MODE_CHESS_MOVES:
-      if (chessMoves != nullptr) {
-        if (chessMoves->isGameOver())
-          enterGameSelection();
-        else
-          chessMoves->update();
-      }
-      break;
     case MODE_BOT:
-      if (chessBot != nullptr) {
-        if (chessBot->isGameOver())
-          enterGameSelection();
-        else
-          chessBot->update();
-      }
-      break;
     case MODE_LICHESS:
-      if (chessLichess != nullptr) {
-        if (chessLichess->isGameOver())
+      if (activeGame != nullptr) {
+        if (activeGame->isGameOver())
           enterGameSelection();
         else
-          chessLichess->update();
+          activeGame->update();
       }
       break;
     case MODE_SENSOR_TEST:
@@ -327,32 +305,31 @@ void initializeSelectedMode(GameMode mode) {
     resumingGame = false;
   else
     moveHistory.discardLiveGame(); // Discard any incomplete live game that wasn't properly finished or resumed (finishGame already removes live files for completed games)
+
+  // Clean up previous game/test
+  delete activeGame;
+  activeGame = nullptr;
+  delete sensorTest;
+  sensorTest = nullptr;
+
   switch (mode) {
     case MODE_CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      if (chessMoves != nullptr)
-        delete chessMoves;
-      chessMoves = new ChessMoves(&boardDriver, &chessEngine, &wifiManager, &moveHistory);
-      chessMoves->begin();
+      activeGame = new ChessMoves(&boardDriver, &chessEngine, &wifiManager, &moveHistory);
+      activeGame->begin();
       break;
     case MODE_BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
-      if (chessBot != nullptr)
-        delete chessBot;
-      chessBot = new ChessBot(&boardDriver, &chessEngine, &wifiManager, &moveHistory, botConfig);
-      chessBot->begin();
+      activeGame = new ChessBot(&boardDriver, &chessEngine, &wifiManager, &moveHistory, botConfig);
+      activeGame->begin();
       break;
     case MODE_LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      if (chessLichess != nullptr)
-        delete chessLichess;
-      chessLichess = new ChessLichess(&boardDriver, &chessEngine, &wifiManager, lichessConfig);
-      chessLichess->begin();
+      activeGame = new ChessLichess(&boardDriver, &chessEngine, &wifiManager, lichessConfig);
+      activeGame->begin();
       break;
     case MODE_SENSOR_TEST:
       Serial.println("Starting 'Sensor Test'...");
-      if (sensorTest != nullptr)
-        delete sensorTest;
       sensorTest = new SensorTest(&boardDriver);
       sensorTest->begin();
       break;
