@@ -152,23 +152,8 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
   // If bot game mode, also handle bot config
   if (mode == 2) {
     if (request->hasArg("difficulty") && request->hasArg("playerColor")) {
-      switch (request->arg("difficulty").toInt()) {
-        case 1:
-          botConfig.stockfishSettings = StockfishSettings::easy();
-          break;
-        case 2:
-          botConfig.stockfishSettings = StockfishSettings::medium();
-          break;
-        case 3:
-          botConfig.stockfishSettings = StockfishSettings::hard();
-          break;
-        case 4:
-          botConfig.stockfishSettings = StockfishSettings::expert();
-          break;
-        default:
-          botConfig.stockfishSettings = StockfishSettings::medium();
-          break;
-      }
+      int diffLevel = request->arg("difficulty").toInt();
+      botConfig.stockfishSettings = StockfishSettings::fromLevel(diffLevel);
       botConfig.playerIsWhite = request->arg("playerColor") == "white";
       Serial.printf("Bot configuration received: Depth=%d, Player is %s\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
     } else {

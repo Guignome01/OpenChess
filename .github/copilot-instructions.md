@@ -13,6 +13,8 @@ ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors 
 - **`ChessEngine`** — pure chess logic: move generation, validation, check/checkmate/stalemate, castling rights, en passant, 50-move rule. No hardware dependencies.
 - **`WiFiManagerESP32`** — async web server (`ESPAsyncWebServer`), serves gzipped pages from LittleFS via `serveStatic`, handles API endpoints for board state, game selection, settings. Also manages WiFi credentials and Lichess token persistence via `Preferences` (NVS).
 - **`ChessUtils`** — static helpers: FEN ↔ board conversion, material evaluation, NVS init.
+- **`BoardMenu`** — reusable board GUI primitive: displays selectable options as colored LEDs on the 8×8 grid. Uses two-phase debounce (empty→occupied transition over `DEBOUNCE_CYCLES`) for reliable piece-placement selection. Supports orientation flipping (`setFlipped`) for black-side players, configurable back button, and blink feedback on selection. Items are `constexpr MenuItem` arrays stored in flash — no heap allocation. Provides both non-blocking `poll()` and blocking `waitForSelection()`.
+- **`MenuNavigator`** — stack-based menu orchestrator (fixed depth of 4). Manages push/pop navigation across `BoardMenu` instances, auto-handles back-button pops, and re-displays parent menus. Does not own menu objects — they are file-scoped statics.
 
 ### Coordinate System
 Board arrays use `[row][col]` where **row 0 = rank 8** (black's back rank), **col 0 = file a**. All internal logic uses this convention consistently.
@@ -51,7 +53,20 @@ LED strip access is guarded by a FreeRTOS mutex via `BoardDriver::LedGuard` (RAI
 Animations run on a dedicated FreeRTOS task via a queue (`AnimationJob`). Long-running animations (`waiting`, `thinking`) return an `std::atomic<bool>*` stop flag — use `stopAndWaitForAnimation(flag)` to cancel, block until finished, and free the flag (single-owner lifecycle). Use `waitForAnimationQueueDrain()` as a barrier before writing LEDs directly, to ensure all queued animations have completed.
 
 ### Sensor Debouncing
-Sensors are polled every `SENSOR_READ_DELAY_MS` (40ms) with `DEBOUNCE_MS` (125ms) debounce. The game selection screen implements a two-phase debounce (must see empty→occupied transition). Always call `boardDriver.readSensors()` before reading state.
+Sensors are polled every `SENSOR_READ_DELAY_MS` (40ms) with `DEBOUNCE_MS` (125ms) debounce. Always call `boardDriver.readSensors()` before reading state.
+
+### Menu System
+The board doubles as a primitive 8×8 pixel GUI via `BoardMenu` and `MenuNavigator` (defined in `board_menu.h/cpp` and `menu_navigator.h/cpp`). Menu configuration (item layouts, IDs, instances) lives in `menu_config.h/cpp`.
+
+- **`MenuItem`** — `{row, col, color, id}` struct. Positions authored in white-side orientation (row 7 = rank 1). Use `constexpr` file-scoped arrays so data lives in flash.
+- **`menu_config.h/cpp`** — centralizes `MenuId` namespace (distinct id ranges per level), `constexpr MenuItem[]` layout arrays, `extern` menu/navigator instances, and `initMenus(BoardDriver*)` for two-phase initialization. Call `initMenus()` once in `setup()`.
+- **Two-phase debounce** — every menu square must be seen empty for `DEBOUNCE_CYCLES` (5) consecutive polls, then occupied for the same count. This prevents false triggers from pieces already on the board. Implemented in `BoardMenu::updateDebounce()`.
+- **Selection feedback** — on confirmed selection, the square blinks once in its own color via `blinkSquare()` before returning the id.
+- **Back button** — set via `setBackButton(row, col)`, lit in `LedColors::White`. Omit for root menus. The navigator auto-pops on back and re-shows the parent.
+- **Orientation** — `setFlipped(true)` mirrors row coordinates (`row' = 7 - row`) so menus face a black-side player. Default is white-side.
+- **ID routing** — use distinct id ranges per menu level (0–9 root, 10–19 sub-menu, 20–29 sub-sub, etc.) so the `loop()` handler can identify which menu produced a result without callbacks or virtual dispatch.
+- **`boardConfirm()`** — standalone yes/no dialog (green/red squares). Blocking. Returns `bool`.
+- **No heap allocation** — menus are file-scoped statics, item arrays are `constexpr`, navigator uses a fixed `std::array<BoardMenu*, 4>` stack.
 
 ### Color Semantics (LedColors namespace)
 Colors have fixed meanings in `led_colors.h`: `White` = valid move, `Red` = capture/error, `Green` = confirmation, `Yellow` = check/promotion, `Cyan` = piece origin, `Purple` = en passant, `Blue` = bot thinking. Use these consistently.
@@ -67,7 +82,7 @@ Settings (WiFi creds, Lichess token, LED brightness, calibration) are stored in 
 - **Lichess**: HTTPS to `lichess.org` — polling-based game stream, move submission. Token stored in NVS.
 
 ### Game Mode Lifecycle
-Each mode follows: `begin()` (setup board, wait for pieces) → `update()` (poll sensors, process moves) → `isGameOver()` triggers return to selection screen. The main loop in `main.cpp` orchestrates this state machine.
+Each mode follows: `begin()` (setup board, wait for pieces) → `update()` (poll sensors, process moves) → `isGameOver()` triggers return to selection screen. The main loop in `main.cpp` uses `MenuNavigator` to push/pop menus (game selection → bot difficulty → bot color), then calls `initializeSelectedMode()` once a final mode is chosen.
 
 ## Pin Configuration
 GPIO pins are `#define`d in `board_driver.h`. The calibration system maps physical pin order to logical board coordinates, so **pin assignment order doesn't matter** — calibration handles it.
