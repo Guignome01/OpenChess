@@ -26,6 +26,8 @@ void ChessMoves::begin() {
 void ChessMoves::update() {
   boardDriver->readSensors();
 
+  if (processResign()) return;
+
   int fromRow, fromCol, toRow, toCol;
   if (tryPlayerMove(currentTurn, fromRow, fromCol, toRow, toCol)) {
     applyMove(fromRow, fromCol, toRow, toCol);

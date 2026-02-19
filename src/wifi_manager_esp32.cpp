@@ -73,6 +73,10 @@ void WiFiManagerESP32::begin() {
     });
   server.on("/games", HTTP_GET, [this](AsyncWebServerRequest* request) { this->handleGamesRequest(request); });
   server.on("/games", HTTP_DELETE, [this](AsyncWebServerRequest* request) { this->handleDeleteGame(request); });
+  server.on("/resign", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    this->hasPendingResign = true;
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
   // Serve sound files directly (no gzip variant exists, avoids .gz probe errors)
   server.serveStatic("/sounds/", LittleFS, "/sounds/").setTryGzipFirst(false);
   // Serve piece SVGs with aggressive caching, otherwise chrome doesn't actually use the cached versions

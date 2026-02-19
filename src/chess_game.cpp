@@ -4,6 +4,12 @@
 #include "wifi_manager_esp32.h"
 #include <string.h>
 
+// ---------------------------
+// Brightness progression for resign gesture (25%, 50%, 75%, 100%)
+// Level 0 = flag raised (mid-lift), levels 1-3 = each king return to square
+// ---------------------------
+static constexpr float RESIGN_BRIGHTNESS_LEVELS[] = {0.25f, 0.50f, 0.75f, 1.0f};
+
 const char ChessGame::INITIAL_BOARD[8][8] = {
     {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'}, // row 0 = rank 8 (Black pieces, top row)
     {'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'}, // row 1 = rank 7 (Black pawns)
@@ -150,7 +156,7 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       // Check if it's the correct player's piece
       if (ChessUtils::getPieceColor(piece) != playerColor) {
         Serial.printf("Wrong turn! It's %s's turn to move.\n", ChessUtils::colorName(playerColor));
-        boardDriver->blinkSquare(row, col, LedColors::Red, 2);
+        showIllegalMoveFeedback(row, col);
         continue;
       }
 
@@ -189,9 +195,23 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       // Wait for piece placement - handle both normal moves and captures
       int targetRow = -1, targetCol = -1;
       bool piecePlaced = false;
+      bool isKing = (toupper(piece) == 'K');
+      unsigned long liftTimestamp = millis();
+      bool resignTransitioned = false; // True once 3s hold switches LEDs to dim orange
+      unsigned long resignFlagTimestamp = 0; // When the resign flag was raised
 
       while (!piecePlaced) {
         boardDriver->readSensors();
+
+        // --- King resign hold detection ---
+        // If a king is off its square for RESIGN_HOLD_MS, transition LEDs from
+        // valid-move highlights to a dim orange on the king's origin square.
+        if (isKing && !resignTransitioned && (millis() - liftTimestamp >= RESIGN_HOLD_MS)) {
+          resignTransitioned = true;
+          resignFlagTimestamp = millis();
+          Serial.println("King held off square for 3s — resign gesture initiated");
+          showResignProgress(row, col, 0);
+        }
 
         // First check if the original piece was placed back
         if (boardDriver->getSensorState(row, col)) {
@@ -272,13 +292,28 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
       }
 
       // Clear highlights (single cleanup for all exit paths)
-      {
+      // When resign was triggered and king returned, defer clear to showResignProgress to avoid flash.
+      if (!(resignTransitioned && targetRow == row && targetCol == col)) {
         BoardDriver::LedGuard guard(boardDriver);
         boardDriver->clearAllLEDs();
       }
 
       if (targetRow == row && targetCol == col) {
-        Serial.println("Pickup cancelled");
+        // King put back — check if the 3s resign hold was completed
+        if (resignTransitioned) {
+          // If king was returned too late, silently cancel
+          if (millis() - resignFlagTimestamp > RESIGN_LIFT_WINDOW_MS) {
+            BoardDriver::LedGuard guard(boardDriver);
+            boardDriver->clearAllLEDs();
+          } else {
+            // First landing: brighten to 50%
+            showResignProgress(row, col, 1, true);
+            // Run remaining 2 quick lifts inline (blocking)
+            continueResignGesture(row, col, ChessUtils::getPieceColor(piece));
+          }
+        } else {
+          Serial.println("Pickup cancelled");
+        }
         return false;
       }
 
@@ -474,4 +509,102 @@ void ChessGame::applyCastling(int kingFromRow, int kingFromCol, int kingToRow, i
 
 void ChessGame::confirmSquareCompletion(int row, int col) {
   boardDriver->blinkSquare(row, col, LedColors::Green, 1);
+}
+
+// ---------------------------
+// Resign Feature
+// ---------------------------
+
+void ChessGame::showIllegalMoveFeedback(int row, int col) {
+  boardDriver->blinkSquare(row, col, LedColors::Red, 2);
+}
+
+void ChessGame::showResignProgress(int row, int col, int level, bool clearFirst) {
+  BoardDriver::LedGuard guard(boardDriver);
+  if (clearFirst) boardDriver->clearAllLEDs(false);
+  boardDriver->setSquareLED(row, col, LedColors::scaleColor(LedColors::Orange, RESIGN_BRIGHTNESS_LEVELS[level]));
+  boardDriver->showLEDs();
+}
+
+void ChessGame::clearResignFeedback(int row, int col) {
+  BoardDriver::LedGuard guard(boardDriver);
+  boardDriver->setSquareLED(row, col, LedColors::Off);
+  boardDriver->showLEDs();
+}
+
+bool ChessGame::processResign() {
+  if (!resignPending) return false;
+  resignPending = false;
+  handleResign(currentTurn);
+  boardDriver->updateSensorPrev();
+  return true;
+}
+
+bool ChessGame::continueResignGesture(int row, int col, char color) {
+  // Called inline from tryPlayerMove after king returned (50% showing).
+  // Need 2 more lift-and-return cycles. Each return brightens: 75% then 100%.
+
+  for (int lift = 1; lift <= 2; lift++) {
+    unsigned long waitStart = millis();
+    bool lifted = false;
+    while (millis() - waitStart < RESIGN_LIFT_WINDOW_MS) {
+      boardDriver->readSensors();
+      if (!boardDriver->getSensorState(row, col)) {
+        lifted = true;
+        break;
+      }
+      delay(SENSOR_READ_DELAY_MS);
+    }
+
+    if (!lifted) {
+      clearResignFeedback(row, col);
+      return false;
+    }
+
+    waitStart = millis();
+    bool returned = false;
+    while (millis() - waitStart < RESIGN_LIFT_WINDOW_MS) {
+      boardDriver->readSensors();
+      if (boardDriver->getSensorState(row, col)) {
+        returned = true;
+        break;
+      }
+      delay(SENSOR_READ_DELAY_MS);
+    }
+
+    if (!returned) {
+      clearResignFeedback(row, col);
+      return false;
+    }
+
+    showResignProgress(row, col, lift + 1);
+  }
+
+  Serial.printf("Resign gesture completed by %s\n", ChessUtils::colorName(color));
+  delay(500);
+  clearResignFeedback(row, col);
+  return handleResign(color);
+}
+
+bool ChessGame::handleResign(char resignColor) {
+  // Determine board orientation for the confirm dialog
+  // In base implementation, we don't know the physical orientation,
+  // so default to false (white-side). Subclasses can override.
+  bool flipped = (resignColor == 'b');
+
+  Serial.printf("Resign confirmation for %s...\n", ChessUtils::colorName(resignColor));
+
+  if (!boardConfirm(boardDriver, flipped)) {
+    Serial.println("Resign cancelled");
+    return false;
+  }
+
+  char winnerColor = (resignColor == 'w') ? 'b' : 'w';
+  Serial.printf("RESIGNATION! %s resigns. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
+
+  boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
+  if (moveHistory)
+    moveHistory->finishGame(RESULT_RESIGNATION, winnerColor);
+  gameOver = true;
+  return true;
 }

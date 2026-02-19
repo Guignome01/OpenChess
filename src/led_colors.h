@@ -22,6 +22,15 @@ static constexpr LedRGB Orange{255, 80, 0};   // medium difficulty
 static constexpr LedRGB Crimson{200, 0, 50};  // hard difficulty
 static constexpr LedRGB Blue{0, 0, 255};      // bot thinking
 static constexpr LedRGB Off{0, 0, 0};         // turn off LED
+
+/// Scale an RGB color by a factor (0.0–1.0). Useful for brightness progression effects.
+inline constexpr LedRGB scaleColor(LedRGB c, float f) {
+  return {
+    static_cast<uint8_t>(c.r * f > 255 ? 255 : c.r * f),
+    static_cast<uint8_t>(c.g * f > 255 ? 255 : c.g * f),
+    static_cast<uint8_t>(c.b * f > 255 ? 255 : c.b * f)
+  };
+}
 } // namespace LedColors
 
 #endif // LED_COLORS_H

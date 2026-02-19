@@ -198,6 +198,11 @@ void loop() {
     case MODE_BOT:
     case MODE_LICHESS:
       if (activeGame != nullptr) {
+        // Relay web resign flag to the active game
+        if (wifiManager.getPendingResign()) {
+          activeGame->setResignPending(true);
+          wifiManager.clearPendingResign();
+        }
         if (activeGame->isGameOver())
           enterGameSelection();
         else

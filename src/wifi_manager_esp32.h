@@ -48,6 +48,9 @@ class WiFiManagerESP32 {
   String pendingFenEdit;
   bool hasPendingEdit;
 
+  // Resign flag (set from web interface)
+  bool hasPendingResign = false;
+
   // tracks errors across multi-file OTA uploads
   bool otaHasError = false;
 
@@ -89,6 +92,9 @@ class WiFiManagerESP32 {
   // Board edit management (FEN-based)
   bool getPendingBoardEdit(String& fenOut);
   void clearPendingEdit();
+  // Web resign
+  bool getPendingResign() const { return hasPendingResign; }
+  void clearPendingResign() { hasPendingResign = false; }
   // WiFi connection management
   bool connectToWiFi(const String& ssid, const String& password, bool fromWeb = false);
 };

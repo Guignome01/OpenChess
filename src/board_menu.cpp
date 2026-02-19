@@ -128,8 +128,10 @@ int BoardMenu::waitForSelection() {
   while (true) {
     bd_->readSensors();
     int result = poll();
-    if (result != RESULT_NONE)
+    if (result != RESULT_NONE) {
+      hide();
       return result;
+    }
     delay(SENSOR_READ_DELAY_MS);
   }
 }
