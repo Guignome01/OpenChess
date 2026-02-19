@@ -683,6 +683,11 @@ input[type="submit"]:hover,
     border-color: #ec8703;
 }
 
+#resignBtn:hover {
+    color: #dc3545;
+    border-color: #dc3545;
+}
+
 /* Focus mode (fullscreen board) */
 .focus-mode .container {
     max-width: 95vmin;

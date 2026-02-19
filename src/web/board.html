@@ -107,6 +107,7 @@
             <div class="board-controls-left">
                 <button id="flipBtn" class="board-ctrl-btn" title="Flip board">⇅</button>
                 <button id="focusBtn" class="board-ctrl-btn" title="Focus mode">⛶</button>
+                <button id="resignBtn" class="board-ctrl-btn" title="Resign">⚑</button>
             </div>
             <div class="board-controls-center">
                 <button id="navFirst" class="board-ctrl-btn nav-btn" title="First move">⏮</button>
@@ -668,6 +669,7 @@
             $('#review-panel').addClass('visible');
             $('#modeToggleBtn').hide();
             $('#exitReviewBtn').show();
+            $('#resignBtn').hide();
 
             // Build review panel content
             buildReviewPanel();
@@ -694,6 +696,7 @@
             $('#review-panel').removeClass('visible');
             $('#modeToggleBtn').show();
             $('#exitReviewBtn').hide();
+            $('#resignBtn').show();
 
             // Restore live position
             if (liveSegments.length > 0 && liveGameLoaded) {
@@ -985,6 +988,7 @@
 
             $('#modeToggleBtn').text('View Board');
             $('#eval-container').hide();
+            $('#resignBtn').hide();
             if (!settings.instructionsHidden) {
                 $('#edit-instructions').addClass('visible');
             }
@@ -1008,6 +1012,7 @@
 
             $('#modeToggleBtn').text('Edit Board');
             $('#eval-container').show();
+            $('#resignBtn').show();
             $('#edit-instructions').removeClass('visible');
             $('#fen-section').removeClass('visible');
 
@@ -1683,6 +1688,19 @@
                 if (board) {
                     setTimeout(() => board.resize(), 100);
                 }
+            });
+
+            // Resign button
+            $('#resignBtn').on('click', function () {
+                if (editMode || reviewMode) return;
+                if (!confirm('Are you sure you want to resign?')) return;
+                fetch('./resign', { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.ok) console.log('Resign request sent');
+                        else console.error('Resign request failed');
+                    })
+                    .catch(err => console.error('Resign error:', err));
             });
 
             // Move navigation buttons

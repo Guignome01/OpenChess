@@ -37,6 +37,9 @@ class ChessLichess : public ChessBot {
   ChessLichess(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, LichessConfig cfg);
   void begin() override;
   void update() override;
+
+ protected:
+  bool handleResign(char resignColor) override;
 };
 
 #endif // CHESS_LICHESS_H

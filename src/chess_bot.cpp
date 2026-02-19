@@ -41,6 +41,8 @@ void ChessBot::update() {
 
   boardDriver->readSensors();
 
+  if (processResign()) return;
+
   if ((botConfig.playerIsWhite && currentTurn == 'w') || (!botConfig.playerIsWhite && currentTurn == 'b')) {
     // Player's turn
     int fromRow, fromCol, toRow, toCol;

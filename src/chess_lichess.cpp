@@ -1,6 +1,7 @@
 #include "chess_lichess.h"
 #include "chess_utils.h"
 #include "led_colors.h"
+#include "lichess_api.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
@@ -135,6 +136,8 @@ void ChessLichess::update() {
 
   boardDriver->readSensors();
 
+  if (processResign()) return;
+
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
 
@@ -231,4 +234,40 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
     boardDriver->flashBoardAnimation(LedColors::Red);
     lastSentMove = "";
   }
+}
+
+bool ChessLichess::handleResign(char resignColor) {
+  // Stop thinking animation if running (happens during opponent's turn)
+  bool wasAnimating = (stopAnimation != nullptr);
+  if (wasAnimating) {
+    boardDriver->stopAndWaitForAnimation(stopAnimation);
+    stopAnimation = nullptr;
+  }
+
+  // Use the player's actual color for flipped orientation
+  bool flipped = (myColor == 'b');
+
+  Serial.printf("Lichess resign confirmation for %s...\n", ChessUtils::colorName(resignColor));
+
+  if (!boardConfirm(boardDriver, flipped)) {
+    Serial.println("Resign cancelled");
+    // Restart thinking animation if it was running before
+    if (wasAnimating && currentTurn != myColor && !gameOver) {
+      boardDriver->waitForAnimationQueueDrain();
+      stopAnimation = boardDriver->startThinkingAnimation();
+    }
+    return false;
+  }
+
+  // Send resign to Lichess API
+  Serial.println("Sending resign to Lichess...");
+  LichessAPI::resignGame(currentGameId);
+
+  char winnerColor = (resignColor == 'w') ? 'b' : 'w';
+  Serial.printf("RESIGNATION! %s resigns on Lichess. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
+
+  boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
+  // Lichess mode has no local moveHistory (nullptr)
+  gameOver = true;
+  return true;
 }
