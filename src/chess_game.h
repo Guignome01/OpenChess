@@ -26,16 +26,9 @@ class ChessGame {
   bool gameOver;
   bool replaying; // True while replaying moves during resume (suppresses LEDs and physical move waits)
 
-  // --- Resign gesture state ---
-  enum ResignPhase : uint8_t { RESIGN_IDLE, RESIGN_GESTURING };
+  // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
   static constexpr unsigned long RESIGN_LIFT_WINDOW_MS = 1000; // Max time per quick lift during gesture
-  ResignPhase resignPhase = RESIGN_IDLE;
-  char resigningColor = ' ';     // Color of king being tracked ('w' or 'b')
-  int resignKingRow = -1;        // Cached king origin row
-  int resignKingCol = -1;        // Cached king origin col
-  uint8_t resignLiftCount = 0;   // 1 after initial hold, then 2 and 3 after quick lifts
-  unsigned long resignLastEventMs = 0;
   bool resignPending = false;    // Set by web resign endpoint
 
   // Standard initial chess board setup
@@ -53,7 +46,7 @@ class ChessGame {
 
   // --- Resign ---
   /// Unified resign entry point. Call at the start of update() after readSensors().
-  /// Returns true if the game loop should return (resign in progress or game ended).
+  /// Returns true if the game loop should return early.
   bool processResign();
   /// Show standard invalid-move feedback (red blink) on a square.
   void showIllegalMoveFeedback(int row, int col);
@@ -62,12 +55,10 @@ class ChessGame {
   virtual bool handleResign(char resignColor);
 
  private:
-  /// Blocking loop for the 2 remaining quick lifts after the initial 3s hold.
-  /// Returns true if resign was confirmed.
-  bool continueResignGesture();
-  /// Reset resign gesture state back to idle.
-  void resetResignGesture();
-  /// Show scaled orange resign indicator on a square (level 0–2 maps to RESIGN_BRIGHTNESS_LEVELS).
+  /// Blocking loop for the 2 quick lifts after the initial king return.
+  /// Called inline from tryPlayerMove(). Returns true if resign was confirmed.
+  bool continueResignGesture(int row, int col, char color);
+  /// Show scaled orange resign indicator on a square (level 0–3 maps to RESIGN_BRIGHTNESS_LEVELS).
   /// If clearFirst is true, clears all LEDs before setting the indicator.
   void showResignProgress(int row, int col, int level, bool clearFirst = false);
   /// Turn off the resign indicator LED on a square.

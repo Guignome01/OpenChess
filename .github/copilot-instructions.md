@@ -74,11 +74,11 @@ Colors have fixed meanings in `led_colors.h`: `White` = valid move, `Red` = capt
 ### Resign System
 Players can resign by performing a physical king gesture or via the web UI resign button.
 
-- **Physical gesture** — on the current player's turn, lift your king and hold it off its square for 3 seconds. The origin square transitions from valid-move highlights to dim orange (33%). Return the king, then perform 2 quick lift-and-return cycles within 1 second each — orange brightens to 66% then 100%. A `boardConfirm()` dialog follows; on confirm the opponent wins with a firework animation.
+- **Physical gesture** — on the current player's turn, lift your king and hold it off its square for 3 seconds. The origin square transitions from valid-move highlights to dim orange (25%). Return the king (50%), then perform 2 quick lift-and-return cycles within 1 second each — orange brightens to 75% then 100%. A `boardConfirm()` dialog follows; on confirm the opponent wins with a firework animation.
 - **Web resign** — the web UI shows a ⚑ button during live play. Click triggers a JS `confirm()`, then `POST /resign`. `WiFiManagerESP32` sets a `hasPendingResign` flag, relayed to the active game via `main.cpp`. `processResign()` picks it up on the next update cycle and calls `handleResign()`.
-- **State machine** — `ResignPhase` enum (`RESIGN_IDLE`, `RESIGN_GESTURING`). The 3s-hold detection lives inside `tryPlayerMove()`; on put-back it transitions to `RESIGN_GESTURING`. `continueResignGesture()` is a blocking loop for the 2 remaining quick lifts.
+- **Inline gesture** — the entire resign gesture runs inline inside `tryPlayerMove()`. After the 3s hold and initial return, `continueResignGesture(row, col, color)` is called as a blocking loop for the 2 remaining quick lifts. No state machine — all resign state is local variables within these functions. Timeouts silently cancel (no error feedback).
 - **Virtual hook** — `handleResign(char resignColor)` is `virtual` so `ChessLichess` can override it to call `LichessAPI::resignGame()` and manage the thinking animation lifecycle.
-- **LED helpers** — `showResignProgress(row, col, level, clearFirst)` and `clearResignFeedback(row, col)` encapsulate the LedGuard + setSquareLED + showLEDs pattern for resign feedback. `showIllegalMoveFeedback(row, col)` wraps the red-blink on timeout.
+- **LED helpers** — `showResignProgress(row, col, level, clearFirst)` and `clearResignFeedback(row, col)` encapsulate the LedGuard + setSquareLED + showLEDs pattern for resign feedback. `showIllegalMoveFeedback(row, col)` wraps the red-blink for illegal moves.
 - **Turn restriction** — resign is only processed on the current player's turn (all modes), matching real chess conventions.
 
 ### Web Assets & `.nogz.` Convention
