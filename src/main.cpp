@@ -8,6 +8,9 @@
 #include "menu_config.h"
 #include "move_history.h"
 #include "sensor_test.h"
+#ifdef FACTORY_RESET
+#include <nvs_flash.h>
+#endif
 #include "wifi_manager_esp32.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -52,6 +55,17 @@ void setup() {
   Serial.println("================================================");
   if (!ChessUtils::ensureNvsInitialized())
     Serial.println("WARNING: NVS init failed (Preferences may not work)");
+
+#ifdef FACTORY_RESET
+  // Wipe all NVS data — add -DFACTORY_RESET to build_flags in platformio.ini,
+  // flash once via USB, then remove the flag. Clears WiFi credentials, OTA
+  // password, Lichess token, calibration, LED settings, and all other persisted
+  // state. Requires physical USB access — cannot be triggered from the web UI.
+  nvs_flash_erase();
+  nvs_flash_init();
+  Serial.println("*** FACTORY RESET: all NVS data erased ***");
+#endif
+
   if (!LittleFS.begin(true))
     Serial.println("ERROR: LittleFS mount failed!");
   else
@@ -131,6 +145,9 @@ void checkForResumableGame() {
 }
 
 void loop() {
+  // WiFi reconnection state machine
+  wifiManager.update();
+
   // Check for pending board edits from WiFi (FEN-based)
   String editFen;
   if (wifiManager.getPendingBoardEdit(editFen)) {

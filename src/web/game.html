@@ -1,11 +1,13 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GameMode Selection</title>
+    <title>OpenChess - GameMode Selection</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="stylesheet" href="./css/styles.css">
+    <script src="./scripts/api.js"></script>
+    <script src="./scripts/provider.js"></script>
 </head>
 
 <body>
@@ -83,16 +85,10 @@
 
         function selectGame(mode) {
             if (mode === 1 || mode === 2 || mode === 3 || mode === 4) {
-                requestBody = 'gamemode=' + mode;
-                if (mode === 2)
-                    requestBody += '&playerColor=' + document.getElementById('botPlayerColor').value + '&difficulty=' + document.getElementById('botDifficulty').value;
-                fetch('./gameselect', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: requestBody
-                }).then(response => {
+                const playerColor = mode === 2 ? document.getElementById('botPlayerColor').value : undefined;
+                const difficulty = mode === 2 ? document.getElementById('botDifficulty').value : undefined;
+                Api.selectGame(mode, playerColor, difficulty)
+                    .then(response => {
                     if (!response.ok) {
                         if (mode === 3) {
                             alert('Please configure your Lichess API token in the Home page settings first.');
@@ -101,9 +97,7 @@
                         }
                         return;
                     }
-                    return response.text();
-                }).then(data => {
-                    if (data && mode != 4) // Don't redirect for sensor test
+                    if (mode != 4) // Don't redirect for sensor test
                         window.location.href = "./board.html";
                 }).catch(error => {
                     console.error('Error:', error);
@@ -115,5 +109,4 @@
         }
     </script>
 </body>
-
 </html>
