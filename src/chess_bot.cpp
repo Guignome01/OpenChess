@@ -14,7 +14,7 @@ void ChessBot::begin() {
   Serial.printf("Bot plays: %s\n", botConfig.playerIsWhite ? "Black" : "White");
   Serial.printf("Bot Difficulty: Depth %d, Timeout %dms\n", botConfig.stockfishSettings.depth, botConfig.stockfishSettings.timeoutMs);
   Serial.println("====================================");
-  if (wifiManager->connectToWiFi(wifiManager->getWiFiSSID(), wifiManager->getWiFiPassword())) {
+  if (wifiManager->isWiFiConnected()) {
     initializeBoard();
     if (moveHistory->hasLiveGame()) {
       Serial.println("Resuming live bot game...");
@@ -64,7 +64,6 @@ void ChessBot::update() {
 
 String ChessBot::makeStockfishRequest(const String& fen) {
   WiFiSSLClient client;
-  // Set insecure mode for SSL (or add proper certificate validation)
   client.setInsecure();
   String path = StockfishAPI::buildRequestURL(fen, botConfig.stockfishSettings.depth);
   Serial.println("Stockfish request: " STOCKFISH_API_URL + path);

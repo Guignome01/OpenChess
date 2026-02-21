@@ -20,7 +20,7 @@ bool LichessAPI::hasToken() {
 
 String LichessAPI::makeHttpRequest(const String& method, const String& path, const String& body) {
   WiFiClientSecure client;
-  client.setInsecure(); // For simplicity; in production, use proper cert validation
+  client.setInsecure();
 
   if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
     Serial.println("Lichess API: Connection failed");

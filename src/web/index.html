@@ -1,11 +1,13 @@
-<html>
-
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenChess Home</title>
+    <title>OpenChess - Home</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="stylesheet" href="./css/styles.css">
+    <script src="./scripts/api.js"></script>
+    <script src="./scripts/provider.js"></script>
 </head>
 
 <body>
@@ -20,18 +22,23 @@
                 <h3>WiFi Settings</h3>
             </div>
             <div class="section-content" id="wifi-content">
-                <form id="wifiForm">
+                <div id="wifi-networks-list"></div>
+                <form id="wifiAddForm" style="margin-top: 10px;">
                     <div class="form-group">
-                        <label for="ssid">WiFi SSID:</label>
-                        <input type="text" name="ssid" id="ssid" value="" placeholder="Enter Your WiFi SSID">
+                        <label for="newSsid">WiFi SSID:</label>
+                        <input type="text" name="ssid" id="newSsid" list="scanResults"
+                            placeholder="Enter or select SSID" autocomplete="off">
+                        <datalist id="scanResults"></datalist>
                     </div>
                     <div class="form-group">
-                        <label for="password">WiFi Password:</label>
-                        <input type="text" name="password" id="password" value=""
-                            placeholder="Enter Your WiFi Password">
+                        <label for="newPassword">WiFi Password:</label>
+                        <input type="password" name="password" id="newPassword"
+                            placeholder="Enter WiFi Password">
                     </div>
-                    <input type="submit" style="background-color: #4CAF50;" value="Connect to WiFi">
+                    <input type="submit" style="background-color: #4CAF50;" value="Add Network">
                 </form>
+                <button type="button" id="scanBtn" class="button"
+                    style="background-color: #17a2b8; margin-top: 5px;">Scan Networks</button>
             </div>
         </div>
 
@@ -106,6 +113,13 @@
                 <p class="section-description">
                     Drop or select <code>firmware.bin</code> and <code>littlefs.bin</code> to update over-the-air.
                 </p>
+                <div id="ota-protection-status" style="margin-bottom: 10px;">
+                    <span id="ota-protection-text" style="font-size: 13px; color: #888;">Checking...</span>
+                </div>
+                <div class="form-group" id="ota-upload-pw-group" style="display: none;">
+                    <label for="otaUploadPassword">OTA Password:</label>
+                    <input type="password" id="otaUploadPassword" placeholder="Enter OTA password">
+                </div>
                 <div class="form-group">
                     <div class="dropzone" id="dropzone">
                         <input type="file" id="otaFiles" accept=".bin" multiple style="display: none;">
@@ -127,6 +141,57 @@
             </div>
         </div>
 
+        <!-- Security Section -->
+        <div class="settings-section">
+            <div class="section-header" onclick="toggleSection('security')">
+                <span class="section-icon" id="security-icon">▶</span>
+                <h3>Security</h3>
+            </div>
+            <div class="section-content" id="security-content">
+                <p class="section-description">
+                    Protect OTA firmware uploads with a password. If locked out, use the
+                    <code>FACTORY_RESET</code> build flag and flash via USB to clear all settings.
+                </p>
+
+                <!-- Set password (when none is set) -->
+                <div id="setPasswordSection" style="display: none;">
+                    <form id="setOtaPasswordForm">
+                        <div class="form-group">
+                            <label for="newOtaPassword">New OTA Password:</label>
+                            <input type="password" id="newOtaPassword" placeholder="Min 4 characters">
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmOtaPassword">Confirm Password:</label>
+                            <input type="password" id="confirmOtaPassword" placeholder="Confirm password">
+                        </div>
+                        <input type="submit" style="background-color: #4CAF50;" value="Set OTA Password">
+                    </form>
+                </div>
+                <!-- Change / Remove password (when one is set) -->
+                <div id="managePasswordSection" style="display: none;">
+                    <form id="changeOtaPasswordForm">
+                        <div class="form-group">
+                            <label for="currentOtaPassword">Current Password:</label>
+                            <input type="password" id="currentOtaPassword" placeholder="Enter current password">
+                        </div>
+                        <div class="form-group">
+                            <label for="changeOtaPassword">New Password:</label>
+                            <input type="password" id="changeOtaPassword" placeholder="Min 4 characters">
+                        </div>
+                        <div class="form-group">
+                            <label for="changeConfirmOtaPassword">Confirm New Password:</label>
+                            <input type="password" id="changeConfirmOtaPassword" placeholder="Confirm new password">
+                        </div>
+                        <input type="submit" style="background-color: #4CAF50;" value="Change Password">
+                    </form>
+                    <button type="button" id="removeOtaPasswordBtn" class="button"
+                        style="background-color: #f44336; margin-top: 10px;">
+                        Remove OTA Password
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <a href="./game.html" class="button">GameMode Selection</a>
         <a href="./board.html" class="button">View Board</a>
     </div>
@@ -136,6 +201,7 @@
             wifi: false,
             lichess: false,
             board: false,
+            security: false,
             ota: false
         };
 
@@ -153,30 +219,180 @@
             }
         }
 
-        function updateWiFiInfo(retries = 0, maxRetries = 20) {
-            fetch('/wifi')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('ssid').value = data.ssid;
-                    document.getElementById('password').value = data.password;
-                    const isConnected = (data.connected || '').toString() === 'true';
-                    const statusText = `SSID: ${data.ap_ssid} (${data.ap_ip})` + (isConnected ? ` | SSID: ${data.ssid} (${data.local_ip})` : ``);
-                    document.getElementById('status').textContent = statusText;
-                })
-                .catch(() => {
-                    if (retries < maxRetries) {
-                        const delayMs = Math.min(500 + (retries * 300), 5000);
-                        setTimeout(() => updateWiFiInfo(retries + 1, maxRetries), delayMs);
-                    } else {
-                        alert('Error fetching WiFi information. Please try again later.');
+        // ===========================
+        // WiFi Networks
+        // ===========================
+        function updateWiFiInfo() {
+            Api.getNetworks()
+                .then(function (data) {
+                    const list = document.getElementById('wifi-networks-list');
+                    list.innerHTML = '';
+                    const nets = data.networks || [];
+                    const statusParts = [];
+                    if (data.apActive) statusParts.push('AP: ' + (data.apIp || '192.168.4.1'));
+                    nets.forEach(function (net) {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:6px 8px;margin-bottom:4px;background:#2a2a2a;border-radius:4px;color:#ddd;';
+                        const info = document.createElement('span');
+                        info.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                        if (net.connected) {
+                            info.innerHTML = '<span style="color:#4CAF50;">● </span>' + net.ssid + ' <span style="color:#888;">(' + net.ip + ')</span>';
+                            statusParts.push('WiFi: ' + net.ssid + ' (' + net.ip + ')');
+                        } else {
+                            info.textContent = net.ssid;
+                        }
+                        const actions = document.createElement('span');
+                        if (!net.connected) {
+                            const connectBtn = document.createElement('button');
+                            connectBtn.textContent = '▶';
+                            connectBtn.title = 'Connect';
+                            connectBtn.style.cssText = 'background:#4CAF50;color:#fff;border:none;border-radius:3px;padding:0;width:26px;height:26px;margin-left:4px;cursor:pointer;font-size:12px;line-height:26px;text-align:center;';
+                            connectBtn.onclick = (function (idx) {
+                                return function () { connectNetwork(idx); };
+                            })(net.index);
+                            actions.appendChild(connectBtn);
+                        }
+                        const delBtn = document.createElement('button');
+                        delBtn.textContent = '✕';
+                        delBtn.title = 'Delete';
+                        delBtn.style.cssText = 'background:#f44336;color:#fff;border:none;border-radius:3px;padding:0;width:26px;height:26px;margin-left:4px;cursor:pointer;font-size:12px;line-height:26px;text-align:center;';
+                        delBtn.onclick = (function (idx, ssid) {
+                            return function () {
+                                if (confirm('Delete network "' + ssid + '"?')) deleteNetwork(idx);
+                            };
+                        })(net.index, net.ssid);
+                        actions.appendChild(delBtn);
+                        row.appendChild(info);
+                        row.appendChild(actions);
+                        list.appendChild(row);
+                    });
+                    if (nets.length === 0) {
+                        list.innerHTML = '<div style="color:#888;text-align:center;padding:8px;">No saved networks</div>';
+                        statusParts.push('No WiFi configured');
                     }
+                    if (data.hostname) statusParts.push(data.hostname);
+                    document.getElementById('status').textContent = statusParts.join(' | ') || 'Loading...';
+                })
+                .catch(function () { });
+        }
+
+        function connectNetwork(index) {
+            document.getElementById('status').textContent = 'Connecting...';
+            Api.connectNetwork(index)
+                .then(function () {
+                    pollWiFiConnection(index, 0);
+                }).catch(function () {
+                    document.getElementById('status').textContent = 'Connection request failed';
+                    setTimeout(updateWiFiInfo, 2000);
                 });
         }
 
+        function pollWiFiConnection(requestedIndex, attempt) {
+            if (attempt >= 8) {
+                updateWiFiInfo();
+                return;
+            }
+            setTimeout(function () {
+                Api.getNetworks()
+                    .then(function (data) {
+                        var state = data.wifiState; // 0=AP_ONLY, 1=CONNECTING, 2=CONNECTED, 3=RECONNECTING
+                        if (state === 1) {
+                            // Still connecting — keep polling
+                            document.getElementById('status').textContent = 'Connecting...';
+                            pollWiFiConnection(requestedIndex, attempt + 1);
+                        } else if (state === 2) {
+                            // Connected — check if it's the requested network
+                            var nets = data.networks || [];
+                            var connectedNet = nets.find(function (n) { return n.connected; });
+                            if (connectedNet && connectedNet.index !== requestedIndex) {
+                                document.getElementById('status').textContent = 'Failed to connect — fell back to ' + connectedNet.ssid;
+                            }
+                            updateWiFiInfo();
+                        } else {
+                            // AP_ONLY or RECONNECTING — connection failed
+                            document.getElementById('status').textContent = 'Connection failed';
+                            setTimeout(updateWiFiInfo, 2000);
+                        }
+                    })
+                    .catch(function () {
+                        // May have lost connection to AP during switch — retry
+                        pollWiFiConnection(requestedIndex, attempt + 1);
+                    });
+            }, 2000);
+        }
+
+        function deleteNetwork(index) {
+            Api.deleteNetwork(index)
+                .then(function () { updateWiFiInfo(); }).catch(function () { updateWiFiInfo(); });
+        }
+
+        document.getElementById('wifiAddForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const ssid = document.getElementById('newSsid').value;
+            const password = document.getElementById('newPassword').value;
+            if (!ssid) { alert('Please enter an SSID'); return; }
+
+            Api.addNetwork(ssid, password)
+                .then(function (data) {
+                    if (data.ok) {
+                        document.getElementById('newSsid').value = '';
+                        document.getElementById('newPassword').value = '';
+                        updateWiFiInfo();
+                    } else {
+                        alert(data.error || 'Failed to add network');
+                    }
+                })
+                .catch(function () { alert('Error adding network'); });
+        });
+
+        document.getElementById('scanBtn').addEventListener('click', function () {
+            const btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            Api.scanNetworks()
+                .then(function (data) {
+                    if (data.scanning) {
+                        setTimeout(function () { pollScan(btn); }, 2000);
+                    } else {
+                        populateScanResults(data.networks || []);
+                        btn.disabled = false;
+                        btn.textContent = 'Scan Networks';
+                    }
+                })
+                .catch(function () { btn.disabled = false; btn.textContent = 'Scan Networks'; });
+        });
+
+        function pollScan(btn) {
+            Api.scanNetworks()
+                .then(function (data) {
+                    if (data.scanning) {
+                        setTimeout(function () { pollScan(btn); }, 1500);
+                    } else {
+                        populateScanResults(data.networks || []);
+                        btn.disabled = false;
+                        btn.textContent = 'Scan Networks';
+                    }
+                })
+                .catch(function () { btn.disabled = false; btn.textContent = 'Scan Networks'; });
+        }
+
+        function populateScanResults(networks) {
+            const dl = document.getElementById('scanResults');
+            dl.innerHTML = '';
+            networks.forEach(function (n) {
+                const opt = document.createElement('option');
+                opt.value = n.ssid;
+                opt.textContent = n.ssid + ' (' + n.rssi + ' dBm)';
+                dl.appendChild(opt);
+            });
+        }
+
+        // ===========================
+        // Lichess
+        // ===========================
         function updateLichessInfo() {
-            fetch('/lichess')
-                .then(response => response.json())
-                .then(data => {
+            Api.getLichessInfo()
+                .then(function (data) {
                     const statusEl = document.getElementById('lichess-token-status');
                     if (data.hasToken) {
                         statusEl.textContent = 'Token configured: ' + data.maskedToken;
@@ -186,32 +402,27 @@
                         statusEl.style.color = '#f44336';
                     }
                 })
-                .catch(() => {
+                .catch(function () {
                     document.getElementById('lichess-token-status').textContent = 'Error loading status';
                 });
         }
 
-        // Fetch info on page load
-        updateWiFiInfo();
-        updateLichessInfo();
-        updateBoardSettings();
-
-        // Board settings functions
+        // ===========================
+        // Board settings
+        // ===========================
         function updateBoardSettings() {
-            fetch('/board-settings')
-                .then(response => response.json())
-                .then(data => {
+            Api.getBoardSettings()
+                .then(function (data) {
                     document.getElementById('brightness').value = data.brightness;
                     document.getElementById('brightness-value').textContent = data.brightness;
                     document.getElementById('dimMultiplier').value = data.dimMultiplier;
                     document.getElementById('dim-value').textContent = data.dimMultiplier;
                 })
-                .catch(() => {
+                .catch(function () {
                     console.log('Error loading board settings');
                 });
         }
 
-        // Update slider value displays in real-time
         document.getElementById('brightness').addEventListener('input', function () {
             document.getElementById('brightness-value').textContent = this.value;
         });
@@ -220,86 +431,53 @@
             document.getElementById('dim-value').textContent = this.value;
         });
 
-        // Handle board settings form submission
         document.getElementById('boardSettingsForm').addEventListener('submit', function (e) {
             e.preventDefault();
-            const brightness = document.getElementById('brightness').value;
-            const dimMultiplier = document.getElementById('dimMultiplier').value;
-
-            const formData = new URLSearchParams();
-            formData.append('brightness', brightness);
-            formData.append('dimMultiplier', dimMultiplier);
-
-            fetch('/board-settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: formData
-            })
-                .then(response => {
-                    if (response.ok) {
-                        alert('LED settings saved successfully!');
-                    } else {
-                        alert('Failed to save settings. Please try again.');
-                    }
+            Api.saveBoardSettings(
+                document.getElementById('brightness').value,
+                document.getElementById('dimMultiplier').value
+            )
+                .then(function (r) {
+                    if (r.ok) alert('LED settings saved successfully!');
+                    else alert('Failed to save settings.');
                 })
-                .catch(() => {
-                    alert('Error saving settings. Please try again.');
-                });
+                .catch(function () { alert('Error saving settings.'); });
         });
 
-        // Handle calibration button
         document.getElementById('calibrateBtn').addEventListener('click', function () {
             if (confirm('This will clear the current board calibration. The board will need to be calibrated on the next reboot. Continue?')) {
-                fetch('/board-calibrate', {
-                    method: 'POST'
-                })
-                    .then(response => response.text())
-                    .then(data => {
-                        alert(data);
+                Api.calibrate()
+                    .then(function (r) {
+                        if (r.ok) alert('Calibration will start on next reboot.');
+                        else alert('Failed to start calibration.');
                     })
-                    .catch(() => {
-                        alert('Error starting calibration. Please try again.');
-                    });
+                    .catch(function () { alert('Error starting calibration.'); });
             }
         });
 
-        // Handle WiFi form submission
-        document.getElementById('wifiForm').addEventListener('submit', function (e) {
+        // Handle Lichess form submission
+        document.getElementById('lichessForm').addEventListener('submit', function (e) {
             e.preventDefault();
-            const ssid = document.getElementById('ssid').value;
-            const password = document.getElementById('password').value;
+            const token = document.getElementById('lichessToken').value;
+            if (token.length < 10) { alert('Please enter a valid Lichess API token'); return; }
 
-            document.getElementById('status').textContent = 'Connecting...';
-
-            const formData = new URLSearchParams();
-            formData.append('ssid', ssid);
-            formData.append('password', password);
-
-            fetch('/wifi', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: formData
-            })
-                .then(response => response.text())
-                .then(data => {
-                    if (data === 'OK')
-                        setTimeout(() => updateWiFiInfo(0, 20), 1000);
-                    else
-                        alert('Bad credentials or already connected to this WiFi.');
-
+            Api.saveLichessToken(token)
+                .then(function (r) {
+                    if (r.ok) {
+                        alert('Lichess token saved successfully!');
+                        document.getElementById('lichessToken').value = '';
+                        updateLichessInfo();
+                    } else {
+                        alert('Failed to save token.');
+                    }
                 })
-                .catch(() => {
-                    document.getElementById('status').textContent = 'Connecting... (retrying)';
-                    setTimeout(() => updateWiFiInfo(0, 20), 1000);
-                });
+                .catch(function () { alert('Error saving token.'); });
         });
 
+        // ===========================
         // OTA Update
-        var ota = {
+        // ===========================
+        const ota = {
             dropzone: document.getElementById('dropzone'),
             input: document.getElementById('otaFiles'),
             fileList: document.getElementById('ota-file-list'),
@@ -310,10 +488,10 @@
             status: document.getElementById('ota-status-text'),
             btn: document.getElementById('otaBtn')
         };
-        var otaFiles = [];
+        let otaFiles = [];
 
         function otaSetState(state, msg) {
-            var busy = state !== 'idle';
+            const busy = state !== 'idle';
             ota.progress.style.display = state === 'uploading' ? 'block' : 'none';
             ota.dropzone.classList.toggle('disabled', busy);
             ota.btn.disabled = busy;
@@ -337,12 +515,12 @@
             ota.text.style.display = otaFiles.length ? 'none' : '';
             ota.dropzone.classList.toggle('has-file', otaFiles.length > 0);
             otaFiles.forEach(function (file, idx) {
-                var row = document.createElement('div');
+                const row = document.createElement('div');
                 row.className = 'ota-file-row';
-                var name = document.createElement('span');
+                const name = document.createElement('span');
                 name.className = 'ota-file-name';
                 name.textContent = file.name;
-                var remove = document.createElement('span');
+                const remove = document.createElement('span');
                 remove.className = 'ota-file-remove';
                 remove.textContent = '\u2715';
                 remove.onclick = function (e) {
@@ -357,8 +535,8 @@
         }
 
         function otaAddFiles(newFiles) {
-            for (var i = 0; i < newFiles.length; i++) {
-                var f = newFiles[i];
+            for (let i = 0; i < newFiles.length; i++) {
+                let f = newFiles[i];
                 otaFiles = otaFiles.filter(function (e) { return e.name !== f.name; });
                 otaFiles.push(f);
             }
@@ -367,10 +545,10 @@
 
         function otaPollReboot() {
             otaSetState('rebooting');
-            var attempts = 0, offline = false;
-            var poll = setInterval(function () {
+            let attempts = 0, offline = false;
+            const poll = setInterval(function () {
                 attempts++;
-                fetch('/wifi', { signal: AbortSignal.timeout(3000) })
+                pollHealth(3000)
                     .then(function (r) {
                         if (r.ok && offline) {
                             clearInterval(poll);
@@ -387,7 +565,6 @@
             }, 3000);
         }
 
-        // Dropzone interactions
         ota.dropzone.addEventListener('click', function () { ota.input.click(); });
         ota.input.addEventListener('change', function () {
             if (ota.input.files.length) otaAddFiles(ota.input.files);
@@ -401,71 +578,166 @@
             if (e.dataTransfer.files.length) otaAddFiles(e.dataTransfer.files);
         });
 
-        // Upload
         ota.btn.addEventListener('click', function () {
             if (!otaFiles.length) return otaSetState('idle', 'Please select at least one .bin file');
 
-            otaSetState('uploading');
-            otaSetProgress(0);
-
-            var formData = new FormData();
-            otaFiles.forEach(function (f) { formData.append('ota', f, f.name); });
-
-            var xhr = new XMLHttpRequest();
-
-            xhr.upload.addEventListener('progress', function (e) {
-                if (e.lengthComputable) {
-                    otaSetProgress(Math.round((e.loaded / e.total) * 100));
-                }
-            });
-
-            xhr.addEventListener('load', function () {
-                if (xhr.status === 200) otaPollReboot();
-                else otaSetState('idle', 'Update failed: ' + xhr.responseText);
-            });
-
-            xhr.addEventListener('error', function () {
-                otaSetState('idle', 'Upload failed: connection error.');
-            });
-
-            xhr.open('POST', '/ota');
-            xhr.send(formData);
-        });
-
-        // Handle Lichess form submission
-        document.getElementById('lichessForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-            const token = document.getElementById('lichessToken').value;
-
-            if (token.length < 10) {
-                alert('Please enter a valid Lichess API token');
-                return;
+            const pw = document.getElementById('otaUploadPassword').value;
+            if (otaPasswordRequired && !pw) {
+                return otaSetState('idle', 'OTA password is required');
             }
 
-            const formData = new URLSearchParams();
-            formData.append('token', token);
+            function startUpload() {
+                otaSetState('uploading');
+                otaSetProgress(0);
 
-            fetch('/lichess', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                body: formData
-            })
-                .then(response => {
-                    if (response.ok) {
-                        alert('Lichess token saved successfully!');
-                        document.getElementById('lichessToken').value = '';
-                        updateLichessInfo();
+                const formData = new FormData();
+                otaFiles.forEach(function (f) { formData.append('ota', f, f.name); });
+
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', function (e) {
+                    if (e.lengthComputable) {
+                        otaSetProgress(Math.round((e.loaded / e.total) * 100));
+                    }
+                });
+
+                xhr.addEventListener('load', function () {
+                    if (xhr.status === 200) otaPollReboot();
+                    else {
+                        var msg = xhr.responseText;
+                        try { msg = JSON.parse(msg).error || msg; } catch (e) { }
+                        otaSetState('idle', 'Update failed: ' + msg);
+                    }
+                });
+
+                xhr.addEventListener('error', function () {
+                    otaSetState('idle', 'Upload failed: connection error.');
+                });
+
+                xhr.open('POST', '/ota');
+                if (otaPasswordRequired && pw) {
+                    xhr.setRequestHeader('X-OTA-Password', pw);
+                }
+                xhr.send(formData);
+            }
+
+            // Pre-validate password before uploading
+            if (otaPasswordRequired) {
+                Api.verifyOtaPassword(pw)
+                    .then(function (data) {
+                        if (data.ok) startUpload();
+                        else otaSetState('idle', data.error || 'Incorrect OTA password');
+                    })
+                    .catch(function () { otaSetState('idle', 'Incorrect OTA password'); });
+            } else {
+                startUpload();
+            }
+        });
+
+        // ===========================
+        // Security
+        // ===========================
+        let otaPasswordRequired = false;
+
+        function updateOtaStatus() {
+            Api.getOtaStatus()
+                .then(function (data) {
+                    otaPasswordRequired = data.hasPassword === 'true';
+                    // Security section
+                    const setSection = document.getElementById('setPasswordSection');
+                    const manageSection = document.getElementById('managePasswordSection');
+                    if (otaPasswordRequired) {
+                        setSection.style.display = 'none';
+                        manageSection.style.display = '';
                     } else {
-                        alert('Failed to save token. Please try again.');
+                        setSection.style.display = '';
+                        manageSection.style.display = 'none';
+                    }
+                    // OTA section
+                    const protText = document.getElementById('ota-protection-text');
+                    const uploadPwGroup = document.getElementById('ota-upload-pw-group');
+                    if (otaPasswordRequired) {
+                        protText.innerHTML = '🔒 Protected — password required to upload.';
+                        protText.style.color = '#4CAF50';
+                        uploadPwGroup.style.display = '';
+                    } else {
+                        protText.innerHTML = '🔓 Unprotected — anyone on the network can upload firmware.';
+                        protText.style.color = '#f0ad4e';
+                        uploadPwGroup.style.display = 'none';
                     }
                 })
-                .catch(() => {
-                    alert('Error saving token. Please try again.');
+                .catch(function () {
+                    document.getElementById('ota-pw-status-text').textContent = 'Error loading status';
                 });
+        }
+
+        // Set password (no existing password)
+        document.getElementById('setOtaPasswordForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const newPw = document.getElementById('newOtaPassword').value;
+            const confirmPw = document.getElementById('confirmOtaPassword').value;
+            if (!newPw || newPw.length < 4) { alert('Password must be at least 4 characters'); return; }
+            if (newPw !== confirmPw) { alert('Passwords do not match'); return; }
+
+            Api.setOtaPassword(newPw, confirmPw, '')
+                .then(function (data) {
+                    if (data.ok) {
+                        alert('OTA password set!');
+                        document.getElementById('newOtaPassword').value = '';
+                        document.getElementById('confirmOtaPassword').value = '';
+                        updateOtaStatus();
+                    } else { alert(data.error || 'Failed to set password'); }
+                })
+                .catch(function () { alert('Error setting OTA password'); });
         });
+
+        // Change password (has existing password)
+        document.getElementById('changeOtaPasswordForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const currentPw = document.getElementById('currentOtaPassword').value;
+            const newPw = document.getElementById('changeOtaPassword').value;
+            const confirmPw = document.getElementById('changeConfirmOtaPassword').value;
+            if (!currentPw) { alert('Please enter your current password'); return; }
+            if (!newPw || newPw.length < 4) { alert('New password must be at least 4 characters'); return; }
+            if (newPw !== confirmPw) { alert('Passwords do not match'); return; }
+
+            Api.setOtaPassword(newPw, confirmPw, currentPw)
+                .then(function (data) {
+                    if (data.ok) {
+                        alert('OTA password changed!');
+                        document.getElementById('currentOtaPassword').value = '';
+                        document.getElementById('changeOtaPassword').value = '';
+                        document.getElementById('changeConfirmOtaPassword').value = '';
+                        updateOtaStatus();
+                    } else { alert(data.error || 'Failed to change password'); }
+                })
+                .catch(function () { alert('Error changing OTA password'); });
+        });
+
+        // Remove password
+        document.getElementById('removeOtaPasswordBtn').addEventListener('click', function () {
+            const currentPw = prompt('Enter your current OTA password to remove it:');
+            if (!currentPw) return;
+
+            Api.setOtaPassword('', '', currentPw)
+                .then(function (data) {
+                    if (data.ok) {
+                        alert('OTA password removed.');
+                        document.getElementById('currentOtaPassword').value = '';
+                        updateOtaStatus();
+                    } else { alert(data.error || 'Failed to remove password'); }
+                })
+                .catch(function () { alert('Error removing OTA password'); });
+        });
+
+
+        // ===========================
+        // Page init
+        // ===========================
+        updateWiFiInfo();
+        updateLichessInfo();
+        updateBoardSettings();
+        updateOtaStatus();
     </script>
 </body>
-
 </html>

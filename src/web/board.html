@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chess Board</title>
+    <title>OpenChess - Chess Board</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="stylesheet" href="./css/styles.css">
     <link rel="stylesheet" href="./css/chessboard-1.0.0.min.css">
@@ -13,6 +12,8 @@
     <script>var exports = {};</script>
     <script src="https://unpkg.com/chess.js@1.4.0/dist/cjs/chess.js"></script>
     <script>var Chess = exports.Chess;</script>
+    <script src="./scripts/api.js"></script>
+    <script src="./scripts/provider.js"></script>
 </head>
 
 <body>
@@ -97,8 +98,6 @@
     </div>
 
     <div class="container" style="padding-top: 43px;">
-        <!-- <h2>Chess Board</h2> -->
-
         <!-- Chess board wrapper -->
         <div class="board-wrapper">
             <div id="board" class="chessboard-container"></div>
@@ -207,7 +206,6 @@
         let updateInterval = null;
         let boardOrientation = 'white';
         let focusMode = false;
-        let previousPosition = null;
 
         // Move history / scrubbing state (segment-based)
         // Each segment: { fen, engine, moveCount, globalOffset, span }
@@ -621,8 +619,8 @@
         async function loadLiveGame() {
             try {
                 const [movesResp, fenResp] = await Promise.all([
-                    fetch('/games?id=live1'),
-                    fetch('/games?id=live2')
+                    Api.getGame('live1'),
+                    Api.getGame('live2')
                 ]);
 
                 if (!movesResp.ok) return false; // No live game
@@ -810,9 +808,8 @@
 
         async function loadGameList() {
             try {
-                const resp = await fetch('/games');
-                const data = await resp.json();
-                return data.games || [];
+                const resp = await Api.getGames();
+                return resp.games || [];
             } catch (e) {
                 console.log('Failed to load game list:', e);
                 return [];
@@ -868,7 +865,7 @@
 
         async function selectGame(gameId) {
             try {
-                const resp = await fetch('/games?id=' + gameId);
+                const resp = await Api.getGame(gameId);
                 if (!resp.ok) {
                     alert('Failed to load game');
                     return;
@@ -1406,8 +1403,7 @@
         function fetchBoardState() {
             if (editMode || reviewMode) return;
 
-            fetch('/board-update')
-                .then(response => response.json())
+            Api.getBoardUpdate()
                 .then(data => {
                     if (data.fen) {
                         if (liveSegments.length > 0) {
@@ -1503,11 +1499,7 @@
                 return;
             }
 
-            fetch('/board-update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'fen=' + encodeURIComponent(fen)
-            })
+            Api.submitBoardEdit(fen)
                 .then(response => {
                     if (response.ok) {
                         enableViewMode();
@@ -1585,8 +1577,7 @@
 
         // Sync board from server
         function syncFromServer() {
-            fetch('/board-update')
-                .then(response => response.json())
+            Api.getBoardUpdate()
                 .then(data => {
                     if (data.fen) {
                         parseFullFen(data.fen, false); // Don't play sound for manual sync
@@ -1694,8 +1685,7 @@
             $('#resignBtn').on('click', function () {
                 if (editMode || reviewMode) return;
                 if (!confirm('Are you sure you want to resign?')) return;
-                fetch('./resign', { method: 'POST' })
-                    .then(r => r.json())
+                Api.resign()
                     .then(data => {
                         if (data.ok) console.log('Resign request sent');
                         else console.error('Resign request failed');
@@ -1810,7 +1800,7 @@
                 let chain = Promise.resolve();
                 ids.forEach(id => {
                     chain = chain.then(() =>
-                        fetch('/games?id=' + id, { method: 'DELETE' }).then(resp => {
+                        Api.deleteGame(id).then(resp => {
                             if (!resp.ok) console.log('Failed to delete game ' + id);
                             // If reviewing a deleted game, exit review
                             if (reviewMode && reviewGameMeta && reviewGameMeta.gameId === id) {
@@ -1928,5 +1918,4 @@
         }
     </script>
 </body>
-
 </html>
