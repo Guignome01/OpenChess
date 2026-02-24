@@ -47,7 +47,7 @@ WiFiManagerESP32* WiFiManagerESP32::instance = nullptr;
 WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd, MoveHistory* mh) : boardDriver(bd), moveHistory(mh), server(AP_PORT), gameMode("0"), lichessToken(""), botConfig(), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
 
 void WiFiManagerESP32::begin() {
-  Serial.println("=== Starting OpenChess WiFi Manager (ESP32) ===");
+  Serial.println("=== Starting LibreChess WiFi Manager (ESP32) ===");
   instance = this;
 
   if (!ChessUtils::ensureNvsInitialized()) {
@@ -91,7 +91,7 @@ void WiFiManagerESP32::begin() {
     wifiState = WiFiState::AP_ONLY;
   }
 
-  // Start mDNS responder — enables http://openchess.local access
+  // Start mDNS responder — enables http://librechess.local access
   if (MDNS.begin(MDNS_HOSTNAME)) {
     MDNS.addService("http", "tcp", AP_PORT);
     Serial.println("mDNS started: http://" MDNS_HOSTNAME ".local");

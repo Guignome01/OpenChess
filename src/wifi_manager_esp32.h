@@ -18,10 +18,10 @@ class MoveHistory;
 // ---------------------------
 // WiFi Configuration
 // ---------------------------
-#define AP_SSID "OpenChess"
+#define AP_SSID "LibreChess"
 #define AP_PASSWORD "chess123"
 #define AP_PORT 80
-#define MDNS_HOSTNAME "openchess"
+#define MDNS_HOSTNAME "librechess"
 
 // ---------------------------
 // Security Configuration

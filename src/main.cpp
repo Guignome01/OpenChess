@@ -51,7 +51,7 @@ void setup() {
   delay(3000);
   Serial.println();
   Serial.println("================================================");
-  Serial.println("         OpenChess Starting Up");
+  Serial.println("         LibreChess Starting Up");
   Serial.println("================================================");
   if (!ChessUtils::ensureNvsInitialized())
     Serial.println("WARNING: NVS init failed (Preferences may not work)");

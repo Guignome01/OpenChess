@@ -1,4 +1,4 @@
-# OpenChess - Copilot Instructions
+# LibreChess - Copilot Instructions
 
 ## Project Overview
 ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors + shift register, provides LED feedback via WS2812B strip, and communicates with Stockfish API / Lichess API over WiFi. Built with PlatformIO (`esp32dev` board, Arduino framework).
@@ -111,7 +111,7 @@ GPIO pins are `#define`d in `board_driver.h`. The calibration system maps physic
 `WiFiManagerESP32` uses an event-driven `WiFiState` enum (`AP_ONLY`, `CONNECTING`, `CONNECTED`, `RECONNECTING`) managed via `WiFi.onEvent()` callbacks. The AP is **only active when there is no STA connection** — it starts on boot, shuts down ~10 seconds after a stable STA connection (stabilization timer prevents flapping), and re-enables immediately on STA disconnect. A non-blocking `update()` method called from `loop()` handles reconnection with exponential backoff across saved networks.
 
 ### mDNS
-`WiFiManagerESP32` starts mDNS with hostname `openchess` (defined as `MDNS_HOSTNAME` in `wifi_manager_esp32.h`), enabling access via `http://openchess.local`. mDNS initializes in `begin()` after the AP starts, and restarts in `handleWiFiConnected()` to bind to the STA interface. The hostname is included in the `/wifi/networks` JSON response for the web UI.
+`WiFiManagerESP32` starts mDNS with hostname `librechess` (defined as `MDNS_HOSTNAME` in `wifi_manager_esp32.h`), enabling access via `http://librechess.local`. mDNS initializes in `begin()` after the AP starts, and restarts in `handleWiFiConnected()` to bind to the STA interface. The hostname is included in the `/wifi/networks` JSON response for the web UI.
 
 ### Known-Networks Registry
 Up to 3 WiFi networks are stored in NVS namespace `"wifiNets"` (keys `"count"`, `"ssid0"`/`"pass0"` through `"ssid2"`/`"pass2"`). On boot, networks are tried in order until one connects. API endpoints (`/wifi/networks`, `/wifi/connect`, `/wifi/scan`) manage the list. Legacy single-network NVS data (`"wifiCreds"`) is auto-migrated on first boot.
