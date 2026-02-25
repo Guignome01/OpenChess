@@ -1,6 +1,6 @@
 # LibreChess - Project Instructions
 
-> **Sync directive**: This file is mirrored in `.claude/CLAUDE.md`. When modifying either file, always apply the same changes to the other. Both files must remain identical in content.
+> **Sync directive**: This file is mirrored in `.github/copilot-instructions.md`. When modifying either file, always apply the same changes to the other. Both files must remain identical in content.
 
 ## Project Overview
 ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors + shift register, provides LED feedback via WS2812B strip, and communicates with Stockfish API / Lichess API over WiFi. Built with PlatformIO (`esp32dev` board, Arduino framework).
