@@ -10,7 +10,7 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 ├── docs/                   Project documentation
 ├── BuildGuide/             Build photos and schematics (to be updated)
 ├── platformio.ini          PlatformIO build configuration
-├── OpenChess.code-workspace VS Code workspace file
+├── LibreChess.code-workspace VS Code workspace file
 ├── grid_scan_test.cpp      Standalone sensor grid debugging utility
 ├── .clang-format           C++ code formatting rules (Google style base)
 ├── .github/                GitHub Copilot instructions

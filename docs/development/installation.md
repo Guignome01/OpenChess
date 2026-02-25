@@ -15,10 +15,10 @@ How to set up the development environment, build the firmware, and flash it to a
 ## Clone & Open
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Guignome01/LibreChess.git
 ```
 
-Open the `OpenChess.code-workspace` file in VS Code. This configures the workspace with the correct folder structure and PlatformIO settings.
+Open the `LibreChess.code-workspace` file in VS Code. This configures the workspace with the correct folder structure and PlatformIO settings.
 
 ## Build & Flash
 
