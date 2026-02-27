@@ -77,6 +77,16 @@ On boot, if these files exist with valid data:
 
 Game resume is supported for Human vs Human and Bot modes. Lichess games are managed by the server and resume through the normal Lichess polling mechanism.
 
+## Web Board Editing
+
+The web UI's board page includes a drag-and-drop board editor for modifying the position during a game:
+
+- Drag pieces on and off the board to set up any position
+- Import or export positions as FEN strings
+- Toggle castling rights and en passant squares
+
+When a position is submitted, the physical board updates its LEDs to reflect the new position and the game continues from the edited state.
+
 ## Dark Square Dimming
 
 LEDs on dark squares are automatically dimmed relative to light squares. The default setting is 70%, meaning dark square LEDs operate at 70% of the brightness of light squares. This compensates for the increased perceived brightness on a dark background, creating a visually uniform appearance.

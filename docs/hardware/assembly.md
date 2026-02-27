@@ -12,7 +12,9 @@ The assembly involves four main stages:
 
 ## 3D-Printed Board
 
-The chessboard requires a 3D-printed enclosure that is **not included in this repository**. The print files must be downloaded from an external source before starting assembly:
+LibreChess requires a 3D-printed board enclosure. Inside it, an ESP32 microcontroller, 64 hall-effect sensors, a WS2812B LED strip, and chess pieces fitted with neodymium magnets come together to make the smart board work. See the [components list](components.md) for the full parts list.
+
+The print files are created and maintained by an external contributor under their own license, so they are **not included in this repository**. Download them before starting assembly:
 
 **[OpenChess 3D Print Files on MakerWorld](https://makerworld.com/models/1953392-openchess-plastic-pcb)**
 
