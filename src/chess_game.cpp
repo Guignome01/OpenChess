@@ -1,6 +1,7 @@
 #include "chess_game.h"
-#include "chess_utils.h"
+#include "utils.h"
 #include "move_history.h"
+#include "system_utils.h"
 #include "wifi_manager_esp32.h"
 #include <string.h>
 
@@ -66,9 +67,9 @@ void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
           if (shouldHavePiece && !hasPiece) {
             // Need to place a piece here - show where pieces should go
             if (ChessUtils::isWhitePiece(targetBoard[row][col]))
-              boardDriver->setSquareLED(row, col, ChessUtils::colorLed('w'));
+              boardDriver->setSquareLED(row, col, SystemUtils::colorLed('w'));
             else
-              boardDriver->setSquareLED(row, col, ChessUtils::colorLed('b'));
+              boardDriver->setSquareLED(row, col, SystemUtils::colorLed('b'));
           } else if (!shouldHavePiece && hasPiece) {
             // Need to remove a piece from here - show in red
             boardDriver->setSquareLED(row, col, LedColors::Red);
@@ -352,7 +353,7 @@ void ChessGame::updateGameStatus() {
   if (chessEngine->isCheckmate(board, currentTurn)) {
     char winnerColor = (currentTurn == 'w') ? 'b' : 'w';
     Serial.printf("CHECKMATE! %s wins!\n", ChessUtils::colorName(winnerColor));
-    boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
+    boardDriver->fireworkAnimation(SystemUtils::colorLed(winnerColor));
     gameOver = true;
     if (moveHistory) moveHistory->finishGame(RESULT_CHECKMATE, winnerColor);
     return;
@@ -394,14 +395,14 @@ void ChessGame::updateGameStatus() {
   Serial.printf("It's %s's turn !\n", ChessUtils::colorName(currentTurn));
 }
 
-void ChessGame::setBoardStateFromFEN(const String& fen) {
+void ChessGame::setBoardStateFromFEN(const std::string& fen) {
   ChessUtils::fenToBoard(fen, board, currentTurn, chessEngine);
   chessEngine->recordPosition(board, currentTurn);
   if (moveHistory && moveHistory->isRecording())
     moveHistory->addFen(fen);
   wifiManager->updateBoardState(ChessUtils::boardToFEN(board, currentTurn, chessEngine), ChessUtils::evaluatePosition(board));
-  Serial.println("Board state set from FEN: " + fen);
-  ChessUtils::printBoard(board);
+  Serial.println("Board state set from FEN: " + String(fen.c_str()));
+  SystemUtils::printBoard(board);
 }
 
 void ChessGame::updateCastlingRightsAfterMove(int fromRow, int fromCol, int toRow, int toCol, char movedPiece, char capturedPiece) {
@@ -602,7 +603,7 @@ bool ChessGame::handleResign(char resignColor) {
   char winnerColor = (resignColor == 'w') ? 'b' : 'w';
   Serial.printf("RESIGNATION! %s resigns. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
 
-  boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
+  boardDriver->fireworkAnimation(SystemUtils::colorLed(winnerColor));
   if (moveHistory)
     moveHistory->finishGame(RESULT_RESIGNATION, winnerColor);
   gameOver = true;

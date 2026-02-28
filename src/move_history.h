@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
+#include <string>
 #include <vector>
 
 // Forward declaration
@@ -50,7 +51,7 @@ class MoveHistory {
   void addMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
   // Append a FEN marker to the live moves file and write the FEN string into the live FEN table file
-  void addFen(const String& fen);
+  void addFen(const std::string& fen);
 
   // Finalize the live game: update header, merge FEN table, rename to a completed-game file, enforce storage limits
   void finishGame(uint8_t result, char winnerColor);

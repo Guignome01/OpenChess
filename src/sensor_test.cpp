@@ -1,5 +1,4 @@
 #include "sensor_test.h"
-#include "chess_utils.h"
 #include <Arduino.h>
 
 SensorTest::SensorTest(BoardDriver* bd) : boardDriver(bd), complete(false) {

@@ -1,6 +1,5 @@
 #include "move_history.h"
 #include "chess_game.h"
-#include "chess_utils.h"
 #include <ArduinoJson.h>
 #include <algorithm>
 #include <sys/stat.h>
@@ -171,7 +170,7 @@ void MoveHistory::addMove(int fromRow, int fromCol, int toRow, int toCol, char p
   }
 }
 
-void MoveHistory::addFen(const String& fen) {
+void MoveHistory::addFen(const std::string& fen) {
   if (!recording) return;
 
   // Write FEN_MARKER to moves file
@@ -355,7 +354,7 @@ bool MoveHistory::replayIntoGame(ChessGame* game) {
 
   // Set board state from last FEN
   recording = false;
-  game->setBoardStateFromFEN(lastFen);
+  game->setBoardStateFromFEN(std::string(lastFen.c_str()));
 
   // Replay UCI moves after the last FEN marker
   for (int i = lastFenIdx + 1; i < (int)moves.size(); i++) {

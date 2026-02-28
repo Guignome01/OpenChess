@@ -10,10 +10,10 @@ Formatting is enforced via `.clang-format` at the project root (Google style bas
 
 | Element | Convention | Example |
 |---------|-----------|---------|
-| Classes | PascalCase | `BoardDriver`, `ChessEngine`, `WiFiManagerESP32` |
+| Classes | PascalCase | `BoardDriver`, `ChessRules`, `WiFiManagerESP32` |
 | Methods & variables | camelCase | `readSensors()`, `currentTurn`, `isGameOver` |
 | Constants & macros | UPPER_SNAKE_CASE | `LED_COUNT`, `SENSOR_READ_DELAY_MS`, `DEBOUNCE_MS` |
-| File names | snake_case | `board_driver.cpp`, `chess_engine.h`, `move_history.cpp` |
+| File names | snake_case | `board_driver.cpp`, `chess_game.h`, `move_history.cpp` |
 | Enum values | UPPER_SNAKE_CASE | `RESULT_CHECKMATE`, `AP_ONLY` |
 
 ## Architecture Principles
@@ -23,7 +23,7 @@ Formatting is enforced via `.clang-format` at the project root (Google style bas
 Each class owns a single responsibility and never crosses into another's domain:
 
 - `BoardDriver` handles all hardware interaction (LEDs, sensors, calibration). No chess logic.
-- `ChessEngine` implements chess rules and move generation. No hardware access, no network calls.
+- `ChessRules` implements chess rules and move generation. No hardware access, no network calls.
 - `WiFiManagerESP32` manages WiFi, the web server, and API endpoints. Doesn't touch the board hardware directly.
 - `MoveHistory` owns game persistence. Doesn't know about sensors or LEDs.
 
@@ -79,3 +79,13 @@ All HTML pages call `Api.*` methods. No page contains raw `fetch()` calls to API
 - **Credential hashing** — OTA passwords are stored as salted SHA-256 hashes (using mbedtls, bundled with ESP-IDF). The raw password is never persisted.
 - **TLS encryption** — external API connections (Lichess, Stockfish) use `WiFiClientSecure` with TLS encryption.
 - **Minimal dependencies** — prefer `mbedtls` (bundled) over external crypto libraries. Prefer built-in FreeRTOS primitives over third-party abstractions.
+
+## Testing Conventions
+
+- **Tests guard correctness** — never modify a test to make it pass. If a test fails, fix the production code.
+- **Tests must stay in sync** — when changing chess logic in `lib/core/`, update or add tests in the same change.
+- **Always test changes** — every logic change must be validated by running the test suite (`pio test -e native`) before committing.
+- **Core library boundary** — only code in `lib/core/` (no Arduino dependencies) is testable natively. Arduino/ESP32 utilities live in `src/system_utils.*`.
+- **Board setup** — tests that call `getPossibleMoves()` must always have both kings on the board (the engine filters moves that leave the king in check, and returns no moves if no king is found).
+
+For details on test architecture and suites, see [project-structure.md — Unit Tests](project-structure.md#unit-tests-test).

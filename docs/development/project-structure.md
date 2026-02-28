@@ -6,6 +6,8 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 
 ```
 ├── src/                    Firmware source code and web frontend sources
+├── lib/core/               Natively-compilable chess engine library (no Arduino deps)
+├── test/                   Native unit tests (PlatformIO Unity framework)
 ├── data/                   Pre-built web assets (gzip-compressed) for LittleFS
 ├── docs/                   Project documentation
 ├── BuildGuide/             Build photos and schematics (to be updated)
@@ -27,16 +29,14 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 |------|---------|
 | `main.cpp` | Entry point: `setup()` and `loop()`. Game mode selection, menu routing, WiFi/resign/board-edit relay, and game lifecycle management. |
 | `board_driver.h/.cpp` | Hardware abstraction: LED strip (NeoPixelBus, I2S DMA), sensor grid (shift register scan + GPIO reads), calibration (NVS-persisted), LED settings (brightness, dimming), and async animation queue (FreeRTOS task + queue). GPIO pin definitions. |
-| `chess_engine.h/.cpp` | Pure chess logic: move generation, legal move filtering, check/checkmate/stalemate detection, castling rights, en passant, promotion, 50-move rule, and threefold repetition via Zobrist hashing. No hardware dependencies. |
-| `chess_utils.h/.cpp` | Static helper functions: FEN ↔ board array conversion, UCI move encoding/parsing, piece color detection, material evaluation, board printing, NVS initialization. |
+| `system_utils.h/.cpp` | Arduino/ESP32 utility functions: `colorLed()` (piece char → LED color), `printBoard()` (Serial debug), `ensureNvsInitialized()` (Preferences guard). Not available in native tests. |
 | `led_colors.h` | `LedRGB` struct and named color constants (Cyan, White, Red, Green, Yellow, Purple, Orange, Blue, etc.) with `scaleColor()` brightness helper. |
-| `zobrist_keys.h` | Pre-computed Zobrist hash tables in PROGMEM (~6.2KB flash) for threefold repetition detection. |
 
 ### Game Modes
 
 | File | Purpose |
 |------|---------|
-| `chess_game.h/.cpp` | Abstract base class for all game modes. Owns the board state, current turn, and game-over flag. Implements shared logic: `tryPlayerMove()`, `applyMove()`, `updateGameStatus()`, `waitForBoardSetup()`, resign gesture handling, and LED feedback helpers. |
+| `chess_game.h/.cpp` | Abstract base class for all game modes. Owns a `ChessBoard` (`gm_`) that manages the board state, current turn, game-over flag, and chess rules internally. Implements shared logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessBoard::makeMove()`), `waitForBoardSetup()`, resign gesture handling, and LED feedback helpers. |
 | `chess_moves.h/.cpp` | Human vs Human mode. Minimal subclass — implements `begin()` (board setup, game recording) and `update()` (sensor polling, move processing). |
 | `chess_bot.h/.cpp` | Human vs Bot mode. Extends `ChessGame` with Stockfish API integration, thinking animation, `makeBotMove()`, and `waitForRemoteMoveCompletion()` for guiding the player through bot moves. |
 | `chess_lichess.h/.cpp` | Lichess online mode. Extends `ChessBot` with Lichess API polling, game stream handling, waiting animation, and resign override that also resigns on Lichess. |
@@ -92,6 +92,39 @@ The ESP32 serves a web interface directly from flash storage. The frontend is bu
 
 - `src/web/pieces/` — SVG chess piece images (12 files: `wK.svg`, `bQ.svg`, etc.)
 - `src/web/sounds/` — Move sounds (`move.nogz.mp3`, `capture.nogz.mp3`). The `.nogz.` naming convention prevents gzip compression in the build pipeline — these are served as raw binary files.
+
+## Chess Engine Library (`lib/core/`)
+
+The `lib/core/` library contains all natively-compilable chess logic with zero Arduino dependencies. PlatformIO's Library Dependency Finder auto-discovers it for both the ESP32 and native test environments. All code uses `std::string` (not Arduino `String`); firmware call sites bridge with `.c_str()` / `std::string()`.
+
+| File | Purpose |
+|------|---------|
+| `library.json` | PlatformIO library descriptor. |
+| `src/rules.h/.cpp` | `ChessRules` class: stateless, all-static chess logic. Move generation, legal move filtering, check/checkmate/stalemate, castling validation, en passant, promotion. Position-dependent state (castling rights, en passant target) is passed in via `const PositionState&`. |
+| `src/board.h/.cpp` | `ChessBoard` class: complete game-state manager. Owns the board array, current turn, game-over flag, result, and all position state via `PositionState` (castling rights, en passant, halfmove/fullmove clocks). Zobrist hashing for threefold repetition. Public API: `newGame()`, `loadFEN()`, `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`, callback/batching. |
+| `src/utils.h/.cpp` | `ChessUtils` namespace: FEN ↔ board conversion, piece color detection, material evaluation, and inline helper functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `getEnPassantCapturedPawnRow`, `isCastlingMove`, `colorName`). |
+| `src/codec.h/.cpp` | `ChessCodec` namespace: UCI move encoding/parsing, castling rights strings, compact 2-byte move encoding for binary storage. |
+| `src/types.h` | Shared chess types: `PositionState` struct (castling rights, en passant target, halfmove/fullmove clocks — passed to `ChessRules` methods and owned by `ChessBoard`), `GameResult` enum, `MoveResult` struct (returned by `ChessBoard::makeMove()`), `invalidMoveResult()` factory. |
+| `src/zobrist_keys.h` | Pre-computed Zobrist hash tables (~6.2KB flash) with PROGMEM guard for ESP32/native portability. |
+
+## Unit Tests (`test/`)
+
+Native unit tests using the PlatformIO Unity framework. All engine tests are consolidated in a single `test_core/` suite.
+
+```
+test/
+├── test_helpers.h                  Shared utilities (setupInitialBoard, clearBoard, placePiece, etc.)
+└── test_core/
+    ├── test_core.cpp             Main entry: setUp/tearDown, shared globals, register calls
+    ├── test_rules_moves.cpp      Move generation per piece type, captures, initial position
+    ├── test_rules_check.cpp      Check detection, checkmate, stalemate, move legality
+    ├── test_rules_special.cpp    Castling, en passant, promotion, helper functions
+    ├── test_utils.cpp            FEN round-trip, evaluation, piece color helpers, 50-move rule
+    ├── test_codec.cpp            UCI move conversion, castling rights strings
+    └── test_board.cpp            ChessBoard lifecycle, moves, special moves, draws, FEN, callbacks
+```
+
+Run with `pio test -e native`. See [PlatformIO Unit Testing docs](https://docs.platformio.org/en/latest/advanced/unit-testing/index.html).
 
 ## Build Scripts (`src/web/build/`)
 

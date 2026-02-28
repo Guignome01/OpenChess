@@ -25,13 +25,12 @@ Components are wired through pointer injection at construction time. No global s
 
 ```cpp
 BoardDriver boardDriver;
-ChessEngine chessEngine;
 MoveHistory moveHistory;
 WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
-ChessBot botGame(&boardDriver, &chessEngine, &wifiManager, &moveHistory, botConfig);
+ChessBot botGame(&boardDriver, &wifiManager, &moveHistory, botConfig);
 ```
 
-A game mode receives exactly the services it needs. `ChessLichess` does not receive a `MoveHistory*` — Lichess games are recorded on the server, not locally (it passes `nullptr` for `moveHistory`).
+Each `ChessGame` owns its `ChessBoard` internally — there is no shared chess state. A game mode receives exactly the hardware/network services it needs. `ChessLichess` does not receive a `MoveHistory*` — Lichess games are recorded on the server, not locally (it passes `nullptr` for `moveHistory`).
 
 ## Coordinate System
 
@@ -61,19 +60,30 @@ The physical order of pin connections **does not matter** — the calibration pr
 
 **Sensor polling parameters**: `SENSOR_READ_DELAY_MS` = 40ms (polling interval), `DEBOUNCE_MS` = 125ms (state change debounce window). A piece must be present (or absent) for the full debounce duration before the change is registered, preventing false triggers from sliding pieces or magnetic interference. Always call `boardDriver.readSensors()` before reading state — the state arrays are only updated on explicit read calls.
 
-### ChessEngine
+### ChessRules
 
-Pure chess logic with zero hardware or network dependencies. Implements:
+Lives in `lib/core/` — a standalone PlatformIO library with zero Arduino dependencies. This makes it natively compilable for host-based unit testing while still being auto-discovered by the ESP32 build via PlatformIO's Library Dependency Finder.
 
-- **Move generation** — `getPossibleMoves()` returns all legal moves for a piece at a given position. Internally generates pseudo-legal moves per piece type, then filters out any move that would leave the player's king in check (`wouldMoveLeaveKingInCheck()`).
-- **Castling** — tracked as a 4-bit bitmask (`castlingRights`: bit 0 = White kingside, bit 1 = White queenside, bit 2 = Black kingside, bit 3 = Black queenside). `addCastlingMoves()` checks rights, empty intermediate squares, and that the king doesn't pass through or land on an attacked square.
-- **En passant** — tracked as a target square (`enPassantTargetRow`, `enPassantTargetCol`). Set after a two-square pawn advance, cleared after every other move.
-- **50-move rule** — `halfmoveClock` incremented per half-move, reset on pawn moves and captures. `isFiftyMoveRule()` returns true at 100 (50 full moves).
-- **Threefold repetition** — Zobrist hashing with pre-computed random tables stored in PROGMEM (~6.2KB flash, defined in `zobrist_keys.h`). Each piece-square combination has a unique 64-bit hash. Positions are hashed incrementally via XOR. `positionHistory[MAX_POSITION_HISTORY]` (128 entries, fixed array) stores hashes, cleared on irreversible moves (pawn moves, captures, castling right changes) for memory efficiency. `isThreefoldRepetition()` scans the history for 3 occurrences of the current hash.
-- **Game state checks** — `isKingInCheck()`, `isCheckmate()`, `isStalemate()`, `hasAnyLegalMove()`, `isPawnPromotion()`.
-- **Fullmove clock** — starts at 1, incremented after Black's move. Used for FEN generation.
+Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has no member variables, no constructor, and no instance state. Position-dependent context (castling rights, en passant target) is passed in via `const PositionState&` (defined in `types.h`). Implements:
 
-The engine is stateful — castling rights, en passant target, clocks, and position history persist across moves. `reset()` returns the engine to the initial game state. `ChessUtils::boardFromFEN()` can restore full state from a FEN string including castling rights, en passant, and clocks.
+- **Move generation** — `getPossibleMoves(board, row, col, flags, ...)` returns all legal moves for a piece at a given position. Internally generates pseudo-legal moves per piece type, then filters out any move that would leave the player's king in check (`wouldMoveLeaveKingInCheck()`).
+- **Castling** — the `flags.castlingRights` bitmask (bit 0 = White kingside, bit 1 = White queenside, bit 2 = Black kingside, bit 3 = Black queenside) is passed in by the caller. `addCastlingMoves()` checks rights, empty intermediate squares, and that the king doesn't pass through or land on an attacked square.
+- **En passant** — the target square (`flags.epRow`, `flags.epCol`) is passed in by the caller. `hasLegalEnPassantCapture()` checks whether an adjacent pawn can legally execute the capture (used by `ChessBoard` for Zobrist hashing).
+- **Game state checks** — `isKingInCheck(board, color)`, `isCheckmate(board, color, flags)`, `isStalemate(board, color, flags)`, `hasAnyLegalMove(board, color, flags)`, `isPawnPromotion(piece, row)`, `isSquareUnderAttack(board, row, col, defendingColor)`, `findKingPosition(board, color, row, col)`.
+
+`ChessBoard` owns all position state (castling rights, en passant target, halfmove/fullmove clocks) via a `PositionState` struct and passes it to `ChessRules` methods as needed.
+
+### ChessBoard
+
+Also in `lib/core/` (`board.h/cpp`). Complete chess game-state manager — the "chess.js" of the project. Owns the board array, current turn, game-over state, and all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock). Public API: `newGame()`, `loadFEN()`, `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`, callback/batching. Calls `ChessRules` static methods for rule evaluation, passing `state_` where position-dependent context is needed.
+
+- **Position tracking** — Zobrist hashing with pre-computed random tables (~6.2KB flash, defined in `zobrist_keys.h`). Each piece-square combination has a unique 64-bit hash. `positionHistory_[MAX_POSITION_HISTORY]` (128 entries, fixed array) stores hashes, cleared on irreversible moves (pawn moves, captures) for memory efficiency. `isThreefoldRepetition()` scans the history for 3 occurrences of the current hash. En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Positions are recorded automatically after each move and on `newGame()`/`loadFEN()`.
+
+### ChessUtils & SystemUtils
+
+`ChessUtils` (in `lib/core/`, `utils.h/cpp`) is a namespace providing helper functions for chess logic: FEN ↔ board conversion, piece color detection, material evaluation, and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`). `ChessCodec` (in `lib/core/`, `codec.h/cpp`) is a companion namespace providing encoding/decoding helpers: UCI move strings, castling rights string formatting/parsing, and compact 2-byte move encoding for binary storage. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
+
+`SystemUtils` (in `src/`) contains the Arduino/ESP32-dependent functions that were separated from the core library: `colorLed()` (piece char → LED color), `printBoard()` (Serial debug output), and `ensureNvsInitialized()` (Arduino Preferences guard). These are not available in native tests.
 
 ### WiFiManagerESP32
 
@@ -97,7 +107,7 @@ Manages WiFi connectivity, the web server, and all HTTP API endpoints. Key subsy
 
 ### MoveHistory
 
-LittleFS-based game recording and crash recovery system. `friend` of `ChessGame` for access to `applyMove()` and `advanceTurn()` during replay.
+LittleFS-based game recording and crash recovery system. Uses `ChessGame`'s public `beginReplay()`/`replayMove()`/`endReplay()` API during game restoration.
 
 **Binary format** — each game consists of two files:
 - `<id>.bin` (or `live.bin`) — 16-byte packed `GameHeader` followed by 2-byte UCI-encoded move entries
@@ -127,14 +137,13 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 **Game list API** — `getGameListJSON()` returns a JSON array of all completed games with metadata (id, mode, result, winner, move count, timestamp, bot config). Used by the web UI's game history panel.
 
-### ChessEngine Interaction
+### ChessRules Interaction
 
-The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `ChessEngine` (rules):
+The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `ChessBoard` (chess state):
 
-1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `ChessEngine::getPossibleMoves()`, waits for placement, validates the move, then calls `applyMove()`.
-2. `applyMove()` — updates `board[8][8]`, records the move in `MoveHistory`, handles special cases (castling rook movement, en passant capture removal, promotion), calls `ChessEngine` to update castling rights, en passant target, and clocks.
-3. `updateGameStatus()` — calls `ChessEngine::isCheckmate()`, `isStalemate()`, `isFiftyMoveRule()`, `isThreefoldRepetition()` to check game-ending conditions. Triggers LED animations (firework, check blink) and sets `gameOver = true` when appropriate.
-4. `advanceTurn()` — flips `currentTurn`, records the new position in the Zobrist history, updates the FEN for the web UI, and periodically snapshots a FEN to `MoveHistory` for crash recovery.
+1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `ChessRules::getPossibleMoves(board, row, col, gm_.positionState(), ...)`, waits for placement, validates the move, then calls `applyMove()`.
+2. `applyMove()` — calls `gm_.makeMove()` which updates the board, castling rights, en passant, clocks, and detects game-end conditions. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, MoveHistory recording, remote-move guidance, and game-end animations.
+3. Turn advancement, castling rights, and game-end detection are all handled internally by `ChessBoard::makeMove()` — the firmware never modifies the board or turn directly.
 
 ## Game Mode Lifecycle
 
@@ -385,7 +394,7 @@ NVS stores settings that survive firmware updates and power cycles. Organized by
 | `lichess` | `token` | Lichess API token |
 | `ota` | `passHash`, `salt` | OTA password (salted SHA-256 hash) |
 
-All NVS access uses Arduino's `Preferences` library. `ChessUtils::ensureNvsInitialized()` must be called before any NVS operation — it initializes the NVS partition if needed.
+All NVS access uses Arduino's `Preferences` library. `SystemUtils::ensureNvsInitialized()` must be called before any NVS operation — it initializes the NVS partition if needed.
 
 ### NTP Time Sync
 
@@ -482,12 +491,14 @@ The `data/` directory is committed to git so users without npm tools can still b
 
 ## Utilities
 
-**`ChessUtils`** (`chess_utils.h/cpp`) — static helper functions:
-- `boardToFEN(board, engine, turn)` / `boardFromFEN(fen, board, engine, turn)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks)
-- `encodeUCI()` / `parseUCI()` — UCI move string encoding and parsing
-- `getPieceColor(piece)` — returns `'w'`, `'b'`, or `' '`
-- `evaluateMaterial(board)` — material balance in centipawns
-- `printBoard(board)` — serial debug output
-- `ensureNvsInitialized()` — one-time NVS partition initialization
+**`ChessUtils`** (`utils.h/cpp`) — namespace with helper functions:
+- `boardToFEN(board, turn, state)` / `fenToBoard(fen, board, turn, state)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks) via `PositionState*`
+- `toUCIMove()` / `parseUCIMove()` — UCI move string encoding and parsing
+- `getPieceColor(piece)` — returns `'w'` or `'b'`
+- `isWhitePiece()`, `isBlackPiece()` — piece color checks
+- `isEnPassantMove()`, `getEnPassantCapturedPawnRow()`, `isCastlingMove()` — special move detection
+- `evaluatePosition(board)` — material balance in pawns
+- `castlingRightsToString()` / `castlingRightsFromString()` — FEN castling field
+- `colorName()` — `'w'`→`"White"`, `'b'`→`"Black"`
 
 **`grid_scan_test.cpp`** — standalone hardware debugging utility at the repo root (not compiled in normal builds). Tests shift register column scanning and row GPIO reads. Useful for verifying sensor wiring before running the full firmware.

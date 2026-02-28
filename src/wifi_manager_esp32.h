@@ -10,6 +10,7 @@
 #include <Preferences.h>
 #include <WiFi.h>
 #include <array>
+#include <string>
 
 // Forward declarations
 struct LichessConfig;
@@ -67,7 +68,7 @@ class WiFiManagerESP32 {
 
   MoveHistory* moveHistory;
   BoardDriver* boardDriver;
-  String currentFen;
+  std::string currentFen;
   float boardEvaluation;
 
   // Board edit storage (pending edits from web interface)
@@ -152,8 +153,8 @@ class WiFiManagerESP32 {
   LichessConfig getLichessConfig();
   String getLichessToken() { return lichessToken; }
   // Board state management (FEN-based)
-  void updateBoardState(const String& fen, float evaluation = 0.0f);
-  String getCurrentFen() const { return currentFen; }
+  void updateBoardState(const std::string& fen, float evaluation = 0.0f);
+  const std::string& getCurrentFen() const { return currentFen; }
   float getEvaluation() const { return boardEvaluation; }
   // Board edit management (FEN-based)
   bool getPendingBoardEdit(String& fenOut);

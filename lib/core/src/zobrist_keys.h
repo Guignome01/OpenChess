@@ -1,7 +1,11 @@
 #ifndef ZOBRIST_KEYS_H
 #define ZOBRIST_KEYS_H
 
-#include <Arduino.h>
+#include <stdint.h>
+
+#ifndef PROGMEM
+#define PROGMEM
+#endif
 
 // Pre-computed Zobrist keys (deterministic xorshift64, seed=0x12345678ABCDEF01)
 // Stored in flash (PROGMEM) to save ~6.2KB of RAM on ESP32.

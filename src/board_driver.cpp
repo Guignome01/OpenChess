@@ -1,5 +1,5 @@
 #include "board_driver.h"
-#include "chess_utils.h"
+#include "system_utils.h"
 #include "led_colors.h"
 #include <Arduino.h>
 #include <Preferences.h>
@@ -132,7 +132,7 @@ void BoardDriver::executeAnimation(const AnimationJob& job) {
 }
 
 bool BoardDriver::loadCalibration() {
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - calibration not loaded");
     return false;
   }
@@ -187,7 +187,7 @@ bool BoardDriver::loadCalibration() {
 }
 
 void BoardDriver::saveCalibration() {
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - calibration not saved");
     return;
   }
@@ -1020,7 +1020,7 @@ void BoardDriver::setDimMultiplier(uint8_t value) {
 }
 
 void BoardDriver::loadLedSettings() {
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - LED settings not loaded");
     return;
   }
@@ -1033,7 +1033,7 @@ void BoardDriver::loadLedSettings() {
 }
 
 void BoardDriver::saveLedSettings() {
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - LED settings not saved");
     return;
   }
@@ -1047,7 +1047,7 @@ void BoardDriver::saveLedSettings() {
 
 void BoardDriver::triggerCalibration() {
   // Mark calibration as needed by clearing the saved calibration
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - cannot trigger calibration");
     return;
   }

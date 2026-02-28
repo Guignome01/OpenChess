@@ -3,8 +3,8 @@
 
 #include "board_driver.h"
 #include "board_menu.h"
-#include "chess_engine.h"
-#include "chess_utils.h"
+#include "engine.h"
+#include "utils.h"
 #include "led_colors.h"
 #include <Arduino.h>
 
@@ -78,7 +78,7 @@ class ChessGame {
   virtual void begin() = 0;
   virtual void update() = 0;
 
-  void setBoardStateFromFEN(const String& fen);
+  void setBoardStateFromFEN(const std::string& fen);
   bool isGameOver() const { return gameOver; }
   void setResignPending(bool pending) { resignPending = pending; }
 

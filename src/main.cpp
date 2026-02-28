@@ -1,9 +1,9 @@
 #include "board_driver.h"
 #include "chess_bot.h"
-#include "chess_engine.h"
 #include "chess_lichess.h"
 #include "chess_moves.h"
-#include "chess_utils.h"
+#include "engine.h"
+#include "system_utils.h"
 #include "led_colors.h"
 #include "menu_config.h"
 #include "move_history.h"
@@ -53,7 +53,7 @@ void setup() {
   Serial.println("================================================");
   Serial.println("         LibreChess Starting Up");
   Serial.println("================================================");
-  if (!ChessUtils::ensureNvsInitialized())
+  if (!SystemUtils::ensureNvsInitialized())
     Serial.println("WARNING: NVS init failed (Preferences may not work)");
 
 #ifdef FACTORY_RESET
@@ -154,7 +154,7 @@ void loop() {
     Serial.println("Applying board edit from WiFi interface...");
 
     if (activeGame != nullptr && modeInitialized) {
-      activeGame->setBoardStateFromFEN(editFen);
+      activeGame->setBoardStateFromFEN(std::string(editFen.c_str()));
       Serial.println("Board edit applied");
     } else {
       Serial.println("Warning: Board edit received but no active game mode");

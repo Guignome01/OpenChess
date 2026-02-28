@@ -1,6 +1,6 @@
 #include "wifi_manager_esp32.h"
 #include "chess_lichess.h"
-#include "chess_utils.h"
+#include "system_utils.h"
 #include "move_history.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -50,7 +50,7 @@ void WiFiManagerESP32::begin() {
   Serial.println("=== Starting LibreChess WiFi Manager (ESP32) ===");
   instance = this;
 
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - credentials not loaded");
   } else {
     loadNetworks();
@@ -301,7 +301,7 @@ void WiFiManagerESP32::loadNetworks() {
 }
 
 void WiFiManagerESP32::saveNetworks() {
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     Serial.println("NVS init failed - networks not saved");
     return;
   }
@@ -689,7 +689,7 @@ void WiFiManagerESP32::handleSaveLichessToken(AsyncWebServerRequest* request) {
     return;
   }
 
-  if (!ChessUtils::ensureNvsInitialized()) {
+  if (!SystemUtils::ensureNvsInitialized()) {
     sendJsonError(request, 500, "NVS init failed");
     return;
   }
@@ -843,7 +843,7 @@ LichessConfig WiFiManagerESP32::getLichessConfig() {
   return config;
 }
 
-void WiFiManagerESP32::updateBoardState(const String& fen, float evaluation) {
+void WiFiManagerESP32::updateBoardState(const std::string& fen, float evaluation) {
   currentFen = fen;
   boardEvaluation = evaluation;
 }
@@ -857,7 +857,7 @@ bool WiFiManagerESP32::getPendingBoardEdit(String& fenOut) {
 }
 
 void WiFiManagerESP32::clearPendingEdit() {
-  currentFen = pendingFenEdit;
+  currentFen = std::string(pendingFenEdit.c_str());
   hasPendingEdit = false;
 }
 

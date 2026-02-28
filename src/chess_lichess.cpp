@@ -1,7 +1,8 @@
 #include "chess_lichess.h"
-#include "chess_utils.h"
+#include "utils.h"
 #include "led_colors.h"
 #include "lichess_api.h"
+#include "system_utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
@@ -120,7 +121,7 @@ void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
 
   // If FEN is provided, use it directly
   if (state.fen.length() > 0 && state.fen != "startpos")
-    setBoardStateFromFEN(state.fen);
+    setBoardStateFromFEN(std::string(state.fen.c_str()));
   else
     Serial.println("No FEN provided, assuming starting position");
 
@@ -180,7 +181,7 @@ void ChessLichess::update() {
       if (state.status == "draw" || state.status == "stalemate" || state.winner == "draw")
         boardDriver->fireworkAnimation(LedColors::Cyan);
       else
-        boardDriver->fireworkAnimation(ChessUtils::colorLed((state.winner == "white") ? 'w' : 'b'));
+        boardDriver->fireworkAnimation(SystemUtils::colorLed((state.winner == "white") ? 'w' : 'b'));
       gameOver = true;
       return;
     }
@@ -192,7 +193,7 @@ void ChessLichess::update() {
         Serial.println("Skipping own move echo: " + state.lastMove);
       } else {
         Serial.println("Lichess move received: " + state.lastMove);
-        if (ChessUtils::parseUCIMove(state.lastMove, fromRow, fromCol, toRow, toCol, promotion)) {
+        if (ChessUtils::parseUCIMove(std::string(state.lastMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
           boardDriver->stopAndWaitForAnimation(stopAnimation);
           Serial.printf("Lichess UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", state.lastMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
           applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
@@ -208,7 +209,7 @@ void ChessLichess::update() {
 }
 
 void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String uciMove = ChessUtils::toUCIMove(fromRow, fromCol, toRow, toCol, promotion);
+  String uciMove = String(ChessUtils::toUCIMove(fromRow, fromCol, toRow, toCol, promotion).c_str());
   Serial.println("Sending move to Lichess: " + uciMove);
 
   // Track this move so we don't process it as a remote move when it echoes back
@@ -266,7 +267,7 @@ bool ChessLichess::handleResign(char resignColor) {
   char winnerColor = (resignColor == 'w') ? 'b' : 'w';
   Serial.printf("RESIGNATION! %s resigns on Lichess. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
 
-  boardDriver->fireworkAnimation(ChessUtils::colorLed(winnerColor));
+  boardDriver->fireworkAnimation(SystemUtils::colorLed(winnerColor));
   // Lichess mode has no local moveHistory (nullptr)
   gameOver = true;
   return true;

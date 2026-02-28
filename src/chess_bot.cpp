@@ -1,5 +1,5 @@
 #include "chess_bot.h"
-#include "chess_utils.h"
+#include "utils.h"
 #include "led_colors.h"
 #include "move_history.h"
 #include "stockfish_api.h"
@@ -62,10 +62,10 @@ void ChessBot::update() {
   boardDriver->updateSensorPrev();
 }
 
-String ChessBot::makeStockfishRequest(const String& fen) {
+String ChessBot::makeStockfishRequest(const std::string& fen) {
   WiFiSSLClient client;
   client.setInsecure();
-  String path = StockfishAPI::buildRequestURL(fen, botConfig.stockfishSettings.depth);
+  String path = StockfishAPI::buildRequestURL(String(fen.c_str()), botConfig.stockfishSettings.depth);
   Serial.println("Stockfish request: " STOCKFISH_API_URL + path);
   // Retry logic
   for (int attempt = 1; attempt <= botConfig.stockfishSettings.maxRetries; attempt++) {
@@ -136,7 +136,7 @@ void ChessBot::makeBotMove() {
 
     int fromRow, fromCol, toRow, toCol;
     char promotion;
-    if (ChessUtils::parseUCIMove(bestMove, fromRow, fromCol, toRow, toCol, promotion)) {
+    if (ChessUtils::parseUCIMove(std::string(bestMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
       Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
       Serial.println("============================");
       // Verify the move is from the correct color piece
