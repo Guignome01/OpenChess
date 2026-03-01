@@ -1,10 +1,9 @@
-#ifndef CHESS_GAME_H
-#define CHESS_GAME_H
+#ifndef BASE_H
+#define BASE_H
 
 #include "board_driver.h"
 #include "board_menu.h"
-#include "engine.h"
-#include "utils.h"
+#include "board.h"
 #include "led_colors.h"
 #include <Arduino.h>
 
@@ -14,16 +13,13 @@ class MoveHistory;
 
 // Base class for chess game modes (shared state and common functionality)
 class ChessGame {
-  friend class MoveHistory; // MoveHistory needs access to applyMove/advanceTurn for replay
  protected:
   BoardDriver* boardDriver;
-  ChessEngine* chessEngine;
   WiFiManagerESP32* wifiManager;
   MoveHistory* moveHistory; // nullptr for Lichess mode (moves already recorded on Lichess cloud)
 
-  char board[8][8];
-  char currentTurn; // 'w' or 'b'
-  bool gameOver;
+  ChessBoard gm_;
+
   bool replaying; // True while replaying moves during resume (suppresses LEDs and physical move waits)
 
   // --- Resign ---
@@ -31,18 +27,18 @@ class ChessGame {
   static constexpr unsigned long RESIGN_LIFT_WINDOW_MS = 1000; // Max time per quick lift during gesture
   bool resignPending = false;    // Set by web resign endpoint
 
-  // Standard initial chess board setup
-  static const char INITIAL_BOARD[8][8];
-
   // Constructor
-  ChessGame(BoardDriver* bd, ChessEngine* ce, WiFiManagerESP32* wm, MoveHistory* mh);
+  ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh);
 
   // Common initialization and game flow methods
   void initializeBoard();
   void waitForBoardSetup(const char targetBoard[8][8]);
-  void applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
+  MoveResult applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
-  void updateGameStatus();
+
+  /// Try to resume a live game from MoveHistory. Returns true if resumed.
+  /// If no live game exists, returns false (caller should start a new game).
+  bool tryResumeGame();
 
   // --- Resign ---
   /// Unified resign entry point. Call at the start of update() after readSensors().
@@ -64,9 +60,8 @@ class ChessGame {
   /// Turn off the resign indicator LED on a square.
   void clearResignFeedback(int row, int col);
 
-  // Chess rule helpers
-  void updateCastlingRightsAfterMove(int fromRow, int fromCol, int toRow, int toCol, char movedPiece, char capturedPiece);
-  void applyCastling(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion = false);
+  // Hardware-only castling interactions (board already updated by ChessBoard)
+  void applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion = false);
   void confirmSquareCompletion(int row, int col);
 
   // Virtual hooks for remote move handling (overridden in subclasses)
@@ -79,11 +74,13 @@ class ChessGame {
   virtual void update() = 0;
 
   void setBoardStateFromFEN(const std::string& fen);
-  bool isGameOver() const { return gameOver; }
+  bool isGameOver() const { return gm_.isGameOver(); }
   void setResignPending(bool pending) { resignPending = pending; }
 
-  // Advance turn and record position (extracted from updateGameStatus for replay use)
-  void advanceTurn();
+  // --- Replay support (used by MoveHistory) ---
+  void beginReplay();
+  void endReplay();
+  MoveResult replayMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 };
 
-#endif // CHESS_GAME_H
+#endif // BASE_H

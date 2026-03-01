@@ -64,7 +64,8 @@ class WiFiManagerESP32 {
   String gameMode;
   String lichessToken;
 
-  BotConfig botConfig = {StockfishSettings::medium(), true};
+  StockfishSettings stockfishSettings = StockfishSettings::medium();
+  char botPlayerColor = 'w'; // 'w' or 'b' — color the local player controls in bot mode
 
   MoveHistory* moveHistory;
   BoardDriver* boardDriver;
@@ -148,7 +149,8 @@ class WiFiManagerESP32 {
   int getSelectedGameMode() const { return gameMode.toInt(); }
   void resetGameSelection() { gameMode = "0"; };
   // Bot configuration
-  BotConfig getBotConfig() { return botConfig; }
+  StockfishSettings getStockfishSettings() { return stockfishSettings; }
+  char getBotPlayerColor() { return botPlayerColor; }
   // Lichess configuration
   LichessConfig getLichessConfig();
   String getLichessToken() { return lichessToken; }

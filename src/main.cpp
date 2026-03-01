@@ -1,8 +1,7 @@
 #include "board_driver.h"
-#include "chess_bot.h"
-#include "chess_lichess.h"
-#include "chess_moves.h"
-#include "engine.h"
+#include "game/player.h"
+#include "game/lichess.h"
+#include "game/stockfish.h"
 #include "system_utils.h"
 #include "led_colors.h"
 #include "menu_config.h"
@@ -27,11 +26,11 @@ enum GameMode {
   MODE_SENSOR_TEST = 4
 };
 
-BotConfig botConfig = {StockfishSettings::medium(), true};
+StockfishSettings stockfishSettings = StockfishSettings::medium();
+char playerColor = 'w';
 LichessConfig lichessConfig = {""};
 
 BoardDriver boardDriver;
-ChessEngine chessEngine;
 MoveHistory moveHistory;
 WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
 ChessGame* activeGame = nullptr;
@@ -132,8 +131,8 @@ void checkForResumableGame() {
       case GAME_MODE_BOT:
         currentMode = MODE_BOT;
         resumingGame = true;
-        botConfig.playerIsWhite = (resumePlayerColor == 'w');
-        botConfig.stockfishSettings = StockfishSettings(resumeBotDepth);
+        playerColor = (char)resumePlayerColor;
+        stockfishSettings = StockfishSettings(resumeBotDepth);
         break;
     }
   } else {
@@ -173,7 +172,8 @@ void loop() {
         break;
       case 2:
         currentMode = MODE_BOT;
-        botConfig = wifiManager.getBotConfig();
+        stockfishSettings = wifiManager.getStockfishSettings();
+        playerColor = wifiManager.getBotPlayerColor();
         break;
       case 3:
         currentMode = MODE_LICHESS;
@@ -288,8 +288,8 @@ void handleMenuResult(int result) {
     case MenuId::DIFF_1: case MenuId::DIFF_2: case MenuId::DIFF_3: case MenuId::DIFF_4:
     case MenuId::DIFF_5: case MenuId::DIFF_6: case MenuId::DIFF_7: case MenuId::DIFF_8: {
       int level = result - MenuId::DIFF_1 + 1;
-      botConfig.stockfishSettings = StockfishSettings::fromLevel(level);
-      Serial.printf("Difficulty: Level %d (depth %d)\n", level, botConfig.stockfishSettings.depth);
+      stockfishSettings = StockfishSettings::fromLevel(level);
+      Serial.printf("Difficulty: Level %d (depth %d)\n", level, stockfishSettings.depth);
       navigator.push(&botColorMenu);
       break;
     }
@@ -297,22 +297,22 @@ void handleMenuResult(int result) {
     // Bot color menu
     case MenuId::PLAY_WHITE:
       Serial.println("Playing as White");
-      botConfig.playerIsWhite = true;
+      playerColor = 'w';
       currentMode = MODE_BOT;
       modeInitialized = false;
       navigator.clear();
       break;
     case MenuId::PLAY_BLACK:
       Serial.println("Playing as Black");
-      botConfig.playerIsWhite = false;
+      playerColor = 'b';
       currentMode = MODE_BOT;
       modeInitialized = false;
       navigator.clear();
       break;
     case MenuId::PLAY_RANDOM:
       Serial.println("Playing as Random");
-      botConfig.playerIsWhite = (random(2) == 0);
-      Serial.printf("  -> Assigned: %s\n", botConfig.playerIsWhite ? "White" : "Black");
+      playerColor = (random(2) == 0) ? 'w' : 'b';
+      Serial.printf("  -> Assigned: %s\n", playerColor == 'w' ? "White" : "Black");
       currentMode = MODE_BOT;
       modeInitialized = false;
       navigator.clear();
@@ -339,17 +339,17 @@ void initializeSelectedMode(GameMode mode) {
   switch (mode) {
     case MODE_CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      activeGame = new ChessMoves(&boardDriver, &chessEngine, &wifiManager, &moveHistory);
+      activeGame = new ChessPlayer(&boardDriver, &wifiManager, &moveHistory);
       activeGame->begin();
       break;
     case MODE_BOT:
-      Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
-      activeGame = new ChessBot(&boardDriver, &chessEngine, &wifiManager, &moveHistory, botConfig);
+      Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
+      activeGame = new ChessStockfish(&boardDriver, &wifiManager, &moveHistory, playerColor, stockfishSettings);
       activeGame->begin();
       break;
     case MODE_LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new ChessLichess(&boardDriver, &chessEngine, &wifiManager, lichessConfig);
+      activeGame = new ChessLichess(&boardDriver, &wifiManager, lichessConfig);
       activeGame->begin();
       break;
     case MODE_SENSOR_TEST:

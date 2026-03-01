@@ -35,10 +35,4 @@ struct StockfishSettings {
   }
 };
 
-// Bot configuration structure
-struct BotConfig {
-  StockfishSettings stockfishSettings;
-  bool playerIsWhite;
-};
-
 #endif // STOCKFISH_SETTINGS_H

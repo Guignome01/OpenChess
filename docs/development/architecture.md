@@ -6,16 +6,19 @@ Deep technical documentation of LibreChess internals. This document covers how t
 
 ```
 ChessGame (abstract base)
- └─ ChessMoves (human vs human)
-     └─ ChessBot (human vs Stockfish)
-         └─ ChessLichess (online Lichess play)
+ ├─ ChessPlayer (human vs human)
+ └─ ChessBot (abstract, Template Method pattern)
+     ├─ ChessStockfish (human vs Stockfish API)
+     └─ ChessLichess (online Lichess play)
 
 SensorTest (standalone, does not inherit ChessGame)
 ```
 
-`ChessGame` defines the shared game state (`board[8][8]`, `currentTurn`, `gameOver`) and common logic: `tryPlayerMove()`, `applyMove()`, `updateGameStatus()`, `waitForBoardSetup()`, resign gesture handling, and LED feedback helpers. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
+`ChessGame` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessBoard::makeMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `ChessGame` instance owns a `ChessBoard` (`gm_`) which owns the board array, current turn, game-over state, and all position state (castling rights, en passant target, clocks). All chess mutations flow through the `ChessBoard`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
 
-`ChessBot` extends `ChessGame` (not `ChessMoves`) with Stockfish API integration: `makeBotMove()`, `waitForRemoteMoveCompletion()` (LED guidance for executing the bot's move physically), and a thinking animation. `ChessLichess` extends `ChessBot` to reuse the remote-move guidance system — it replaces the Stockfish call with Lichess game stream polling and adds `handleResign()` override to also resign on the Lichess server.
+`ChessBot` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `ChessBot` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and `handleResign()` with animation lifecycle.
+
+`ChessStockfish` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `ChessLichess` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `handleResign()` to also resign on the Lichess API.
 
 `SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `ChessGame` subclass — it doesn't need chess logic, FEN state, or move history.
 
@@ -27,7 +30,7 @@ Components are wired through pointer injection at construction time. No global s
 BoardDriver boardDriver;
 MoveHistory moveHistory;
 WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
-ChessBot botGame(&boardDriver, &wifiManager, &moveHistory, botConfig);
+ChessStockfish stockfishGame(&boardDriver, &wifiManager, &moveHistory, playerColor, stockfishSettings);
 ```
 
 Each `ChessGame` owns its `ChessBoard` internally — there is no shared chess state. A game mode receives exactly the hardware/network services it needs. `ChessLichess` does not receive a `MoveHistory*` — Lichess games are recorded on the server, not locally (it passes `nullptr` for `moveHistory`).

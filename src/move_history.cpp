@@ -1,5 +1,5 @@
 #include "move_history.h"
-#include "chess_game.h"
+#include "game/base.h"
 #include <ArduinoJson.h>
 #include <algorithm>
 #include <sys/stat.h>
@@ -18,60 +18,6 @@ uint32_t MoveHistory::getTimestamp() {
   time_t now = time(nullptr);
   // time() returns small values before NTP sync
   return (now > 1771008768) ? (uint32_t)now : 0;
-}
-
-uint8_t MoveHistory::promoCharToCode(char p) {
-  switch (tolower(p)) {
-    case 'q':
-      return 1;
-    case 'r':
-      return 2;
-    case 'b':
-      return 3;
-    case 'n':
-      return 4;
-    default:
-      return 0;
-  }
-}
-
-char MoveHistory::promoCodeToChar(uint8_t code) {
-  switch (code) {
-    case 1:
-      return 'q';
-    case 2:
-      return 'r';
-    case 3:
-      return 'b';
-    case 4:
-      return 'n';
-    default:
-      return ' ';
-  }
-}
-
-// -------------------------------------------------------
-// 2-byte UCI move encoding
-//   bits 15..10 = from square (row*8+col, 0-63)
-//   bits  9.. 4 = to   square (row*8+col, 0-63)
-//   bits  3.. 0 = promotion code (0=none)
-// -------------------------------------------------------
-uint16_t MoveHistory::encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  uint8_t from = (uint8_t)(fromRow * 8 + fromCol);
-  uint8_t to = (uint8_t)(toRow * 8 + toCol);
-  uint8_t promo = promoCharToCode(promotion);
-  return (uint16_t)((from << 10) | (to << 4) | promo);
-}
-
-void MoveHistory::decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
-  uint8_t from = (encoded >> 10) & 0x3F;
-  uint8_t to = (encoded >> 4) & 0x3F;
-  uint8_t promo = encoded & 0x0F;
-  fromRow = from / 8;
-  fromCol = from % 8;
-  toRow = to / 8;
-  toCol = to % 8;
-  promotion = promoCodeToChar(promo);
 }
 
 String MoveHistory::gamePath(int id) {
@@ -352,19 +298,20 @@ bool MoveHistory::replayIntoGame(ChessGame* game) {
 
   Serial.println("MoveHistory: resuming from FEN: " + lastFen);
 
-  // Set board state from last FEN
+  // Set board state from last FEN and replay subsequent moves
   recording = false;
+  game->beginReplay();
   game->setBoardStateFromFEN(std::string(lastFen.c_str()));
 
-  // Replay UCI moves after the last FEN marker
   for (int i = lastFenIdx + 1; i < (int)moves.size(); i++) {
     if (moves[i] == FEN_MARKER) continue;
     int fromRow, fromCol, toRow, toCol;
     char promotion;
     decodeMove(moves[i], fromRow, fromCol, toRow, toCol, promotion);
-    game->applyMove(fromRow, fromCol, toRow, toCol, promotion);
-    game->advanceTurn();
+    game->replayMove(fromRow, fromCol, toRow, toCol, promotion);
   }
+
+  game->endReplay();
 
   // Restore header for continued recording
   header = hdr;

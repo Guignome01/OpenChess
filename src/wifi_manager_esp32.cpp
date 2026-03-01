@@ -1,5 +1,5 @@
 #include "wifi_manager_esp32.h"
-#include "chess_lichess.h"
+#include "game/lichess.h"
 #include "system_utils.h"
 #include "move_history.h"
 #include <Arduino.h>
@@ -44,7 +44,7 @@ WiFiManagerESP32* WiFiManagerESP32::instance = nullptr;
 // WiFiManagerESP32
 // ===========================
 
-WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd, MoveHistory* mh) : boardDriver(bd), moveHistory(mh), server(AP_PORT), gameMode("0"), lichessToken(""), botConfig(), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
+WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd, MoveHistory* mh) : boardDriver(bd), moveHistory(mh), server(AP_PORT), gameMode("0"), lichessToken(""), stockfishSettings(), botPlayerColor('w'), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
 
 void WiFiManagerESP32::begin() {
   Serial.println("=== Starting LibreChess WiFi Manager (ESP32) ===");
@@ -641,9 +641,9 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
   if (mode == 2) {
     if (request->hasArg("difficulty") && request->hasArg("playerColor")) {
       int diffLevel = request->arg("difficulty").toInt();
-      botConfig.stockfishSettings = StockfishSettings::fromLevel(diffLevel);
-      botConfig.playerIsWhite = request->arg("playerColor") == "white";
-      Serial.printf("Bot configuration received: Depth=%d, Player is %s\n", botConfig.stockfishSettings.depth, botConfig.playerIsWhite ? "White" : "Black");
+      botPlayerColor = (request->arg("playerColor") == "white") ? 'w' : 'b';
+      stockfishSettings = StockfishSettings::fromLevel(diffLevel);
+      Serial.printf("Bot configuration received: Depth=%d, Player is %s\n", stockfishSettings.depth, botPlayerColor == 'w' ? "White" : "Black");
     } else {
       sendJsonError(request, 400, "Missing bot parameters");
       return;

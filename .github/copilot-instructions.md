@@ -8,7 +8,7 @@ ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors 
 ## Architecture
 
 ### Class Hierarchy
-`ChessGame` (abstract base) → `ChessMoves` (human v human) → inherited by `ChessBot` (v Stockfish) → inherited by `ChessLichess` (online play). Each mode implements `begin()` and `update()` called from the main loop. `BoardDriver` and `ChessEngine` are shared via pointer injection — never duplicated.
+`ChessGame` (abstract base) → `ChessPlayer` (human v human) | `ChessBot` (abstract, Template Method) → `ChessStockfish` (v Stockfish) / `ChessLichess` (online play). `ChessBot::update()` defines the game loop skeleton; subclasses override hooks (`requestEngineMove()`, `onPlayerMoveApplied()`, `getEngineEvaluation()`). `BoardDriver` is shared via pointer injection. Each `ChessGame` owns a `ChessBoard` (which internally owns a `ChessRules`) — no global chess state.
 
 ### Key Components
 - **`BoardDriver`** — hardware abstraction: LED strip (NeoPixelBus), sensor grid (shift register), calibration, async animation queue (FreeRTOS task + queue).

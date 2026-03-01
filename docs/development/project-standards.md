@@ -13,7 +13,7 @@ Formatting is enforced via `.clang-format` at the project root (Google style bas
 | Classes | PascalCase | `BoardDriver`, `ChessRules`, `WiFiManagerESP32` |
 | Methods & variables | camelCase | `readSensors()`, `currentTurn`, `isGameOver` |
 | Constants & macros | UPPER_SNAKE_CASE | `LED_COUNT`, `SENSOR_READ_DELAY_MS`, `DEBOUNCE_MS` |
-| File names | snake_case | `board_driver.cpp`, `chess_game.h`, `move_history.cpp` |
+| File names | snake_case | `board_driver.cpp`, `game.h`, `move_history.cpp` |
 | Enum values | UPPER_SNAKE_CASE | `RESULT_CHECKMATE`, `AP_ONLY` |
 
 ## Architecture Principles

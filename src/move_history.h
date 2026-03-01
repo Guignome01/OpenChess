@@ -6,17 +6,11 @@
 #include <string>
 #include <vector>
 
+#include "codec.h"
+#include "types.h"
+
 // Forward declaration
 class ChessGame;
-
-enum GameResult : uint8_t {
-  RESULT_IN_PROGRESS = 0,
-  RESULT_CHECKMATE = 1,
-  RESULT_STALEMATE = 2,
-  RESULT_DRAW_50 = 3,
-  RESULT_DRAW_3FOLD = 4,
-  RESULT_RESIGNATION = 5
-};
 
 enum GameModeCode : uint8_t {
   GAME_MODE_CHESS_MOVES = 1,
@@ -68,8 +62,9 @@ class MoveHistory {
 
   // Replay the live game into a ChessGame instance:
   //  1. Finds the last FEN marker and its FEN string
-  //  2. Calls game->setBoardStateFromFEN() with that FEN
-  //  3. Replays all UCI moves after the last FEN using game->applyMove()
+  //  2. Calls game->beginReplay(), then setBoardStateFromFEN() with that FEN
+  //  3. Replays all UCI moves after the last FEN using game->replayMove()
+  //  4. Calls game->endReplay()
   // Recording is suppressed automatically during replay
   bool replayIntoGame(ChessGame* game);
 
@@ -88,10 +83,14 @@ class MoveHistory {
   void enforceStorageLimits();
 
   // Encode a move into 2 bytes: [from(6)][to(6)][promo(4)]
-  static uint16_t encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion);
+  static uint16_t encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+    return ChessCodec::encodeMove(fromRow, fromCol, toRow, toCol, promotion);
+  }
 
   // Decode 2 bytes back into row/col/promotion
-  static void decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion);
+  static void decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
+    ChessCodec::decodeMove(encoded, fromRow, fromCol, toRow, toCol, promotion);
+  }
 
  private:
   bool recording;
@@ -104,10 +103,6 @@ class MoveHistory {
   static constexpr float MAX_USAGE_PERCENT = 0.80f;
   static constexpr uint8_t FORMAT_VERSION = 1;
   static constexpr uint16_t FEN_MARKER = 0xFFFF;
-
-  // Map promotion character to 4-bit code and back
-  static uint8_t promoCharToCode(char p);
-  static char promoCodeToChar(uint8_t code);
 
   // Rewrite the header stored at offset 0 of live.bin
   void updateLiveHeader();
