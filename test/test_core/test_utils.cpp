@@ -111,6 +111,7 @@ void test_getPieceColor(void) {
   TEST_ASSERT_EQUAL_CHAR('w', ChessUtils::getPieceColor('P'));
   TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::getPieceColor('k'));
   TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::getPieceColor('p'));
+  TEST_ASSERT_EQUAL_CHAR(' ', ChessUtils::getPieceColor(' '));  // empty square
 }
 
 void test_isWhitePiece(void) {
@@ -169,6 +170,55 @@ void test_no_legal_moves_stalemate(void) {
   TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(board, 'b', flags));
 }
 
+// ---------------------------------------------------------------------------
+// Additional evaluation tests
+// ---------------------------------------------------------------------------
+
+void test_evaluation_black_advantage(void) {
+  placePiece(board, 'K', "e1");
+  placePiece(board, 'k', "e8");
+  placePiece(board, 'q', "d8"); // black queen, no white queen
+  float eval = ChessUtils::evaluatePosition(board);
+  TEST_ASSERT_TRUE(eval < 0.0f); // negative = black advantage
+}
+
+void test_evaluation_empty_board(void) {
+  // board is already cleared by setUp
+  float eval = ChessUtils::evaluatePosition(board);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
+}
+
+// ---------------------------------------------------------------------------
+// Additional FEN/helper tests
+// ---------------------------------------------------------------------------
+
+void test_boardToFEN_nullptr_state(void) {
+  setupInitialBoard(board);
+  std::string fen = ChessUtils::boardToFEN(board, 'w', nullptr);
+  // With nullptr state, should use defaults: KQkq, -, 0, 1
+  TEST_ASSERT_EQUAL_STRING("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", fen.c_str());
+}
+
+void test_hasAnyLegalMove_in_check_with_escape(void) {
+  // King in check but can escape
+  placePiece(board, 'K', "e1");
+  placePiece(board, 'r', "e8"); // rook checks
+  PositionState flags{0x00, -1, -1};
+  // King can escape to d1, d2, f1, f2
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, 'w', flags));
+}
+
+void test_fen_partial_castling_rights_roundtrip(void) {
+  std::string inputFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Kk - 0 1";
+  char turn;
+  PositionState state;
+  ChessUtils::fenToBoard(inputFen, board, turn, &state);
+  // Kk = white kingside + black kingside = 0x01 | 0x04 = 0x05
+  TEST_ASSERT_EQUAL_UINT8(0x05, state.castlingRights);
+  std::string outputFen = ChessUtils::boardToFEN(board, turn, &state);
+  TEST_ASSERT_EQUAL_STRING(inputFen.c_str(), outputFen.c_str());
+}
+
 void register_utils_tests() {
   needsDefaultKings = false;
 
@@ -198,4 +248,13 @@ void register_utils_tests() {
   // Legal moves
   RUN_TEST(test_has_legal_moves_initial);
   RUN_TEST(test_no_legal_moves_stalemate);
+  RUN_TEST(test_hasAnyLegalMove_in_check_with_escape);
+
+  // Additional evaluation
+  RUN_TEST(test_evaluation_black_advantage);
+  RUN_TEST(test_evaluation_empty_board);
+
+  // Additional FEN / helpers
+  RUN_TEST(test_boardToFEN_nullptr_state);
+  RUN_TEST(test_fen_partial_castling_rights_roundtrip);
 }

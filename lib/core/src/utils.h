@@ -13,7 +13,9 @@ namespace ChessUtils {
 // No Arduino dependencies — safe for native compilation.
 
 inline char getPieceColor(char piece) {
-  return (piece >= 'a' && piece <= 'z') ? 'b' : 'w';
+  if (piece >= 'a' && piece <= 'z') return 'b';
+  if (piece >= 'A' && piece <= 'Z') return 'w';
+  return ' ';  // empty square or invalid
 }
 
 inline bool isWhitePiece(char piece) {

@@ -454,6 +454,105 @@ void test_recorder_start_recording_lichess_mode(void) {
   TEST_ASSERT_ENUM_EQ(GameMode::LICHESS, storage.storedHeader.mode);
 }
 
+void test_recorder_start_recording_while_active(void) {
+  setupRecorder();
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
+  recorder.recordMove(6, 4, 4, 4, ' ');  // record a move
+  TEST_ASSERT_TRUE(recorder.isRecording());
+
+  // Start again — previous game should be discarded
+  recorder.startRecording(GameMode::BOT, 'w', 5);
+  TEST_ASSERT_TRUE(recorder.isRecording());
+  TEST_ASSERT_ENUM_EQ(GameMode::BOT, storage.storedHeader.mode);
+  TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
+  // Move data should be cleared (new game)
+  TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
+}
+
+void test_recorder_finish_not_recording(void) {
+  setupRecorder();
+  // finishRecording when not recording should be a safe no-op
+  recorder.finishRecording(GameResult::CHECKMATE, 'w');
+  TEST_ASSERT_FALSE(recorder.isRecording());
+  TEST_ASSERT_FALSE(storage.gameFinalized);
+}
+
+void test_recorder_discard_not_recording(void) {
+  setupRecorder();
+  // discardRecording when not recording should not crash
+  recorder.discardRecording();
+  TEST_ASSERT_FALSE(recorder.isRecording());
+}
+
+void test_recorder_replay_wrong_version(void) {
+  setupRecorder();
+  // Manually set up storage with a bad version header
+  storage.gameActive = true;
+  storage.storedHeader.version = 99;
+  storage.storedHeader.fenEntryCnt = 1;
+
+  ChessBoard board;
+  board.newGame();
+  bool ok = recorder.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_no_fen_entry(void) {
+  setupRecorder();
+  // Header has version=1 but fenEntryCnt=0
+  storage.gameActive = true;
+  storage.storedHeader.version = FORMAT_VERSION;
+  storage.storedHeader.fenEntryCnt = 0;
+
+  ChessBoard board;
+  board.newGame();
+  bool ok = recorder.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_null_storage(void) {
+  // Recorder with null storage — replayInto should return false
+  GameRecorder nullRec(nullptr, &logger);
+  ChessBoard board;
+  board.newGame();
+  bool ok = nullRec.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_empty_after_fen(void) {
+  setupRecorder();
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
+
+  // Record only an initial FEN and no moves
+  std::string initialFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+  recorder.recordFen(initialFen);
+
+  // Replay — should load FEN with no moves to replay
+  ChessBoard board;
+  board.newGame();
+  bool ok = recorder.replayInto(board);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_CHAR('b', board.currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));  // e4 has white pawn
+}
+
+void test_recorder_replay_with_promotion(void) {
+  setupRecorder();
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
+
+  // Record a position where white can promote
+  std::string fen = "8/4P3/8/8/8/8/8/4K2k w - - 0 1";
+  recorder.recordFen(fen);
+  recorder.recordMove(1, 4, 0, 4, 'q');  // e7-e8=Q
+
+  // Replay and verify promotion
+  ChessBoard board;
+  board.newGame();
+  bool ok = recorder.replayInto(board);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_CHAR('Q', board.getSquare(0, 4));  // Queen on e8
+}
+
 // ---------------------------------------------------------------------------
 // GameController: endGame guard & startNewGame
 // ---------------------------------------------------------------------------
@@ -495,6 +594,48 @@ void test_controller_start_new_game(void) {
   teardownController();
 }
 
+void test_controller_resume_game(void) {
+  setupController();
+  ctrl->startNewGame(GameMode::CHESS_MOVES);
+  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
+  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
+
+  // Now create a new controller and resume from storage
+  observer = MockGameObserver();
+  GameController* ctrl2 = new GameController(&recorder, &observer);
+  bool ok = ctrl2->resumeGame();
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_CHAR('w', ctrl2->currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('P', ctrl2->getSquare(4, 4));  // e4
+  TEST_ASSERT_EQUAL_CHAR('p', ctrl2->getSquare(3, 4));  // e5
+  TEST_ASSERT_TRUE(observer.callCount > 0);  // Observer notified
+  delete ctrl2;
+  teardownController();
+}
+
+void test_controller_make_move_records_promotion(void) {
+  setupController();
+  ctrl->newGame();
+  ctrl->startRecording(GameMode::CHESS_MOVES);
+  ctrl->loadFEN("8/4P3/8/8/8/8/8/4K2k w - - 0 1");
+
+  MoveResult r = ctrl->makeMove(1, 4, 0, 4);  // e7-e8=Q (auto-queen)
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isPromotion);
+  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
+
+  // Verify the correct promotion type was recorded (compact encoding stores lowercase)
+  // moveData: FEN_MARKER(2) + FEN_MARKER(2, from loadFEN) + move(2) = 6 bytes
+  TEST_ASSERT_TRUE(storage.moveData.size() >= 6);
+  uint16_t lastEntry;
+  memcpy(&lastEntry, &storage.moveData[storage.moveData.size() - 2], 2);
+  int fr, fc, tr, tc;
+  char promo;
+  ChessCodec::decodeMove(lastEntry, fr, fc, tr, tc, promo);
+  TEST_ASSERT_EQUAL_CHAR('q', promo);  // compact encoding normalizes to lowercase
+  teardownController();
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -514,6 +655,14 @@ void register_recorder_tests() {
   RUN_TEST(test_recorder_fen_always_flushes_header);
   RUN_TEST(test_recorder_replay_rejects_invalid_move);
   RUN_TEST(test_recorder_start_recording_lichess_mode);
+  RUN_TEST(test_recorder_start_recording_while_active);
+  RUN_TEST(test_recorder_finish_not_recording);
+  RUN_TEST(test_recorder_discard_not_recording);
+  RUN_TEST(test_recorder_replay_wrong_version);
+  RUN_TEST(test_recorder_replay_no_fen_entry);
+  RUN_TEST(test_recorder_replay_null_storage);
+  RUN_TEST(test_recorder_replay_empty_after_fen);
+  RUN_TEST(test_recorder_replay_with_promotion);
 
   // GameController
   RUN_TEST(test_controller_new_game);
@@ -527,4 +676,6 @@ void register_recorder_tests() {
   RUN_TEST(test_controller_pass_throughs);
   RUN_TEST(test_controller_end_game_idempotent);
   RUN_TEST(test_controller_start_new_game);
+  RUN_TEST(test_controller_resume_game);
+  RUN_TEST(test_controller_make_move_records_promotion);
 }

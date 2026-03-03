@@ -102,6 +102,35 @@ void test_manager_move_after_game_over_rejected(void) {
 }
 
 // ---------------------------------------------------------------------------
+// getSquare
+// ---------------------------------------------------------------------------
+
+void test_manager_getSquare_returns_piece(void) {
+  setUpManager();
+  TEST_ASSERT_EQUAL_CHAR('R', gm.getSquare(7, 0)); // a1
+  TEST_ASSERT_EQUAL_CHAR('k', gm.getSquare(0, 4)); // e8
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(4, 4)); // e4 empty
+}
+
+// ---------------------------------------------------------------------------
+// invalidMoveResult
+// ---------------------------------------------------------------------------
+
+void test_manager_invalidMoveResult_fields(void) {
+  MoveResult r = invalidMoveResult();
+  TEST_ASSERT_FALSE(r.valid);
+  TEST_ASSERT_FALSE(r.isCapture);
+  TEST_ASSERT_FALSE(r.isEnPassant);
+  TEST_ASSERT_EQUAL_INT(-1, r.epCapturedRow);
+  TEST_ASSERT_FALSE(r.isCastling);
+  TEST_ASSERT_FALSE(r.isPromotion);
+  TEST_ASSERT_EQUAL_CHAR(' ', r.promotedTo);
+  TEST_ASSERT_FALSE(r.isCheck);
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_EQUAL_CHAR(' ', r.winnerColor);
+}
+
+// ---------------------------------------------------------------------------
 // Captures
 // ---------------------------------------------------------------------------
 
@@ -141,6 +170,23 @@ void test_manager_en_passant_black(void) {
   TEST_ASSERT_TRUE(r.isEnPassant);
   TEST_ASSERT_EQUAL_CHAR(' ', gm.getBoard()[4][4]); // e4 cleared
   TEST_ASSERT_EQUAL_CHAR('p', gm.getBoard()[5][4]); // e3 has black pawn
+}
+
+void test_manager_ep_target_set_after_double_push(void) {
+  setUpManager();
+  gm.makeMove(6, 4, 4, 4); // e2-e4 (double push)
+  const PositionState& st = gm.positionState();
+  TEST_ASSERT_EQUAL_INT(5, st.epRow); // EP target = e3 (row 5)
+  TEST_ASSERT_EQUAL_INT(4, st.epCol); // col 4
+}
+
+void test_manager_ep_target_cleared_after_other_move(void) {
+  setUpManager();
+  gm.makeMove(6, 4, 4, 4); // e2-e4 sets EP target
+  TEST_ASSERT_EQUAL_INT(5, gm.positionState().epRow); // EP target exists
+  gm.makeMove(1, 0, 2, 0); // a7-a6 (not a double push)
+  TEST_ASSERT_EQUAL_INT(-1, gm.positionState().epRow); // EP target cleared
+  TEST_ASSERT_EQUAL_INT(-1, gm.positionState().epCol);
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +245,27 @@ void test_manager_rook_move_revokes_right(void) {
   TEST_ASSERT_EQUAL_UINT8(0x02, rights & 0x02); // Q right still present
 }
 
+void test_manager_black_queenside_castle(void) {
+  setUpManager();
+  gm.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+  MoveResult r = gm.makeMove(0, 4, 0, 2); // e8c8
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isCastling);
+  TEST_ASSERT_EQUAL_CHAR('k', gm.getBoard()[0][2]); // king on c8
+  TEST_ASSERT_EQUAL_CHAR('r', gm.getBoard()[0][3]); // rook on d8
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getBoard()[0][0]); // a8 empty
+}
+
+void test_manager_rook_captured_revokes_castling(void) {
+  setUpManager();
+  // Black rook at h2 can capture white rook at h1; white has K castling right
+  gm.loadFEN("4k3/8/8/8/8/8/7r/4K2R b K - 0 1");
+  MoveResult r = gm.makeMove(6, 7, 7, 7); // rh2 x Rh1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isCapture);
+  TEST_ASSERT_EQUAL_UINT8(0, gm.getCastlingRights()); // K right revoked
+}
+
 // ---------------------------------------------------------------------------
 // Promotion
 // ---------------------------------------------------------------------------
@@ -230,6 +297,18 @@ void test_manager_black_promotion(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
   TEST_ASSERT_EQUAL_CHAR('q', r.promotedTo); // lowercase for black
+}
+
+void test_manager_promotion_with_capture(void) {
+  setUpManager();
+  // White pawn on d7 captures black rook on e8 and promotes
+  gm.loadFEN("4r2k/3P4/8/8/8/8/8/4K3 w - - 0 1");
+  MoveResult r = gm.makeMove(1, 3, 0, 4); // d7xe8=Q
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isCapture);
+  TEST_ASSERT_TRUE(r.isPromotion);
+  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
+  TEST_ASSERT_EQUAL_CHAR('Q', gm.getBoard()[0][4]);
 }
 
 // ---------------------------------------------------------------------------
@@ -337,6 +416,25 @@ void test_manager_threefold_repetition(void) {
   TEST_ASSERT_TRUE(gm.isGameOver());
 }
 
+void test_manager_threefold_different_castling_rights(void) {
+  setUpManager();
+  // Same as threefold test but with castling rights.
+  // King move on first half-move loses castling → initial position hash
+  // differs from subsequent "same board" hashes, so 8 half-moves is NOT
+  // enough for threefold (only 2 occurrences of castling-less position).
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K2R w K - 0 1");
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1 (loses K castling)
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8 — board same as start, but castling=0
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — occurrence 2 (not 3)
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
 // ---------------------------------------------------------------------------
 // FEN loading
 // ---------------------------------------------------------------------------
@@ -360,6 +458,20 @@ void test_manager_load_fen_roundtrip(void) {
   std::string inputFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
   gm.loadFEN(inputFen);
   TEST_ASSERT_EQUAL_STRING(inputFen.c_str(), gm.getFen().c_str());
+}
+
+void test_manager_load_fen_complex(void) {
+  setUpManager();
+  std::string fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4";
+  gm.loadFEN(fen);
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+  TEST_ASSERT_EQUAL_UINT8(0x0F, gm.getCastlingRights()); // KQkq
+  TEST_ASSERT_EQUAL_INT(-1, gm.positionState().epRow);     // no EP
+  TEST_ASSERT_EQUAL_INT(4, gm.positionState().halfmoveClock);
+  TEST_ASSERT_EQUAL_INT(4, gm.positionState().fullmoveClock);
+  TEST_ASSERT_EQUAL_CHAR('B', gm.getSquare(4, 2)); // Bc4
+  TEST_ASSERT_EQUAL_CHAR('n', gm.getSquare(2, 2)); // Nc6
+  TEST_ASSERT_EQUAL_STRING(fen.c_str(), gm.getFen().c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -386,6 +498,25 @@ void test_manager_end_game_aborted(void) {
   gm.endGame(GameResult::ABORTED, ' ');
   TEST_ASSERT_TRUE(gm.isGameOver());
   TEST_ASSERT_ENUM_EQ(GameResult::ABORTED, gm.gameResult());
+}
+
+void test_manager_end_game_draw_agreement(void) {
+  setUpManager();
+  gm.endGame(GameResult::DRAW_AGREEMENT, 'd');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_AGREEMENT, gm.gameResult());
+  TEST_ASSERT_EQUAL_CHAR('d', gm.winnerColor());
+}
+
+void test_manager_end_game_double_call(void) {
+  setUpManager();
+  gm.endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
+  TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
+  // Second call should be a no-op — result preserved
+  gm.endGame(GameResult::TIMEOUT, 'w');
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
+  TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +559,28 @@ void test_manager_no_callback_when_not_set(void) {
   // Just ensure no crash when no callback is set
   gm.makeMove(6, 4, 4, 4); // should not crash
   TEST_ASSERT_TRUE(true);
+}
+
+void test_manager_nested_batch(void) {
+  setUpManager();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  gm.beginBatch();
+  gm.beginBatch();  // depth 2
+  gm.makeMove(6, 4, 4, 4);
+  gm.endBatch();    // depth 1 — callback still suppressed
+  TEST_ASSERT_EQUAL_INT(0, callbackCount);
+  gm.endBatch();    // depth 0 — fires coalesced callback
+  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+}
+
+void test_manager_end_batch_without_begin(void) {
+  setUpManager();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  // endBatch with no beginBatch should not crash or fire callback
+  gm.endBatch();
+  TEST_ASSERT_EQUAL_INT(0, callbackCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +660,48 @@ void test_manager_end_game_preserves_fen(void) {
   TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), fenAfter.c_str());
 }
 
+void test_manager_eval_after_capture(void) {
+  setUpManager();
+  float initialEval = gm.getEvaluation();
+  // White captures black's e-pawn (material advantage for white)
+  gm.loadFEN("rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 2");
+  gm.makeMove(4, 3, 3, 4); // d4xe5
+  float evalAfter = gm.getEvaluation();
+  TEST_ASSERT_TRUE(evalAfter > initialEval); // white gained material
+}
+
+// ---------------------------------------------------------------------------
+// Position clocks (halfmove / fullmove)
+// ---------------------------------------------------------------------------
+
+void test_manager_halfmove_clock_increments(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1 (non-capture, non-pawn)
+  TEST_ASSERT_EQUAL_INT(1, gm.positionState().halfmoveClock);
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  TEST_ASSERT_EQUAL_INT(2, gm.positionState().halfmoveClock);
+}
+
+void test_manager_halfmove_clock_resets_on_pawn_move(void) {
+  setUpManager();
+  // Start with halfmove=5 and make a pawn move
+  gm.loadFEN("4k3/8/8/8/8/8/4P3/4K3 w - - 5 10");
+  TEST_ASSERT_EQUAL_INT(5, gm.positionState().halfmoveClock);
+  gm.makeMove(6, 4, 4, 4); // e2-e4 (pawn move resets clock)
+  TEST_ASSERT_EQUAL_INT(0, gm.positionState().halfmoveClock);
+}
+
+void test_manager_fullmove_increments_after_black(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+  TEST_ASSERT_EQUAL_INT(1, gm.positionState().fullmoveClock);
+  gm.makeMove(6, 4, 4, 4); // e2-e4 (white moves, fullmove stays 1)
+  TEST_ASSERT_EQUAL_INT(1, gm.positionState().fullmoveClock);
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8 (black moves, fullmove → 2)
+  TEST_ASSERT_EQUAL_INT(2, gm.positionState().fullmoveClock);
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -520,6 +715,8 @@ void register_board_tests() {
   RUN_TEST(test_manager_new_game_not_over);
   RUN_TEST(test_manager_new_game_fen);
   RUN_TEST(test_manager_initial_evaluation_zero);
+  RUN_TEST(test_manager_getSquare_returns_piece);
+  RUN_TEST(test_manager_invalidMoveResult_fields);
 
   // Basic moves
   RUN_TEST(test_manager_e2e4);
@@ -535,18 +732,23 @@ void register_board_tests() {
   // En passant
   RUN_TEST(test_manager_en_passant_white);
   RUN_TEST(test_manager_en_passant_black);
+  RUN_TEST(test_manager_ep_target_set_after_double_push);
+  RUN_TEST(test_manager_ep_target_cleared_after_other_move);
 
   // Castling
   RUN_TEST(test_manager_white_kingside_castle);
   RUN_TEST(test_manager_white_queenside_castle);
   RUN_TEST(test_manager_black_kingside_castle);
+  RUN_TEST(test_manager_black_queenside_castle);
   RUN_TEST(test_manager_castling_revokes_rights);
   RUN_TEST(test_manager_rook_move_revokes_right);
+  RUN_TEST(test_manager_rook_captured_revokes_castling);
 
   // Promotion
   RUN_TEST(test_manager_auto_queen_promotion);
   RUN_TEST(test_manager_knight_promotion);
   RUN_TEST(test_manager_black_promotion);
+  RUN_TEST(test_manager_promotion_with_capture);
 
   // Check
   RUN_TEST(test_manager_move_gives_check);
@@ -564,22 +766,28 @@ void register_board_tests() {
 
   // Threefold repetition
   RUN_TEST(test_manager_threefold_repetition);
+  RUN_TEST(test_manager_threefold_different_castling_rights);
 
   // FEN loading
   RUN_TEST(test_manager_load_fen_sets_turn);
   RUN_TEST(test_manager_load_fen_resets_game_over);
   RUN_TEST(test_manager_load_fen_roundtrip);
+  RUN_TEST(test_manager_load_fen_complex);
 
   // endGame
   RUN_TEST(test_manager_end_game_resignation);
   RUN_TEST(test_manager_end_game_timeout);
   RUN_TEST(test_manager_end_game_aborted);
+  RUN_TEST(test_manager_end_game_draw_agreement);
+  RUN_TEST(test_manager_end_game_double_call);
 
-  // Callbacks
+  // Callbacks / batching
   RUN_TEST(test_manager_callback_fires_on_move);
   RUN_TEST(test_manager_callback_fires_on_new_game);
   RUN_TEST(test_manager_batch_suppresses_callbacks);
   RUN_TEST(test_manager_no_callback_when_not_set);
+  RUN_TEST(test_manager_nested_batch);
+  RUN_TEST(test_manager_end_batch_without_begin);
 
   // Codec
   RUN_TEST(test_codec_encode_decode_roundtrip);
@@ -590,4 +798,10 @@ void register_board_tests() {
   RUN_TEST(test_manager_fen_cache_consistent);
   RUN_TEST(test_manager_eval_cache_consistent);
   RUN_TEST(test_manager_end_game_preserves_fen);
+  RUN_TEST(test_manager_eval_after_capture);
+
+  // Position clocks
+  RUN_TEST(test_manager_halfmove_clock_increments);
+  RUN_TEST(test_manager_halfmove_clock_resets_on_pawn_move);
+  RUN_TEST(test_manager_fullmove_increments_after_black);
 }

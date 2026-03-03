@@ -62,6 +62,7 @@ void ChessBoard::loadFEN(const std::string& fen) {
 }
 
 void ChessBoard::endGame(GameResult result, char winnerColor) {
+  if (gameOver_) return;  // Guard against double-call
   gameOver_ = true;
   gameResult_ = result;
   winnerColor_ = winnerColor;
