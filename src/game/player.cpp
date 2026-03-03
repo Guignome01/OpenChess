@@ -9,12 +9,12 @@ ChessPlayer::ChessPlayer(BoardDriver* bd, WiFiManagerESP32* wm, GameController* 
 void ChessPlayer::begin() {
   Serial.println("=== Starting Chess Moves Mode ===");
   if (!tryResumeGame())
-    controller_->startNewGame(GAME_MODE_CHESS_MOVES);
+    controller_->startNewGame(GameMode::CHESS_MOVES);
   waitForBoardSetup(controller_->getBoard());
 }
 
 void ChessPlayer::update() {
-  boardDriver->readSensors();
+  boardDriver_->readSensors();
 
   if (processResign()) return;
 
@@ -22,5 +22,5 @@ void ChessPlayer::update() {
   if (tryPlayerMove(controller_->currentTurn(), fromRow, fromCol, toRow, toCol))
     applyMove(fromRow, fromCol, toRow, toCol);
 
-  boardDriver->updateSensorPrev();
+  boardDriver_->updateSensorPrev();
 }

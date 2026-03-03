@@ -10,13 +10,13 @@
 
 // Map Lichess status string to GameResult enum.
 static GameResult lichessStatusToResult(const String& status) {
-  if (status == "mate") return RESULT_CHECKMATE;
-  if (status == "resign") return RESULT_RESIGNATION;
-  if (status == "stalemate") return RESULT_STALEMATE;
-  if (status == "draw") return RESULT_DRAW_AGREEMENT;
-  if (status == "timeout" || status == "outoftime") return RESULT_TIMEOUT;
-  if (status == "aborted") return RESULT_ABORTED;
-  return RESULT_ABORTED; // Unknown status — treat as aborted
+  if (status == "mate") return GameResult::CHECKMATE;
+  if (status == "resign") return GameResult::RESIGNATION;
+  if (status == "stalemate") return GameResult::STALEMATE;
+  if (status == "draw") return GameResult::DRAW_AGREEMENT;
+  if (status == "timeout" || status == "outoftime") return GameResult::TIMEOUT;
+  if (status == "aborted") return GameResult::ABORTED;
+  return GameResult::ABORTED; // Unknown status — treat as aborted
 }
 
 // Map Lichess winner string to color char.
@@ -28,36 +28,36 @@ static char lichessWinnerToColor(const String& winner) {
 
 ChessLichess::ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg)
     : ChessBot(bd, wm, gc, 'w'),
-      lichessConfig(cfg),
-      currentGameId(""),
-      lastKnownMoves(""),
-      lastSentMove(""),
-      lastPollTime(0) {}
+      lichessConfig_(cfg),
+      currentGameId_(""),
+      lastKnownMoves_(""),
+      lastSentMove_(""),
+      lastPollTime_(0) {}
 
 void ChessLichess::begin() {
   Serial.println("=== Starting Lichess Mode ===");
 
-  if (!wifiManager->isWiFiConnected()) {
+  if (!wifiManager_->isWiFiConnected()) {
     Serial.println("Not connected to WiFi. Lichess mode unavailable.");
-    boardDriver->flashBoardAnimation(LedColors::Red);
-    controller_->endGame(RESULT_ABORTED, ' ');
+    boardDriver_->flashBoardAnimation(LedColors::Red);
+    controller_->endGame(GameResult::ABORTED, ' ');
     return;
   }
 
-  if (lichessConfig.apiToken.length() == 0) {
+  if (lichessConfig_.apiToken.length() == 0) {
     Serial.println("No Lichess API token configured!");
     Serial.println("Please set your Lichess API token via the web interface.");
-    boardDriver->flashBoardAnimation(LedColors::Red);
-    controller_->endGame(RESULT_ABORTED, ' ');
+    boardDriver_->flashBoardAnimation(LedColors::Red);
+    controller_->endGame(GameResult::ABORTED, ' ');
     return;
   }
 
   String username;
-  LichessAPI::setToken(lichessConfig.apiToken);
+  LichessAPI::setToken(lichessConfig_.apiToken);
   if (!LichessAPI::verifyToken(username)) {
     Serial.println("Invalid Lichess API token!");
-    boardDriver->flashBoardAnimation(LedColors::Red);
-    controller_->endGame(RESULT_ABORTED, ' ');
+    boardDriver_->flashBoardAnimation(LedColors::Red);
+    controller_->endGame(GameResult::ABORTED, ' ');
     return;
   }
 
@@ -71,7 +71,7 @@ void ChessLichess::begin() {
 
 void ChessLichess::waitForLichessGame() {
   Serial.println("Searching for active Lichess games...");
-  std::atomic<bool>* waitAnim = boardDriver->startWaitingAnimation();
+  std::atomic<bool>* waitAnim = boardDriver_->startWaitingAnimation();
   LichessEvent event;
   event.type = LichessEventType::UNKNOWN;
   while (!controller_->isGameOver()) {
@@ -81,21 +81,21 @@ void ChessLichess::waitForLichessGame() {
     }
     break;
   }
-  boardDriver->stopAndWaitForAnimation(waitAnim);
-  currentGameId = event.gameId;
-  playerColor = event.myColor;
+  boardDriver_->stopAndWaitForAnimation(waitAnim);
+  currentGameId_ = event.gameId;
+  playerColor_ = event.myColor;
 
   Serial.println("=== Game Found! ===");
-  Serial.println("Game ID: " + currentGameId);
-  Serial.printf("Playing as: %s\n", playerColor == 'w' ? "White" : "Black");
+  Serial.println("Game ID: " + currentGameId_);
+  Serial.printf("Playing as: %s\n", playerColor_ == 'w' ? "White" : "Black");
 
   // Get full game state
   LichessGameState state;
-  state.myColor = playerColor;
-  state.gameId = currentGameId;
+  state.myColor = playerColor_;
+  state.gameId = currentGameId_;
   state.fen = event.fen; // Use FEN from initial event as fallback
 
-  if (LichessAPI::pollGameStream(currentGameId, state)) {
+  if (LichessAPI::pollGameStream(currentGameId_, state)) {
     Serial.println("Got full game state from stream");
   } else {
     // Fallback: Use data from the initial event
@@ -109,12 +109,12 @@ void ChessLichess::waitForLichessGame() {
       for (size_t i = 0; i < event.fen.length(); i++) {
         if (event.fen[i] == ' ') spaceCount++;
         if (spaceCount == 1) {
-          state.isMyTurn = (event.fen[i + 1] == 'w' && playerColor == 'w') || (event.fen[i + 1] == 'b' && playerColor == 'b');
+          state.isMyTurn = (event.fen[i + 1] == 'w' && playerColor_ == 'w') || (event.fen[i + 1] == 'b' && playerColor_ == 'b');
           break;
         }
       }
     } else {
-      state.isMyTurn = (playerColor == 'w'); // White moves first
+      state.isMyTurn = (playerColor_ == 'w'); // White moves first
     }
   }
 
@@ -130,8 +130,8 @@ void ChessLichess::waitForLichessGame() {
 void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
   controller_->newGame();
 
-  playerColor = state.myColor;
-  currentGameId = state.gameId;
+  playerColor_ = state.myColor;
+  currentGameId_ = state.gameId;
 
   // If FEN is provided, use it directly — turn is derived from the FEN's active-color field
   if (state.fen.length() > 0 && state.fen != "startpos")
@@ -139,36 +139,36 @@ void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
   else
     Serial.println("No FEN provided, assuming starting position");
 
-  lastKnownMoves = "";
+  lastKnownMoves_ = "";
 
-  Serial.printf("My color: %s, Is my turn: %s\n", playerColor == 'w' ? "White" : "Black", state.isMyTurn ? "Yes" : "No");
+  Serial.printf("My color: %s, Is my turn: %s\n", playerColor_ == 'w' ? "White" : "Black", state.isMyTurn ? "Yes" : "No");
 }
 
 // --- ChessBot hooks ---
 
 void ChessLichess::requestEngineMove() {
   // Start thinking animation if not already running
-  if (!thinkingAnimation)
+  if (!thinkingAnimation_)
     startThinking();
 
   // Polling throttle
-  if (millis() - lastPollTime < POLL_INTERVAL_MS)
+  if (millis() - lastPollTime_ < POLL_INTERVAL_MS)
     return;
-  lastPollTime = millis();
+  lastPollTime_ = millis();
 
   // Poll Lichess for updates
   LichessGameState state;
-  state.myColor = playerColor;
-  state.gameId = currentGameId;
-  if (!LichessAPI::pollGameStream(currentGameId, state))
+  state.myColor = playerColor_;
+  state.gameId = currentGameId_;
+  if (!LichessAPI::pollGameStream(currentGameId_, state))
     return;
 
   // Process new moves first — applyMove() → ChessBoard detects
   // checkmate/stalemate/draw from the move itself, with correct animation.
-  if (state.lastMove.length() > 0 && state.lastMove != lastKnownMoves) {
-    lastKnownMoves = state.lastMove;
+  if (state.lastMove.length() > 0 && state.lastMove != lastKnownMoves_) {
+    lastKnownMoves_ = state.lastMove;
     // Skip if this is the move we just sent (avoid processing our own move)
-    if (state.lastMove == lastSentMove) {
+    if (state.lastMove == lastSentMove_) {
       Serial.println("Skipping own move echo: " + state.lastMove);
     } else {
       Serial.println("Lichess move received: " + state.lastMove);
@@ -193,7 +193,7 @@ void ChessLichess::requestEngineMove() {
     stopThinking();
     GameResult result = lichessStatusToResult(state.status);
     char winner = lichessWinnerToColor(state.winner);
-    boardDriver->fireworkAnimation(winner == 'd' ? LedColors::Cyan : SystemUtils::colorLed(winner));
+    boardDriver_->fireworkAnimation(winner == 'd' ? LedColors::Cyan : SystemUtils::colorLed(winner));
     controller_->endGame(result, winner);
   }
 }
@@ -209,14 +209,14 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
   Serial.println("Sending move to Lichess: " + uciMove);
 
   // Track this move so we don't process it as a remote move when it echoes back
-  lastSentMove = uciMove;
+  lastSentMove_ = uciMove;
 
   // Retry up to 3 times if sending fails
   const int maxRetries = 3;
   int attempt = 0;
   bool sent = false;
   while (attempt < maxRetries && !sent) {
-    if (LichessAPI::makeMove(currentGameId, uciMove)) {
+    if (LichessAPI::makeMove(currentGameId_, uciMove)) {
       sent = true;
       break;
     } else {
@@ -226,14 +226,14 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
     }
   }
   if (!sent) {
-    controller_->endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(GameResult::ABORTED, ' ');
     Serial.println("ERROR: All attempts to send move to Lichess failed, ending game!");
-    boardDriver->flashBoardAnimation(LedColors::Red);
-    lastSentMove = "";
+    boardDriver_->flashBoardAnimation(LedColors::Red);
+    lastSentMove_ = "";
   }
 }
 
 void ChessLichess::onResignConfirmed(char resignColor) {
   Serial.println("Sending resign to Lichess...");
-  LichessAPI::resignGame(currentGameId);
+  LichessAPI::resignGame(currentGameId_);
 }

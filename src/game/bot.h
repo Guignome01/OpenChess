@@ -1,5 +1,5 @@
-#ifndef BOT_H
-#define BOT_H
+#ifndef GAME_BOT_H
+#define GAME_BOT_H
 
 #include "base.h"
 #include <atomic>
@@ -12,8 +12,8 @@
 //
 class ChessBot : public ChessGame {
  protected:
-  char playerColor;                    // 'w' or 'b' — the color the local player controls
-  std::atomic<bool>* thinkingAnimation;  // Thinking animation stop flag (nullptr when not running)
+  char playerColor_;                    // 'w' or 'b' — the color the local player controls
+  std::atomic<bool>* thinkingAnimation_;  // Thinking animation stop flag (nullptr when not running)
 
   ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor);
 
@@ -33,7 +33,7 @@ class ChessBot : public ChessGame {
   virtual float getEngineEvaluation();
 
   // --- Resign hooks ---
-  bool isFlipped() const override { return playerColor == 'b'; }
+  bool isFlipped() const override { return playerColor_ == 'b'; }
   void onBeforeResignConfirm() override;
   void onResignCancelled() override;
 
@@ -54,4 +54,4 @@ class ChessBot : public ChessGame {
   void update() override;
 };
 
-#endif  // BOT_H
+#endif  // GAME_BOT_H

@@ -22,7 +22,7 @@ const char ChessBoard::INITIAL_BOARD[8][8] = {
 ChessBoard::ChessBoard()
     : currentTurn_('w'),
       gameOver_(false),
-      gameResult_(RESULT_IN_PROGRESS),
+      gameResult_(GameResult::IN_PROGRESS),
       winnerColor_(' '),
       cachedEval_(0.0f),
       fenDirty_(true),
@@ -41,7 +41,7 @@ void ChessBoard::newGame() {
   memcpy(board_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
   currentTurn_ = 'w';
   gameOver_ = false;
-  gameResult_ = RESULT_IN_PROGRESS;
+  gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
   state_ = PositionState{};
   positionHistoryCount_ = 0;
@@ -55,7 +55,7 @@ void ChessBoard::loadFEN(const std::string& fen) {
   positionHistoryCount_ = 0;
   recordPosition();
   gameOver_ = false;
-  gameResult_ = RESULT_IN_PROGRESS;
+  gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
   invalidateCache();
   fireCallback();
@@ -101,7 +101,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   GameResult endResult = detectGameEnd(winner);
   result.gameResult = endResult;
   result.winnerColor = winner;
-  if (endResult != RESULT_IN_PROGRESS) {
+  if (endResult != GameResult::IN_PROGRESS) {
     gameOver_ = true;
     gameResult_ = endResult;
     winnerColor_ = winner;
@@ -109,7 +109,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
 
   // Check detection (if game is not over)
   result.isCheck = false;
-  if (endResult == RESULT_IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
+  if (endResult == GameResult::IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
     result.isCheck = true;
 
   invalidateCache();
@@ -290,22 +290,22 @@ void ChessBoard::advanceTurn() {
 GameResult ChessBoard::detectGameEnd(char& winner) {
   if (ChessRules::isCheckmate(board_, currentTurn_, state_)) {
     winner = (currentTurn_ == 'w') ? 'b' : 'w';
-    return RESULT_CHECKMATE;
+    return GameResult::CHECKMATE;
   }
   if (ChessRules::isStalemate(board_, currentTurn_, state_)) {
     winner = 'd';
-    return RESULT_STALEMATE;
+    return GameResult::STALEMATE;
   }
   if (state_.halfmoveClock >= 100) {
     winner = 'd';
-    return RESULT_DRAW_50;
+    return GameResult::DRAW_50;
   }
   if (isThreefoldRepetition()) {
     winner = 'd';
-    return RESULT_DRAW_3FOLD;
+    return GameResult::DRAW_3FOLD;
   }
   winner = ' ';
-  return RESULT_IN_PROGRESS;
+  return GameResult::IN_PROGRESS;
 }
 
 // ---------------------------------------------------------------------------

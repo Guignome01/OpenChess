@@ -1,5 +1,5 @@
-#ifndef GAME_CONTROLLER_H
-#define GAME_CONTROLLER_H
+#ifndef CORE_GAME_CONTROLLER_H
+#define CORE_GAME_CONTROLLER_H
 
 #include <string>
 
@@ -25,10 +25,10 @@ class GameController {
   void newGame();
 
   // Start a new game and begin recording. Resets the board, then starts recording.
-  void startNewGame(GameModeCode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
+  void startNewGame(GameMode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
 
   // Start recording (delegates to GameRecorder + auto-snapshots initial FEN).
-  void startRecording(GameModeCode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
+  void startRecording(GameMode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
 
   // End the game — finishes recording (if active) and sets board game-over state.
   void endGame(GameResult result, char winnerColor);
@@ -53,7 +53,7 @@ class GameController {
   // --- Resume queries ---
 
   bool hasActiveGame();
-  bool getActiveGameInfo(GameModeCode& mode, uint8_t& playerColor, uint8_t& botDepth);
+  bool getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth);
 
   // --- Read-only pass-throughs to ChessBoard ---
 
@@ -79,4 +79,4 @@ class GameController {
   void notifyObserver();
 };
 
-#endif  // GAME_CONTROLLER_H
+#endif  // CORE_GAME_CONTROLLER_H

@@ -35,7 +35,7 @@ void test_manager_new_game_turn(void) {
 void test_manager_new_game_not_over(void) {
   setUpManager();
   TEST_ASSERT_FALSE(gm.isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_IN_PROGRESS, gm.gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, gm.gameResult());
 }
 
 void test_manager_new_game_fen(void) {
@@ -96,7 +96,7 @@ void test_manager_out_of_bounds_rejected(void) {
 
 void test_manager_move_after_game_over_rejected(void) {
   setUpManager();
-  gm.endGame(RESULT_RESIGNATION, 'b');
+  gm.endGame(GameResult::RESIGNATION, 'b');
   MoveResult r = gm.makeMove(6, 4, 4, 4);
   TEST_ASSERT_FALSE(r.valid);
 }
@@ -243,7 +243,7 @@ void test_manager_move_gives_check(void) {
   MoveResult r = gm.makeMove(7, 0, 0, 0); // Ra1-a8+
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCheck);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_IN_PROGRESS, r.gameResult); // not checkmate
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult); // not checkmate
 }
 
 void test_manager_move_no_check(void) {
@@ -267,10 +267,10 @@ void test_manager_scholars_mate(void) {
   gm.makeMove(1, 1, 2, 1); // b7b6
   MoveResult r = gm.makeMove(3, 7, 1, 5); // Qh5xf7# — checkmate
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('w', r.winnerColor);
   TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, gm.gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, gm.gameResult());
 }
 
 void test_manager_back_rank_mate(void) {
@@ -279,7 +279,7 @@ void test_manager_back_rank_mate(void) {
   gm.loadFEN("6k1/5ppp/8/8/8/8/8/R3K3 w Q - 0 1");
   MoveResult r = gm.makeMove(7, 0, 0, 0); // Ra1-a8#
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('w', r.winnerColor);
 }
 
@@ -294,7 +294,7 @@ void test_manager_stalemate(void) {
   gm.loadFEN("k7/8/2K5/8/8/8/8/1Q6 w - - 0 1");
   MoveResult r = gm.makeMove(7, 1, 2, 1); // Qb1-b6 — stalemates black king
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_STALEMATE, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::STALEMATE, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('d', r.winnerColor);
   TEST_ASSERT_TRUE(gm.isGameOver());
 }
@@ -309,7 +309,7 @@ void test_manager_fifty_move_draw(void) {
   gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 99 50");
   MoveResult r = gm.makeMove(7, 0, 7, 1); // Ra1-b1 (non-capture, non-pawn = clock hits 100)
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_DRAW_50, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_50, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('d', r.winnerColor);
 }
 
@@ -333,7 +333,7 @@ void test_manager_threefold_repetition(void) {
   // Move 4: Kd1-e1, Kd8-e8 (back to original — occurrence 3)
   gm.makeMove(7, 3, 7, 4); // Kd1-e1
   MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — third repetition
-  TEST_ASSERT_EQUAL_UINT8(RESULT_DRAW_3FOLD, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
   TEST_ASSERT_TRUE(gm.isGameOver());
 }
 
@@ -349,7 +349,7 @@ void test_manager_load_fen_sets_turn(void) {
 
 void test_manager_load_fen_resets_game_over(void) {
   setUpManager();
-  gm.endGame(RESULT_RESIGNATION, 'w');
+  gm.endGame(GameResult::RESIGNATION, 'w');
   TEST_ASSERT_TRUE(gm.isGameOver());
   gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   TEST_ASSERT_FALSE(gm.isGameOver());
@@ -368,24 +368,24 @@ void test_manager_load_fen_roundtrip(void) {
 
 void test_manager_end_game_resignation(void) {
   setUpManager();
-  gm.endGame(RESULT_RESIGNATION, 'b');
+  gm.endGame(GameResult::RESIGNATION, 'b');
   TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_RESIGNATION, gm.gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
   TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
 }
 
 void test_manager_end_game_timeout(void) {
   setUpManager();
-  gm.endGame(RESULT_TIMEOUT, 'w');
+  gm.endGame(GameResult::TIMEOUT, 'w');
   TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_TIMEOUT, gm.gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::TIMEOUT, gm.gameResult());
 }
 
 void test_manager_end_game_aborted(void) {
   setUpManager();
-  gm.endGame(RESULT_ABORTED, ' ');
+  gm.endGame(GameResult::ABORTED, ' ');
   TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_ABORTED, gm.gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::ABORTED, gm.gameResult());
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +502,7 @@ void test_manager_eval_cache_consistent(void) {
 void test_manager_end_game_preserves_fen(void) {
   setUpManager();
   std::string fenBefore = gm.getFen();
-  gm.endGame(RESULT_RESIGNATION, 'b');
+  gm.endGame(GameResult::RESIGNATION, 'b');
   std::string fenAfter = gm.getFen();
   TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), fenAfter.c_str());
 }

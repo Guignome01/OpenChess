@@ -1,5 +1,5 @@
-#ifndef STOCKFISH_H
-#define STOCKFISH_H
+#ifndef GAME_STOCKFISH_H
+#define GAME_STOCKFISH_H
 
 #include "bot.h"
 #include "stockfish_api.h"
@@ -12,8 +12,8 @@
 
 class ChessStockfish : public ChessBot {
  private:
-  StockfishSettings settings;
-  float currentEvaluation;
+  StockfishSettings settings_;
+  float currentEvaluation_;
 
   // Stockfish API
   String makeStockfishRequest(const std::string& fen);
@@ -22,11 +22,11 @@ class ChessStockfish : public ChessBot {
  protected:
   // ChessBot hooks
   void requestEngineMove() override;
-  float getEngineEvaluation() override { return currentEvaluation; }
+  float getEngineEvaluation() override { return currentEvaluation_; }
 
  public:
   ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor, StockfishSettings settings);
   void begin() override;
 };
 
-#endif  // STOCKFISH_H
+#endif  // GAME_STOCKFISH_H

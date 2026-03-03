@@ -1,5 +1,5 @@
-#ifndef GAME_STORAGE_H
-#define GAME_STORAGE_H
+#ifndef CORE_GAME_STORAGE_H
+#define CORE_GAME_STORAGE_H
 
 #include <cstddef>
 #include <cstdint>
@@ -57,4 +57,4 @@ class IGameStorage {
   virtual void enforceStorageLimits() = 0;
 };
 
-#endif  // GAME_STORAGE_H
+#endif  // CORE_GAME_STORAGE_H

@@ -1,5 +1,5 @@
-#ifndef TYPES_H
-#define TYPES_H
+#ifndef CORE_TYPES_H
+#define CORE_TYPES_H
 
 #include <cstdint>
 
@@ -19,17 +19,17 @@ struct PositionState {
 // Game result codes — stored in game recording binary format.
 // Values 0–5 match the existing on-disk header (FORMAT_VERSION 1).
 // New values are appended so older files remain readable.
-enum GameResult : uint8_t {
-  RESULT_IN_PROGRESS = 0,
-  RESULT_CHECKMATE = 1,
-  RESULT_STALEMATE = 2,
-  RESULT_DRAW_50 = 3,
-  RESULT_DRAW_3FOLD = 4,
-  RESULT_RESIGNATION = 5,
-  RESULT_DRAW_INSUFFICIENT = 6,
-  RESULT_DRAW_AGREEMENT = 7,
-  RESULT_TIMEOUT = 8,
-  RESULT_ABORTED = 9
+enum class GameResult : uint8_t {
+  IN_PROGRESS = 0,
+  CHECKMATE = 1,
+  STALEMATE = 2,
+  DRAW_50 = 3,
+  DRAW_3FOLD = 4,
+  RESIGNATION = 5,
+  DRAW_INSUFFICIENT = 6,
+  DRAW_AGREEMENT = 7,
+  TIMEOUT = 8,
+  ABORTED = 9
 };
 
 // Carries all information from a completed move so the hardware/UI layer
@@ -44,13 +44,13 @@ struct MoveResult {
   bool isPromotion;     // Pawn promotion occurred
   char promotedTo;      // Piece the pawn became (or ' ')
   bool isCheck;         // Move puts opponent in check
-  GameResult gameResult; // RESULT_IN_PROGRESS if game continues
+  GameResult gameResult; // GameResult::IN_PROGRESS if game continues
   char winnerColor;     // 'w', 'b', 'd' (draw), ' ' (in progress)
 };
 
 // Factory for an invalid (rejected) MoveResult.
 inline MoveResult invalidMoveResult() {
-  return {false, false, false, -1, false, false, ' ', false, RESULT_IN_PROGRESS, ' '};
+  return {false, false, false, -1, false, false, ' ', false, GameResult::IN_PROGRESS, ' '};
 }
 
 // ---------------------------------------------------------------------------
@@ -58,16 +58,17 @@ inline MoveResult invalidMoveResult() {
 // ---------------------------------------------------------------------------
 
 // Game mode identifiers stored in the binary game header.
-enum GameModeCode : uint8_t {
-  GAME_MODE_CHESS_MOVES = 1,
-  GAME_MODE_BOT = 2,
-  GAME_MODE_LICHESS = 3
+enum class GameMode : uint8_t {
+  NONE = 0,
+  CHESS_MOVES = 1,
+  BOT = 2,
+  LICHESS = 3
 };
 
 // Binary file header for recorded games (on-disk format).
 struct __attribute__((packed)) GameHeader {
   uint8_t version;        // Format version (currently 1)
-  GameModeCode mode;      // Game mode identifier
+  GameMode mode;          // Game mode identifier
   GameResult result;      // Game outcome
   uint8_t winnerColor;    // 'w', 'b', 'd' (draw), '?' (in-progress)
   uint8_t playerColor;    // For bot mode: human's color ('w'/'b'), '?' for ChessMoves
@@ -85,4 +86,4 @@ static constexpr uint16_t FEN_MARKER = 0xFFFF;
 static constexpr int MAX_GAMES = 50;
 static constexpr float MAX_USAGE_PERCENT = 0.80f;
 
-#endif  // TYPES_H
+#endif  // CORE_TYPES_H

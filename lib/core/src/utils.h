@@ -1,5 +1,5 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef CORE_UTILS_H
+#define CORE_UTILS_H
 
 #include <cctype>
 #include <cstdint>
@@ -61,4 +61,4 @@ float evaluatePosition(const char board[8][8]);
 
 }  // namespace ChessUtils
 
-#endif  // UTILS_H
+#endif  // CORE_UTILS_H

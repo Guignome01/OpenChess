@@ -21,12 +21,12 @@
 // Game State and Configuration
 // ---------------------------
 
-enum GameMode {
-  MODE_SELECTION = 0,
-  MODE_CHESS_MOVES = 1,
-  MODE_BOT = 2,
-  MODE_LICHESS = 3,
-  MODE_SENSOR_TEST = 4
+enum class AppMode {
+  SELECTION = 0,
+  CHESS_MOVES = 1,
+  BOT = 2,
+  LICHESS = 3,
+  SENSOR_TEST = 4
 };
 
 StockfishSettings stockfishSettings = StockfishSettings::medium();
@@ -42,13 +42,13 @@ GameController controller(&recorder, &wifiManager);
 ChessGame* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 
-GameMode currentMode = MODE_SELECTION;
+AppMode currentMode = AppMode::SELECTION;
 bool modeInitialized = false;
 bool resumingGame = false;
 
 void enterGameSelection();
 void handleMenuResult(int result);
-void initializeSelectedMode(GameMode mode);
+void initializeSelectedMode(AppMode mode);
 void checkForResumableGame();
 
 void setup() {
@@ -87,7 +87,7 @@ void setup() {
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   // Check for a live game that can be resumed
   checkForResumableGame();
-  if (currentMode != MODE_SELECTION)
+  if (currentMode != AppMode::SELECTION)
     return; // Resuming a game — skip showing game selection
 
   enterGameSelection();
@@ -95,7 +95,7 @@ void setup() {
 
 void checkForResumableGame() {
   uint8_t resumePlayerColor = 0, resumeBotDepth = 0;
-  GameModeCode resumeMode = static_cast<GameModeCode>(0);
+  GameMode resumeMode = static_cast<GameMode>(0);
   if (!controller.hasActiveGame() || !controller.getActiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
     return;
 
@@ -106,17 +106,17 @@ void checkForResumableGame() {
   bool flipped = false;
 
   switch (resumeMode) {
-    case GAME_MODE_CHESS_MOVES:
+    case GameMode::CHESS_MOVES:
       indicatorColor = LedColors::Blue;
       modeName = "Chess Moves";
       break;
-    case GAME_MODE_BOT:
+    case GameMode::BOT:
       indicatorColor = LedColors::Green;
       modeName = "Bot";
       flipped = (resumePlayerColor == 'b');
       Serial.printf("  Mode: Bot (player=%c, depth=%d)\n", (char)resumePlayerColor, resumeBotDepth);
       break;
-    case GAME_MODE_LICHESS:
+    case GameMode::LICHESS:
       Serial.println("  Lichess game found — cannot resume locally, discarding");
       controller.discardRecording();
       Serial.println("================================================");
@@ -136,12 +136,12 @@ void checkForResumableGame() {
   if (boardConfirm(&boardDriver, flipped)) {
     Serial.println("  -> Player chose to RESUME");
     switch (resumeMode) {
-      case GAME_MODE_CHESS_MOVES:
-        currentMode = MODE_CHESS_MOVES;
+      case GameMode::CHESS_MOVES:
+        currentMode = AppMode::CHESS_MOVES;
         resumingGame = true;
         break;
-      case GAME_MODE_BOT:
-        currentMode = MODE_BOT;
+      case GameMode::BOT:
+        currentMode = AppMode::BOT;
         resumingGame = true;
         playerColor = (char)resumePlayerColor;
         stockfishSettings = StockfishSettings(resumeBotDepth);
@@ -180,19 +180,19 @@ void loop() {
     Serial.printf("WiFi game selection detected: %d\n", selectedMode);
     switch (selectedMode) {
       case 1:
-        currentMode = MODE_CHESS_MOVES;
+        currentMode = AppMode::CHESS_MOVES;
         break;
       case 2:
-        currentMode = MODE_BOT;
+        currentMode = AppMode::BOT;
         stockfishSettings = wifiManager.getStockfishSettings();
         playerColor = wifiManager.getBotPlayerColor();
         break;
       case 3:
-        currentMode = MODE_LICHESS;
+        currentMode = AppMode::LICHESS;
         lichessConfig = wifiManager.getLichessConfig();
         break;
       case 4:
-        currentMode = MODE_SENSOR_TEST;
+        currentMode = AppMode::SENSOR_TEST;
         break;
       default:
         Serial.println("Invalid game mode selected via WiFi");
@@ -207,7 +207,7 @@ void loop() {
     }
   }
 
-  if (currentMode == MODE_SELECTION) {
+  if (currentMode == AppMode::SELECTION) {
     boardDriver.readSensors();
     int result = navigator.poll();
     if (result != BoardMenu::RESULT_NONE)
@@ -223,9 +223,9 @@ void loop() {
   }
 
   switch (currentMode) {
-    case MODE_CHESS_MOVES:
-    case MODE_BOT:
-    case MODE_LICHESS:
+    case AppMode::CHESS_MOVES:
+    case AppMode::BOT:
+    case AppMode::LICHESS:
       if (activeGame != nullptr) {
         // Relay web resign flag to the active game
         if (wifiManager.getPendingResign()) {
@@ -238,7 +238,7 @@ void loop() {
           activeGame->update();
       }
       break;
-    case MODE_SENSOR_TEST:
+    case AppMode::SENSOR_TEST:
       if (sensorTest != nullptr) {
         if (sensorTest->isComplete())
           enterGameSelection();
@@ -255,7 +255,7 @@ void loop() {
 }
 
 void enterGameSelection() {
-  currentMode = MODE_SELECTION;
+  currentMode = AppMode::SELECTION;
   modeInitialized = false;
   navigator.clear();
   navigator.push(&gameMenu);
@@ -274,7 +274,7 @@ void handleMenuResult(int result) {
     // Game selection menu
     case MenuId::CHESS_MOVES:
       Serial.println("Mode: 'Chess Moves' selected!");
-      currentMode = MODE_CHESS_MOVES;
+      currentMode = AppMode::CHESS_MOVES;
       modeInitialized = false;
       navigator.clear();
       break;
@@ -284,14 +284,14 @@ void handleMenuResult(int result) {
       break;
     case MenuId::LICHESS:
       Serial.println("Mode: 'Lichess' selected!");
-      currentMode = MODE_LICHESS;
+      currentMode = AppMode::LICHESS;
       modeInitialized = false;
       lichessConfig = wifiManager.getLichessConfig();
       navigator.clear();
       break;
     case MenuId::SENSOR_TEST:
       Serial.println("Mode: 'Sensor Test' selected!");
-      currentMode = MODE_SENSOR_TEST;
+      currentMode = AppMode::SENSOR_TEST;
       modeInitialized = false;
       navigator.clear();
       break;
@@ -310,14 +310,14 @@ void handleMenuResult(int result) {
     case MenuId::PLAY_WHITE:
       Serial.println("Playing as White");
       playerColor = 'w';
-      currentMode = MODE_BOT;
+      currentMode = AppMode::BOT;
       modeInitialized = false;
       navigator.clear();
       break;
     case MenuId::PLAY_BLACK:
       Serial.println("Playing as Black");
       playerColor = 'b';
-      currentMode = MODE_BOT;
+      currentMode = AppMode::BOT;
       modeInitialized = false;
       navigator.clear();
       break;
@@ -325,7 +325,7 @@ void handleMenuResult(int result) {
       Serial.println("Playing as Random");
       playerColor = (random(2) == 0) ? 'w' : 'b';
       Serial.printf("  -> Assigned: %s\n", playerColor == 'w' ? "White" : "Black");
-      currentMode = MODE_BOT;
+      currentMode = AppMode::BOT;
       modeInitialized = false;
       navigator.clear();
       break;
@@ -336,7 +336,7 @@ void handleMenuResult(int result) {
   }
 }
 
-void initializeSelectedMode(GameMode mode) {
+void initializeSelectedMode(AppMode mode) {
   if (resumingGame)
     resumingGame = false;
   else
@@ -349,22 +349,22 @@ void initializeSelectedMode(GameMode mode) {
   sensorTest = nullptr;
 
   switch (mode) {
-    case MODE_CHESS_MOVES:
+    case AppMode::CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
       activeGame = new ChessPlayer(&boardDriver, &wifiManager, &controller);
       activeGame->begin();
       break;
-    case MODE_BOT:
+    case AppMode::BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
       activeGame = new ChessStockfish(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
       activeGame->begin();
       break;
-    case MODE_LICHESS:
+    case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
       activeGame = new ChessLichess(&boardDriver, &wifiManager, &controller, lichessConfig);
       activeGame->begin();
       break;
-    case MODE_SENSOR_TEST:
+    case AppMode::SENSOR_TEST:
       Serial.println("Starting 'Sensor Test'...");
       sensorTest = new SensorTest(&boardDriver);
       sensorTest->begin();

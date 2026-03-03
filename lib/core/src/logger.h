@@ -1,5 +1,5 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef CORE_LOGGER_H
+#define CORE_LOGGER_H
 
 #include <cstdarg>
 #include <cstdio>
@@ -34,4 +34,4 @@ class ILogger {
   }
 };
 
-#endif  // LOGGER_H
+#endif  // CORE_LOGGER_H

@@ -12,12 +12,12 @@ void GameController::newGame() {
   notifyObserver();
 }
 
-void GameController::startNewGame(GameModeCode mode, uint8_t playerColor, uint8_t botDepth) {
+void GameController::startNewGame(GameMode mode, uint8_t playerColor, uint8_t botDepth) {
   newGame();
   startRecording(mode, playerColor, botDepth);
 }
 
-void GameController::startRecording(GameModeCode mode, uint8_t playerColor, uint8_t botDepth) {
+void GameController::startRecording(GameMode mode, uint8_t playerColor, uint8_t botDepth) {
   if (recorder_) {
     recorder_->startRecording(mode, playerColor, botDepth);
     recorder_->recordFen(board_.getFen());
@@ -51,7 +51,7 @@ MoveResult GameController::makeMove(int fromRow, int fromCol, int toRow, int toC
                           result.isPromotion ? result.promotedTo : promotion);
 
   // Auto-finish recording on game end
-  if (result.gameResult != RESULT_IN_PROGRESS && recorder_ && recorder_->isRecording())
+  if (result.gameResult != GameResult::IN_PROGRESS && recorder_ && recorder_->isRecording())
     recorder_->finishRecording(result.gameResult, result.winnerColor);
 
   notifyObserver();
@@ -88,7 +88,7 @@ bool GameController::hasActiveGame() {
   return recorder_->hasActiveGame();
 }
 
-bool GameController::getActiveGameInfo(GameModeCode& mode, uint8_t& playerColor, uint8_t& botDepth) {
+bool GameController::getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth) {
   if (!recorder_) return false;
   return recorder_->getActiveGameInfo(mode, playerColor, botDepth);
 }

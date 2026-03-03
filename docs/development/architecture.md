@@ -128,8 +128,8 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 | Field | Type | Description |
 |-------|------|-------------|
 | `version` | `uint8_t` | Format version (currently 1) |
-| `mode` | `GameModeCode` | Game mode (1 = ChessMoves, 2 = Bot, 3 = Lichess) |
-| `result` | `GameResult` | Game outcome enum (0 = in-progress, 1 = checkmate, 2 = stalemate, 3 = draw_50, 4 = draw_3fold, 5 = resignation, 6 = draw_insufficient, 7 = draw_agreement, 8 = timeout, 9 = aborted) |
+| `mode` | `GameMode` | Game mode (1 = CHESS_MOVES, 2 = BOT, 3 = LICHESS) |
+| `result` | `GameResult` | Game outcome enum class (0 = IN_PROGRESS, 1 = CHECKMATE, 2 = STALEMATE, 3 = DRAW_50, 4 = DRAW_3FOLD, 5 = RESIGNATION, 6 = DRAW_INSUFFICIENT, 7 = DRAW_AGREEMENT, 8 = TIMEOUT, 9 = ABORTED) |
 | `winnerColor` | `uint8_t` | `'w'`, `'b'`, `'d'` (draw), or `'?'` (in-progress) |
 | `playerColor` | `uint8_t` | Human's color for bot mode, `'?'` for ChessMoves |
 | `botDepth` | `uint8_t` | Stockfish depth for bot mode, 0 for ChessMoves |
@@ -178,7 +178,7 @@ Every iteration of `loop()`:
 1. `wifiManager.update()` — handle WiFi reconnection state machine
 2. Check for pending board edits from the web UI (`getPendingBoardEdit()`)
 3. Check for web-based game mode selection (`getSelectedGameMode()`)
-4. If in `MODE_SELECTION`: poll the menu navigator, handle results via `handleMenuResult()`
+4. If in `AppMode::SELECTION`: poll the menu navigator, handle results via `handleMenuResult()`
 5. If in a game mode and not yet initialized: call `initializeSelectedMode()` (creates the game object, calls `begin()`)
 6. If in a game mode: relay web resign flag, check `isGameOver()`, call `update()`
 7. `delay(SENSOR_READ_DELAY_MS)` — 40ms pause for sensor polling cadence
@@ -217,7 +217,7 @@ The gesture runs inline inside `tryPlayerMove()` — no separate state machine. 
 3. Player returns the king. Orange increases to 50% (`showResignProgress(row, col, 1, clearFirst=true)`). All other LEDs are cleared.
 4. `continueResignGesture()` takes over — a blocking loop that waits for 2 more quick lift-and-return cycles, each within `RESIGN_LIFT_WINDOW_MS` (1000ms). Orange progresses to 75% then 100%.
 5. If all lifts complete in time, `boardConfirm()` shows a yes/no dialog (green/red squares).
-6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `RESULT_RESIGNATION` and plays a firework animation in the opponent's color. `ChessLichess` overrides this to also call `LichessAPI::resignGame()` and manages the thinking animation stop flag.
+6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `GameResult::RESIGNATION` and plays a firework animation in the opponent's color. `ChessLichess` overrides this to also call `LichessAPI::resignGame()` and manages the thinking animation stop flag.
 
 If any step times out (king not returned within the window), the gesture is silently canceled — no error feedback, just a return to normal play. The progressive orange brightness (25% → 50% → 75% → 100%) uses `LedColors::scaleColor(LedColors::Orange, factor)` with factors from `RESIGN_BRIGHTNESS_LEVELS`.
 

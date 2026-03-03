@@ -134,15 +134,15 @@ static void setupRecorder() {
 
 void test_recorder_start_recording(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   TEST_ASSERT_TRUE(recorder.isRecording());
   TEST_ASSERT_TRUE(storage.gameActive);
-  TEST_ASSERT_EQUAL_UINT8(GAME_MODE_CHESS_MOVES, storage.storedHeader.mode);
+  TEST_ASSERT_ENUM_EQ(GameMode::CHESS_MOVES, storage.storedHeader.mode);
 }
 
 void test_recorder_record_move(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   recorder.recordMove(6, 4, 4, 4, ' ');  // e2e4
   TEST_ASSERT_EQUAL(2, (int)storage.moveData.size());  // 2-byte encoded move
   // Header not flushed yet (turn-based: every 2 half-moves)
@@ -151,7 +151,7 @@ void test_recorder_record_move(void) {
 
 void test_recorder_record_fen(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
   recorder.recordFen(fen);
   TEST_ASSERT_EQUAL(1, (int)storage.fenEntries.size());
@@ -161,18 +161,18 @@ void test_recorder_record_fen(void) {
 
 void test_recorder_finish_recording(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   recorder.recordMove(6, 4, 4, 4, ' ');
-  recorder.finishRecording(RESULT_CHECKMATE, 'w');
+  recorder.finishRecording(GameResult::CHECKMATE, 'w');
   TEST_ASSERT_FALSE(recorder.isRecording());
   TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, storage.storedHeader.result);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, storage.storedHeader.result);
   TEST_ASSERT_EQUAL_CHAR('w', storage.storedHeader.winnerColor);
 }
 
 void test_recorder_discard_recording(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   recorder.discardRecording();
   TEST_ASSERT_FALSE(recorder.isRecording());
   TEST_ASSERT_TRUE(storage.gameDiscarded);
@@ -190,7 +190,7 @@ void test_recorder_not_recording_noop(void) {
 void test_recorder_has_active_game(void) {
   setupRecorder();
   TEST_ASSERT_FALSE(recorder.hasActiveGame());
-  recorder.startRecording(GAME_MODE_BOT, 'w', 5);
+  recorder.startRecording(GameMode::BOT, 'w', 5);
   TEST_ASSERT_TRUE(recorder.hasActiveGame());
 }
 
@@ -198,22 +198,22 @@ void test_recorder_get_active_game_info(void) {
   setupRecorder();
   storage.gameActive = true;
   storage.storedHeader.version = FORMAT_VERSION;
-  storage.storedHeader.mode = GAME_MODE_BOT;
+  storage.storedHeader.mode = GameMode::BOT;
   storage.storedHeader.playerColor = 'b';
   storage.storedHeader.botDepth = 3;
 
   GameRecorder recWithLive(&storage, &logger);
-  GameModeCode mode;
+  GameMode mode;
   uint8_t color, depth;
   TEST_ASSERT_TRUE(recWithLive.getActiveGameInfo(mode, color, depth));
-  TEST_ASSERT_EQUAL_UINT8(GAME_MODE_BOT, mode);
+  TEST_ASSERT_ENUM_EQ(GameMode::BOT, mode);
   TEST_ASSERT_EQUAL_CHAR('b', (char)color);
   TEST_ASSERT_EQUAL_UINT8(3, depth);
 }
 
 void test_recorder_replay_into_board(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
 
   // Record initial FEN
   std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -269,7 +269,7 @@ void test_controller_new_game(void) {
 void test_controller_make_move(void) {
   setupController();
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
   observer.callCount = 0;
 
   MoveResult r = ctrl->makeMove(6, 4, 4, 4);  // e2e4
@@ -290,7 +290,7 @@ void test_controller_make_move_auto_finish(void) {
   setupController();
   // Set up a scholars mate position
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
 
   // Scholar's mate sequence
   ctrl->makeMove(6, 4, 4, 4);  // e2-e4
@@ -301,26 +301,26 @@ void test_controller_make_move_auto_finish(void) {
   ctrl->makeMove(1, 1, 2, 1);  // b7-b6
   MoveResult r = ctrl->makeMove(3, 7, 1, 5);  // Qh5xf7 checkmate
 
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, r.gameResult);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
   TEST_ASSERT_TRUE(ctrl->isGameOver());
 
   // Recording should have been auto-finalized
   TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_CHECKMATE, storage.storedHeader.result);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, storage.storedHeader.result);
   teardownController();
 }
 
 void test_controller_end_game(void) {
   setupController();
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
 
-  ctrl->endGame(RESULT_RESIGNATION, 'b');
+  ctrl->endGame(GameResult::RESIGNATION, 'b');
   TEST_ASSERT_TRUE(ctrl->isGameOver());
 
   // Recording finalized
   TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_RESIGNATION, storage.storedHeader.result);
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, storage.storedHeader.result);
   TEST_ASSERT_EQUAL_CHAR('b', storage.storedHeader.winnerColor);
   teardownController();
 }
@@ -328,7 +328,7 @@ void test_controller_end_game(void) {
 void test_controller_load_fen(void) {
   setupController();
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
   observer.callCount = 0;
 
   std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
@@ -361,7 +361,7 @@ void test_controller_no_observer(void) {
   GameRecorder rec(&storage, &logger);
   GameController noObs(&rec, nullptr);
   noObs.newGame();
-  noObs.startRecording(GAME_MODE_CHESS_MOVES);
+  noObs.startRecording(GameMode::CHESS_MOVES);
   MoveResult r = noObs.makeMove(6, 4, 4, 4);
   TEST_ASSERT_TRUE(r.valid);
   // startRecording FEN marker (2 bytes) + move (2 bytes) = 4
@@ -371,7 +371,7 @@ void test_controller_no_observer(void) {
 void test_controller_discard_recording(void) {
   setupController();
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
   ctrl->makeMove(6, 4, 4, 4);
 
   ctrl->discardRecording();
@@ -387,7 +387,7 @@ void test_controller_pass_throughs(void) {
   TEST_ASSERT_EQUAL_CHAR('R', ctrl->getSquare(7, 0));
   TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
   TEST_ASSERT_FALSE(ctrl->isGameOver());
-  TEST_ASSERT_EQUAL_UINT8(RESULT_IN_PROGRESS, ctrl->gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, ctrl->gameResult());
 
   std::string fen = ctrl->getFen();
   TEST_ASSERT_EQUAL_STRING(
@@ -402,7 +402,7 @@ void test_controller_pass_throughs(void) {
 
 void test_recorder_turn_based_header_flush(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   int initial = storage.headerUpdateCount;
 
   recorder.recordMove(6, 4, 4, 4, ' ');  // e2e4 (1st half-move)
@@ -415,7 +415,7 @@ void test_recorder_turn_based_header_flush(void) {
 
 void test_recorder_fen_always_flushes_header(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
   int initial = storage.headerUpdateCount;
 
   recorder.recordMove(6, 4, 4, 4, ' ');  // 1 move, no flush
@@ -427,7 +427,7 @@ void test_recorder_fen_always_flushes_header(void) {
 
 void test_recorder_replay_rejects_invalid_move(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_CHESS_MOVES, '?', 0);
+  recorder.startRecording(GameMode::CHESS_MOVES, '?', 0);
 
   // Record initial FEN
   std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -449,9 +449,9 @@ void test_recorder_replay_rejects_invalid_move(void) {
 
 void test_recorder_start_recording_lichess_mode(void) {
   setupRecorder();
-  recorder.startRecording(GAME_MODE_LICHESS, 'w', 0);
+  recorder.startRecording(GameMode::LICHESS, 'w', 0);
   TEST_ASSERT_TRUE(recorder.isRecording());
-  TEST_ASSERT_EQUAL_UINT8(GAME_MODE_LICHESS, storage.storedHeader.mode);
+  TEST_ASSERT_ENUM_EQ(GameMode::LICHESS, storage.storedHeader.mode);
 }
 
 // ---------------------------------------------------------------------------
@@ -461,24 +461,24 @@ void test_recorder_start_recording_lichess_mode(void) {
 void test_controller_end_game_idempotent(void) {
   setupController();
   ctrl->newGame();
-  ctrl->startRecording(GAME_MODE_CHESS_MOVES);
+  ctrl->startRecording(GameMode::CHESS_MOVES);
 
-  ctrl->endGame(RESULT_RESIGNATION, 'b');
+  ctrl->endGame(GameResult::RESIGNATION, 'b');
   TEST_ASSERT_TRUE(ctrl->isGameOver());
 
   observer.callCount = 0;
 
   // Second endGame should be a no-op (guard prevents overwrite)
-  ctrl->endGame(RESULT_TIMEOUT, 'w');
+  ctrl->endGame(GameResult::TIMEOUT, 'w');
   TEST_ASSERT_EQUAL(0, observer.callCount);
-  TEST_ASSERT_EQUAL_UINT8(RESULT_RESIGNATION, ctrl->gameResult());
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, ctrl->gameResult());
   TEST_ASSERT_EQUAL_CHAR('b', ctrl->winnerColor());
   teardownController();
 }
 
 void test_controller_start_new_game(void) {
   setupController();
-  ctrl->startNewGame(GAME_MODE_BOT, 'w', 5);
+  ctrl->startNewGame(GameMode::BOT, 'w', 5);
 
   TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
   TEST_ASSERT_FALSE(ctrl->isGameOver());
@@ -486,7 +486,7 @@ void test_controller_start_new_game(void) {
   // Should have both started recording and initialized board
   TEST_ASSERT_TRUE(storage.gameActive);
   TEST_ASSERT_TRUE(recorder.isRecording());
-  TEST_ASSERT_EQUAL_UINT8(GAME_MODE_BOT, storage.storedHeader.mode);
+  TEST_ASSERT_ENUM_EQ(GameMode::BOT, storage.storedHeader.mode);
   TEST_ASSERT_EQUAL_CHAR('w', storage.storedHeader.playerColor);
   TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
 

@@ -1,5 +1,5 @@
-#ifndef GAME_OBSERVER_H
-#define GAME_OBSERVER_H
+#ifndef CORE_GAME_OBSERVER_H
+#define CORE_GAME_OBSERVER_H
 
 #include <string>
 
@@ -17,4 +17,4 @@ class IGameObserver {
   virtual void onBoardStateChanged(const std::string& fen, float evaluation) = 0;
 };
 
-#endif  // GAME_OBSERVER_H
+#endif  // CORE_GAME_OBSERVER_H

@@ -7,22 +7,22 @@
 #include <Arduino.h>
 
 ChessStockfish::ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr, StockfishSettings cfg)
-    : ChessBot(bd, wm, gc, playerClr), settings(cfg), currentEvaluation(0.0f) {}
+    : ChessBot(bd, wm, gc, playerClr), settings_(cfg), currentEvaluation_(0.0f) {}
 
 void ChessStockfish::begin() {
   Serial.println("=== Starting Stockfish Mode ===");
-  Serial.printf("Player plays: %s\n", playerColor == 'w' ? "White" : "Black");
-  Serial.printf("Bot plays: %s\n", playerColor == 'w' ? "Black" : "White");
-  Serial.printf("Bot Difficulty: Depth %d, Timeout %dms\n", settings.depth, settings.timeoutMs);
+  Serial.printf("Player plays: %s\n", playerColor_ == 'w' ? "White" : "Black");
+  Serial.printf("Bot plays: %s\n", playerColor_ == 'w' ? "Black" : "White");
+  Serial.printf("Bot Difficulty: Depth %d, Timeout %dms\n", settings_.depth, settings_.timeoutMs);
   Serial.println("====================================");
-  if (wifiManager->isWiFiConnected()) {
+  if (wifiManager_->isWiFiConnected()) {
     if (!tryResumeGame())
-      controller_->startNewGame(GAME_MODE_BOT, playerColor, (uint8_t)settings.depth);
+      controller_->startNewGame(GameMode::BOT, playerColor_, (uint8_t)settings_.depth);
     waitForBoardSetup(controller_->getBoard());
   } else {
     Serial.println("Failed to connect to WiFi. Stockfish mode unavailable.");
-    boardDriver->flashBoardAnimation(LedColors::Red);
-    controller_->endGame(RESULT_ABORTED, ' ');
+    boardDriver_->flashBoardAnimation(LedColors::Red);
+    controller_->endGame(GameResult::ABORTED, ' ');
     return;
   }
 }
@@ -30,12 +30,12 @@ void ChessStockfish::begin() {
 String ChessStockfish::makeStockfishRequest(const std::string& fen) {
   WiFiSSLClient client;
   client.setInsecure();
-  String path = StockfishAPI::buildRequestURL(String(fen.c_str()), settings.depth);
+  String path = StockfishAPI::buildRequestURL(String(fen.c_str()), settings_.depth);
   Serial.println("Stockfish request: " STOCKFISH_API_URL + path);
   // Retry logic
-  for (int attempt = 1; attempt <= settings.maxRetries; attempt++) {
+  for (int attempt = 1; attempt <= settings_.maxRetries; attempt++) {
     if (attempt > 1)
-      Serial.println("Attempt: " + String(attempt) + "/" + String(settings.maxRetries));
+      Serial.println("Attempt: " + String(attempt) + "/" + String(settings_.maxRetries));
     if (client.connect(STOCKFISH_API_URL, STOCKFISH_API_PORT)) {
       client.println("GET " + path + " HTTP/1.1");
       client.println("Host: " STOCKFISH_API_URL);
@@ -45,7 +45,7 @@ String ChessStockfish::makeStockfishRequest(const std::string& fen) {
       unsigned long startTime = millis();
       String response = "";
       bool gotResponse = false;
-      while (client.connected() && (millis() - startTime < (unsigned long)settings.timeoutMs)) {
+      while (client.connected() && (millis() - startTime < (unsigned long)settings_.timeoutMs)) {
         if (client.available()) {
           response = client.readString();
           gotResponse = true;
@@ -60,7 +60,7 @@ String ChessStockfish::makeStockfishRequest(const std::string& fen) {
     }
 
     Serial.println("API request timeout or empty response");
-    if (attempt < settings.maxRetries) {
+    if (attempt < settings_.maxRetries) {
       Serial.println("Retrying...");
       delay(500);
     }
@@ -94,9 +94,9 @@ void ChessStockfish::requestEngineMove() {
   String bestMove;
   String response = makeStockfishRequest(controller_->getFen());
   stopThinking();
-  if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
+  if (parseStockfishResponse(response, bestMove, currentEvaluation_)) {
     Serial.println("=== STOCKFISH EVALUATION ===");
-    Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation > 0 ? "White" : "Black", currentEvaluation);
+    Serial.printf("%s advantage: %.2f pawns\n", currentEvaluation_ > 0 ? "White" : "Black", currentEvaluation_);
 
     int fromRow, fromCol, toRow, toCol;
     char promotion;
@@ -105,7 +105,7 @@ void ChessStockfish::requestEngineMove() {
       Serial.println("============================");
       // Verify the move is from the correct color piece
       char piece = controller_->getSquare(fromRow, fromCol);
-      char engineColor = (playerColor == 'w') ? 'b' : 'w';
+      char engineColor = (playerColor_ == 'w') ? 'b' : 'w';
       bool isEnginePiece = (engineColor == 'w') ? (piece >= 'A' && piece <= 'Z') : (piece >= 'a' && piece <= 'z');
       if (!isEnginePiece) {
         Serial.printf("ERROR: Engine tried to move a %s piece, but engine plays %s. Piece at source: %c\n", (piece >= 'A' && piece <= 'Z') ? "WHITE" : "BLACK", engineColor == 'w' ? "WHITE" : "BLACK", piece);

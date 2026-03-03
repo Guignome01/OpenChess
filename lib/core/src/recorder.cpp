@@ -13,7 +13,7 @@ GameRecorder::GameRecorder(IGameStorage* storage, ILogger* logger)
 // Recording lifecycle
 // ---------------------------------------------------------------------------
 
-void GameRecorder::startRecording(GameModeCode mode, uint8_t playerColor, uint8_t botDepth) {
+void GameRecorder::startRecording(GameMode mode, uint8_t playerColor, uint8_t botDepth) {
   if (!storage_) return;
 
   // Discard any leftover live game
@@ -22,7 +22,7 @@ void GameRecorder::startRecording(GameModeCode mode, uint8_t playerColor, uint8_
   memset(&header_, 0, sizeof(header_));
   header_.version = FORMAT_VERSION;
   header_.mode = mode;
-  header_.result = RESULT_IN_PROGRESS;
+  header_.result = GameResult::IN_PROGRESS;
   header_.winnerColor = '?';
   header_.playerColor = playerColor;
   header_.botDepth = botDepth;
@@ -77,7 +77,7 @@ void GameRecorder::finishRecording(GameResult result, char winnerColor) {
   storage_->enforceStorageLimits();
 
   if (logger_)
-    logger_->infof("GameRecorder: recording finished (result=%d, moves=%d)", result, header_.moveCount);
+    logger_->infof("GameRecorder: recording finished (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
 }
 
 void GameRecorder::discardRecording() {
@@ -94,7 +94,7 @@ bool GameRecorder::hasActiveGame() {
   return storage_->hasActiveGame();
 }
 
-bool GameRecorder::getActiveGameInfo(GameModeCode& mode, uint8_t& playerColor, uint8_t& botDepth) {
+bool GameRecorder::getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth) {
   if (!storage_) return false;
 
   GameHeader hdr;

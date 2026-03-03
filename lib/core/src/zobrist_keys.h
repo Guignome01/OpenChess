@@ -1,5 +1,5 @@
-#ifndef ZOBRIST_KEYS_H
-#define ZOBRIST_KEYS_H
+#ifndef CORE_ZOBRIST_KEYS_H
+#define CORE_ZOBRIST_KEYS_H
 
 #include <stdint.h>
 
@@ -217,4 +217,4 @@ static const uint64_t PROGMEM ZOBRIST_EN_PASSANT[8] = {
 
 static const uint64_t PROGMEM ZOBRIST_SIDE_TO_MOVE = 0x41B86C4A1075677CULL;
 
-#endif // ZOBRIST_KEYS_H
+#endif // CORE_ZOBRIST_KEYS_H

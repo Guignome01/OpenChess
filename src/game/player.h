@@ -1,5 +1,5 @@
-#ifndef PLAYER_H
-#define PLAYER_H
+#ifndef GAME_PLAYER_H
+#define GAME_PLAYER_H
 
 #include "base.h"
 
@@ -13,4 +13,4 @@ class ChessPlayer : public ChessGame {
   void update() override;
 };
 
-#endif // PLAYER_H
+#endif // GAME_PLAYER_H

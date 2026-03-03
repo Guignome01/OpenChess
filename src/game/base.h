@@ -1,5 +1,5 @@
-#ifndef BASE_H
-#define BASE_H
+#ifndef GAME_BASE_H
+#define GAME_BASE_H
 
 #include "board_driver.h"
 #include "board_menu.h"
@@ -16,14 +16,14 @@ class GameController;
 // which atomically updates the board, records moves, and notifies observers.
 class ChessGame {
  protected:
-  BoardDriver* boardDriver;
-  WiFiManagerESP32* wifiManager;
+  BoardDriver* boardDriver_;
+  WiFiManagerESP32* wifiManager_;
   GameController* controller_;
 
   // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
   static constexpr unsigned long RESIGN_LIFT_WINDOW_MS = 1000; // Max time per quick lift during gesture
-  bool resignPending = false;    // Set by web resign endpoint
+  bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
   ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
@@ -85,7 +85,7 @@ class ChessGame {
 
   void setBoardStateFromFEN(const std::string& fen);
   bool isGameOver() const;
-  void setResignPending(bool pending) { resignPending = pending; }
+  void setResignPending(bool pending) { resignPending_ = pending; }
 };
 
-#endif // BASE_H
+#endif // GAME_BASE_H

@@ -54,4 +54,9 @@ inline void sq(const char* s, int& row, int& col) {
   row = 8 - (s[1] - '0');
 }
 
+/// Compare two enum class values via their underlying integer representation.
+/// Provides clear failure messages with numeric values (e.g., "Expected 1 Was 0").
+#define TEST_ASSERT_ENUM_EQ(expected, actual) \
+  TEST_ASSERT_EQUAL_UINT8(static_cast<uint8_t>(expected), static_cast<uint8_t>(actual))
+
 #endif // TEST_HELPERS_H

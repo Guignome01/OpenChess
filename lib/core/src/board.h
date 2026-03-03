@@ -1,5 +1,5 @@
-#ifndef BOARD_H
-#define BOARD_H
+#ifndef CORE_BOARD_H
+#define CORE_BOARD_H
 
 #include <cstring>
 #include <functional>
@@ -18,7 +18,7 @@
 //   MoveResult r = cb.makeMove(6,4, 4,4);  // e2e4
 //   if (!r.valid) { /* illegal */ }
 //   cb.loadFEN("...");                  // load arbitrary position
-//   cb.endGame(RESULT_RESIGNATION, 'b'); // manual termination
+//   cb.endGame(GameResult::RESIGNATION, 'b'); // manual termination
 //
 class ChessBoard {
  public:
@@ -123,4 +123,4 @@ class ChessBoard {
   void fireCallback();
 };
 
-#endif  // BOARD_H
+#endif  // CORE_BOARD_H

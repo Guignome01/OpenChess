@@ -1,5 +1,5 @@
-#ifndef LICHESS_H
-#define LICHESS_H
+#ifndef GAME_LICHESS_H
+#define GAME_LICHESS_H
 
 #include "bot.h"
 #include "lichess_api.h"
@@ -11,16 +11,16 @@ struct LichessConfig {
 
 class ChessLichess : public ChessBot {
  private:
-  LichessConfig lichessConfig;
-  String currentGameId;
+  LichessConfig lichessConfig_;
+  String currentGameId_;
 
   // Last known state from Lichess
-  String lastKnownMoves;
+  String lastKnownMoves_;
   // Track last move we sent to avoid processing it as remote move
-  String lastSentMove;
+  String lastSentMove_;
 
   // Polling state
-  unsigned long lastPollTime;
+  unsigned long lastPollTime_;
   static const unsigned long POLL_INTERVAL_MS = 500;
 
   // Game flow
@@ -41,4 +41,4 @@ class ChessLichess : public ChessBot {
   void begin() override;
 };
 
-#endif // LICHESS_H
+#endif // GAME_LICHESS_H
