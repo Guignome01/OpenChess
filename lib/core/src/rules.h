@@ -17,6 +17,7 @@ class ChessRules {
   static void addKnightMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
   static void addBishopMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
   static void addQueenMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]);
+  static void addSlidingMoves(const char board[8][8], int row, int col, char pieceColor, const int directions[][2], int dirCount, int& moveCount, int moves[][2]);
   static void addKingMoves(const char board[8][8], int row, int col, char pieceColor, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling);
 
   static bool hasCastlingRight(uint8_t castlingRights, char pieceColor, bool kingSide);

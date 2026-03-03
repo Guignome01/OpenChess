@@ -219,6 +219,171 @@ void test_fen_partial_castling_rights_roundtrip(void) {
   TEST_ASSERT_EQUAL_STRING(inputFen.c_str(), outputFen.c_str());
 }
 
+// ---------------------------------------------------------------------------
+// checkEnPassant
+// ---------------------------------------------------------------------------
+
+void test_checkEnPassant_double_push_sets_target(void) {
+  // White pawn e2→e4 (row 6→4): EP target should be e3 (row 5, col 4)
+  auto ep = ChessUtils::checkEnPassant(6, 4, 4, 4, 'P', ' ');
+  TEST_ASSERT_FALSE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(-1, ep.capturedPawnRow);
+  TEST_ASSERT_EQUAL_INT(5, ep.nextEpRow);
+  TEST_ASSERT_EQUAL_INT(4, ep.nextEpCol);
+}
+
+void test_checkEnPassant_single_push_no_target(void) {
+  // White pawn e3→e4 (row 5→4): no EP target
+  auto ep = ChessUtils::checkEnPassant(5, 4, 4, 4, 'P', ' ');
+  TEST_ASSERT_FALSE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(-1, ep.nextEpRow);
+  TEST_ASSERT_EQUAL_INT(-1, ep.nextEpCol);
+}
+
+void test_checkEnPassant_capture_detected(void) {
+  // White pawn diagonal capture to empty square = EP capture
+  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, 'P', ' ');
+  TEST_ASSERT_TRUE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(3, ep.capturedPawnRow); // captured pawn is on same row as from
+}
+
+void test_checkEnPassant_normal_capture_not_ep(void) {
+  // White pawn diagonal capture to occupied square = normal capture, not EP
+  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, 'P', 'p');
+  TEST_ASSERT_FALSE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(-1, ep.capturedPawnRow);
+}
+
+void test_checkEnPassant_black_double_push(void) {
+  // Black pawn d7→d5 (row 1→3): EP target should be d6 (row 2, col 3)
+  auto ep = ChessUtils::checkEnPassant(1, 3, 3, 3, 'p', ' ');
+  TEST_ASSERT_FALSE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(2, ep.nextEpRow);
+  TEST_ASSERT_EQUAL_INT(3, ep.nextEpCol);
+}
+
+void test_checkEnPassant_non_pawn_no_effect(void) {
+  // Knight move — should never set EP target or capture
+  auto ep = ChessUtils::checkEnPassant(7, 1, 5, 2, 'N', ' ');
+  TEST_ASSERT_FALSE(ep.isCapture);
+  TEST_ASSERT_EQUAL_INT(-1, ep.nextEpRow);
+  TEST_ASSERT_EQUAL_INT(-1, ep.nextEpCol);
+}
+
+// ---------------------------------------------------------------------------
+// checkCastling
+// ---------------------------------------------------------------------------
+
+void test_checkCastling_kingside(void) {
+  auto c = ChessUtils::checkCastling(7, 4, 7, 6, 'K');
+  TEST_ASSERT_TRUE(c.isCastling);
+  TEST_ASSERT_EQUAL_INT(7, c.rookFromCol);  // h-file
+  TEST_ASSERT_EQUAL_INT(5, c.rookToCol);    // f-file
+}
+
+void test_checkCastling_queenside(void) {
+  auto c = ChessUtils::checkCastling(7, 4, 7, 2, 'K');
+  TEST_ASSERT_TRUE(c.isCastling);
+  TEST_ASSERT_EQUAL_INT(0, c.rookFromCol);  // a-file
+  TEST_ASSERT_EQUAL_INT(3, c.rookToCol);    // d-file
+}
+
+void test_checkCastling_black_kingside(void) {
+  auto c = ChessUtils::checkCastling(0, 4, 0, 6, 'k');
+  TEST_ASSERT_TRUE(c.isCastling);
+  TEST_ASSERT_EQUAL_INT(7, c.rookFromCol);
+  TEST_ASSERT_EQUAL_INT(5, c.rookToCol);
+}
+
+void test_checkCastling_not_king(void) {
+  // Rook moving 2 squares is not castling
+  auto c = ChessUtils::checkCastling(7, 0, 7, 2, 'R');
+  TEST_ASSERT_FALSE(c.isCastling);
+  TEST_ASSERT_EQUAL_INT(-1, c.rookFromCol);
+  TEST_ASSERT_EQUAL_INT(-1, c.rookToCol);
+}
+
+void test_checkCastling_king_one_square(void) {
+  // King moving one square is not castling
+  auto c = ChessUtils::checkCastling(7, 4, 7, 5, 'K');
+  TEST_ASSERT_FALSE(c.isCastling);
+}
+
+// ---------------------------------------------------------------------------
+// updateCastlingRights
+// ---------------------------------------------------------------------------
+
+void test_updateCastlingRights_white_king_moves(void) {
+  uint8_t rights = 0x0F;  // KQkq
+  rights = ChessUtils::updateCastlingRights(rights, 7, 4, 7, 5, 'K', ' ');
+  TEST_ASSERT_EQUAL_UINT8(0x0C, rights);  // kq only
+}
+
+void test_updateCastlingRights_black_king_moves(void) {
+  uint8_t rights = 0x0F;
+  rights = ChessUtils::updateCastlingRights(rights, 0, 4, 0, 5, 'k', ' ');
+  TEST_ASSERT_EQUAL_UINT8(0x03, rights);  // KQ only
+}
+
+void test_updateCastlingRights_white_h_rook_moves(void) {
+  uint8_t rights = 0x0F;
+  rights = ChessUtils::updateCastlingRights(rights, 7, 7, 5, 7, 'R', ' ');
+  TEST_ASSERT_EQUAL_UINT8(0x0E, rights);  // Qkq (lost K)
+}
+
+void test_updateCastlingRights_white_a_rook_moves(void) {
+  uint8_t rights = 0x0F;
+  rights = ChessUtils::updateCastlingRights(rights, 7, 0, 5, 0, 'R', ' ');
+  TEST_ASSERT_EQUAL_UINT8(0x0D, rights);  // Kkq (lost Q)
+}
+
+void test_updateCastlingRights_rook_captured(void) {
+  uint8_t rights = 0x0F;
+  // Black captures white h-rook
+  rights = ChessUtils::updateCastlingRights(rights, 0, 7, 7, 7, 'r', 'R');
+  // Lost K (rook captured on h1) + lost k (black rook moved from h8)
+  TEST_ASSERT_EQUAL_UINT8(0x0A, rights);  // Qq
+}
+
+void test_updateCastlingRights_no_change_on_pawn_move(void) {
+  uint8_t rights = 0x0F;
+  rights = ChessUtils::updateCastlingRights(rights, 6, 4, 4, 4, 'P', ' ');
+  TEST_ASSERT_EQUAL_UINT8(0x0F, rights);  // unchanged
+}
+
+// ---------------------------------------------------------------------------
+// opponentColor / squareName / PositionState::initial
+// ---------------------------------------------------------------------------
+
+void test_opponentColor_white(void) {
+  TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::opponentColor('w'));
+}
+
+void test_opponentColor_black(void) {
+  TEST_ASSERT_EQUAL_CHAR('w', ChessUtils::opponentColor('b'));
+}
+
+void test_squareName_corners(void) {
+  TEST_ASSERT_EQUAL_STRING("a8", ChessUtils::squareName(0, 0).c_str());
+  TEST_ASSERT_EQUAL_STRING("h8", ChessUtils::squareName(0, 7).c_str());
+  TEST_ASSERT_EQUAL_STRING("a1", ChessUtils::squareName(7, 0).c_str());
+  TEST_ASSERT_EQUAL_STRING("h1", ChessUtils::squareName(7, 7).c_str());
+}
+
+void test_squareName_center(void) {
+  TEST_ASSERT_EQUAL_STRING("e4", ChessUtils::squareName(4, 4).c_str());
+  TEST_ASSERT_EQUAL_STRING("d5", ChessUtils::squareName(3, 3).c_str());
+}
+
+void test_positionState_initial(void) {
+  PositionState st = PositionState::initial();
+  TEST_ASSERT_EQUAL_UINT8(0x0F, st.castlingRights);
+  TEST_ASSERT_EQUAL_INT(-1, st.epRow);
+  TEST_ASSERT_EQUAL_INT(-1, st.epCol);
+  TEST_ASSERT_EQUAL_INT(0, st.halfmoveClock);
+  TEST_ASSERT_EQUAL_INT(1, st.fullmoveClock);
+}
+
 void register_utils_tests() {
   needsDefaultKings = false;
 
@@ -257,4 +422,38 @@ void register_utils_tests() {
   // Additional FEN / helpers
   RUN_TEST(test_boardToFEN_nullptr_state);
   RUN_TEST(test_fen_partial_castling_rights_roundtrip);
+
+  // checkEnPassant
+  RUN_TEST(test_checkEnPassant_double_push_sets_target);
+  RUN_TEST(test_checkEnPassant_single_push_no_target);
+  RUN_TEST(test_checkEnPassant_capture_detected);
+  RUN_TEST(test_checkEnPassant_normal_capture_not_ep);
+  RUN_TEST(test_checkEnPassant_black_double_push);
+  RUN_TEST(test_checkEnPassant_non_pawn_no_effect);
+
+  // checkCastling
+  RUN_TEST(test_checkCastling_kingside);
+  RUN_TEST(test_checkCastling_queenside);
+  RUN_TEST(test_checkCastling_black_kingside);
+  RUN_TEST(test_checkCastling_not_king);
+  RUN_TEST(test_checkCastling_king_one_square);
+
+  // updateCastlingRights
+  RUN_TEST(test_updateCastlingRights_white_king_moves);
+  RUN_TEST(test_updateCastlingRights_black_king_moves);
+  RUN_TEST(test_updateCastlingRights_white_h_rook_moves);
+  RUN_TEST(test_updateCastlingRights_white_a_rook_moves);
+  RUN_TEST(test_updateCastlingRights_rook_captured);
+  RUN_TEST(test_updateCastlingRights_no_change_on_pawn_move);
+
+  // opponentColor
+  RUN_TEST(test_opponentColor_white);
+  RUN_TEST(test_opponentColor_black);
+
+  // squareName
+  RUN_TEST(test_squareName_corners);
+  RUN_TEST(test_squareName_center);
+
+  // PositionState::initial
+  RUN_TEST(test_positionState_initial);
 }

@@ -3,6 +3,7 @@
 #include "game_controller.h"
 #include "led_colors.h"
 #include "stockfish_api.h"
+#include "utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
@@ -105,7 +106,7 @@ void ChessStockfish::requestEngineMove() {
       Serial.println("============================");
       // Verify the move is from the correct color piece
       char piece = controller_->getSquare(fromRow, fromCol);
-      char engineColor = (playerColor_ == 'w') ? 'b' : 'w';
+      char engineColor = ChessUtils::opponentColor(playerColor_);
       bool isEnginePiece = (engineColor == 'w') ? (piece >= 'A' && piece <= 'Z') : (piece >= 'a' && piece <= 'z');
       if (!isEnginePiece) {
         Serial.printf("ERROR: Engine tried to move a %s piece, but engine plays %s. Piece at source: %c\n", (piece >= 'A' && piece <= 'Z') ? "WHITE" : "BLACK", engineColor == 'w' ? "WHITE" : "BLACK", piece);
@@ -115,7 +116,7 @@ void ChessStockfish::requestEngineMove() {
         Serial.println("ERROR: Engine tried to move from an empty square!");
         return;
       }
-      applyMove(fromRow, fromCol, toRow, toCol, (bestMove.length() >= 5) ? bestMove[4] : ' ', true);
+      applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
     } else {
       Serial.println("Failed to parse Stockfish UCI move: " + bestMove);
     }

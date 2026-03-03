@@ -43,14 +43,52 @@ void ChessBoard::newGame() {
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
-  state_ = PositionState{};
+  state_ = PositionState::initial();
   positionHistoryCount_ = 0;
   invalidateCache();
   recordPosition();
   fireCallback();
 }
 
-void ChessBoard::loadFEN(const std::string& fen) {
+bool ChessBoard::loadFEN(const std::string& fen) {
+  // --- Basic FEN validation ---
+  if (fen.empty()) return false;
+
+  // Extract board part (before first space)
+  size_t spacePos = fen.find(' ');
+  std::string boardPart = (spacePos != std::string::npos) ? fen.substr(0, spacePos) : fen;
+
+  // Must have exactly 7 '/' separators (8 ranks)
+  int slashCount = 0;
+  for (char c : boardPart) {
+    if (c == '/') slashCount++;
+  }
+  if (slashCount != 7) return false;
+
+  // Validate each rank sums to 8 and contains only valid characters
+  int col = 0;
+  for (char c : boardPart) {
+    if (c == '/') {
+      if (col != 8) return false;  // rank didn't sum to 8
+      col = 0;
+    } else if (c >= '1' && c <= '8') {
+      col += c - '0';
+    } else if (std::strchr("rnbqkpRNBQKP", c)) {
+      col++;
+    } else {
+      return false;  // invalid character
+    }
+  }
+  if (col != 8) return false;  // last rank didn't sum to 8
+
+  // Validate turn field if present
+  if (spacePos != std::string::npos && spacePos + 1 < fen.size()) {
+    size_t turnEnd = fen.find(' ', spacePos + 1);
+    std::string turnField = fen.substr(spacePos + 1, turnEnd - spacePos - 1);
+    if (turnField != "w" && turnField != "b") return false;
+  }
+
+  // --- Validated: apply FEN ---
   ChessUtils::fenToBoard(fen, board_, currentTurn_, &state_);
   positionHistoryCount_ = 0;
   recordPosition();
@@ -59,6 +97,7 @@ void ChessBoard::loadFEN(const std::string& fen) {
   winnerColor_ = ' ';
   invalidateCache();
   fireCallback();
+  return true;
 }
 
 void ChessBoard::endGame(GameResult result, char winnerColor) {
@@ -167,30 +206,26 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
   char piece = board_[fromRow][fromCol];
   char capturedPiece = board_[toRow][toCol];
 
-  result.isCastling = ChessUtils::isCastlingMove(fromRow, fromCol, toRow, toCol, piece);
-  result.isEnPassant = ChessUtils::isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
-  result.epCapturedRow = -1;
+  // --- En passant analysis ---
+  auto ep = ChessUtils::checkEnPassant(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  result.isEnPassant = ep.isCapture;
+  result.epCapturedRow = ep.capturedPawnRow;
   result.isPromotion = false;
   result.promotedTo = ' ';
 
-  // En passant target for next move
-  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
-    state_.epRow = (fromRow + toRow) / 2;
-    state_.epCol = fromCol;
-  } else {
-    state_.epRow = -1;
-    state_.epCol = -1;
-  }
+  state_.epRow = ep.nextEpRow;
+  state_.epCol = ep.nextEpCol;
 
-  // Handle en passant capture
-  if (result.isEnPassant) {
-    int epCapturedRow = ChessUtils::getEnPassantCapturedPawnRow(toRow, piece);
-    result.epCapturedRow = epCapturedRow;
-    capturedPiece = board_[epCapturedRow][toCol];
-    board_[epCapturedRow][toCol] = ' ';
+  if (ep.isCapture) {
+    capturedPiece = board_[ep.capturedPawnRow][toCol];
+    board_[ep.capturedPawnRow][toCol] = ' ';
   }
 
   result.isCapture = (capturedPiece != ' ');
+
+  // --- Castling analysis ---
+  auto castle = ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol, piece);
+  result.isCastling = castle.isCastling;
 
   // Update halfmove clock (reset on pawn move or capture, otherwise increment)
   if (toupper(piece) == 'P' || capturedPiece != ' ')
@@ -203,11 +238,15 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
   board_[fromRow][fromCol] = ' ';
 
   // Apply castling rook move
-  if (result.isCastling)
-    applyCastling(fromRow, fromCol, toRow, toCol, piece);
+  if (castle.isCastling) {
+    char rookPiece = ChessUtils::isBlackPiece(piece) ? 'r' : 'R';
+    board_[toRow][castle.rookToCol] = rookPiece;
+    board_[toRow][castle.rookFromCol] = ' ';
+  }
 
   // Update castling rights
-  updateCastlingRightsAfterMove(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  state_.castlingRights = ChessUtils::updateCastlingRights(
+      state_.castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
   // Pawn promotion
   if (ChessRules::isPawnPromotion(piece, toRow)) {
@@ -222,56 +261,7 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
   }
 }
 
-// ---------------------------------------------------------------------------
-// Internal: castling rook movement (board-only, no hardware)
-// ---------------------------------------------------------------------------
 
-void ChessBoard::applyCastling(int fromRow, int fromCol, int toRow, int toCol, char kingPiece) {
-  int deltaCol = toCol - fromCol;
-  if (fromRow != toRow) return;
-  if (deltaCol != 2 && deltaCol != -2) return;
-
-  int rookFromCol = (deltaCol == 2) ? 7 : 0;
-  int rookToCol = (deltaCol == 2) ? 5 : 3;
-  char rookPiece = ChessUtils::isBlackPiece(kingPiece) ? 'r' : 'R';
-
-  board_[toRow][rookToCol] = rookPiece;
-  board_[toRow][rookFromCol] = ' ';
-}
-
-// ---------------------------------------------------------------------------
-// Internal: castling rights bookkeeping
-// ---------------------------------------------------------------------------
-
-void ChessBoard::updateCastlingRightsAfterMove(int fromRow, int fromCol, int toRow, int toCol, char movedPiece, char capturedPiece) {
-  uint8_t rights = state_.castlingRights;
-
-  // King moved — lose both rights for that color
-  if (movedPiece == 'K')
-    rights &= ~(0x01 | 0x02);
-  else if (movedPiece == 'k')
-    rights &= ~(0x04 | 0x08);
-
-  // Rook moved from corner — lose that side's right
-  if (movedPiece == 'R') {
-    if (fromRow == 7 && fromCol == 7) rights &= ~0x01;
-    if (fromRow == 7 && fromCol == 0) rights &= ~0x02;
-  } else if (movedPiece == 'r') {
-    if (fromRow == 0 && fromCol == 7) rights &= ~0x04;
-    if (fromRow == 0 && fromCol == 0) rights &= ~0x08;
-  }
-
-  // Rook captured on corner — lose that side's right
-  if (capturedPiece == 'R') {
-    if (toRow == 7 && toCol == 7) rights &= ~0x01;
-    if (toRow == 7 && toCol == 0) rights &= ~0x02;
-  } else if (capturedPiece == 'r') {
-    if (toRow == 0 && toCol == 7) rights &= ~0x04;
-    if (toRow == 0 && toCol == 0) rights &= ~0x08;
-  }
-
-  state_.castlingRights = rights;
-}
 
 // ---------------------------------------------------------------------------
 // Internal: turn advancement + position recording
@@ -280,8 +270,58 @@ void ChessBoard::updateCastlingRightsAfterMove(int fromRow, int fromCol, int toR
 void ChessBoard::advanceTurn() {
   if (currentTurn_ == 'b')
     state_.fullmoveClock++;
-  currentTurn_ = (currentTurn_ == 'w') ? 'b' : 'w';
+  currentTurn_ = ChessUtils::opponentColor(currentTurn_);
   recordPosition();
+}
+
+// ---------------------------------------------------------------------------
+// Internal: insufficient material detection (FIDE dead position)
+// ---------------------------------------------------------------------------
+
+bool ChessBoard::hasInsufficientMaterial() const {
+  int whiteMinorCount = 0, blackMinorCount = 0;
+  int whiteBishopSquareColor = -1, blackBishopSquareColor = -1;
+
+  for (int r = 0; r < 8; r++) {
+    for (int c = 0; c < 8; c++) {
+      char piece = board_[r][c];
+      if (piece == ' ' || piece == 'K' || piece == 'k') continue;
+
+      // Any pawn, rook, or queen means sufficient material
+      if (piece == 'P' || piece == 'p' ||
+          piece == 'R' || piece == 'r' ||
+          piece == 'Q' || piece == 'q')
+        return false;
+
+      int squareColor = (r + c) % 2;
+      if (piece == 'N' || piece == 'B') {
+        whiteMinorCount++;
+        if (piece == 'B') whiteBishopSquareColor = squareColor;
+      } else { // 'n' or 'b'
+        blackMinorCount++;
+        if (piece == 'b') blackBishopSquareColor = squareColor;
+      }
+
+      // Two minor pieces on the same side is sufficient (K+B+N, K+N+N, etc.)
+      if (whiteMinorCount > 1 || blackMinorCount > 1) return false;
+    }
+  }
+
+  // K vs K
+  if (whiteMinorCount == 0 && blackMinorCount == 0) return true;
+
+  // K+B vs K  or  K+N vs K
+  if ((whiteMinorCount == 1 && blackMinorCount == 0) ||
+      (whiteMinorCount == 0 && blackMinorCount == 1))
+    return true;
+
+  // K+B vs K+B with same-color bishops
+  if (whiteMinorCount == 1 && blackMinorCount == 1 &&
+      whiteBishopSquareColor >= 0 && blackBishopSquareColor >= 0 &&
+      whiteBishopSquareColor == blackBishopSquareColor)
+    return true;
+
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +330,7 @@ void ChessBoard::advanceTurn() {
 
 GameResult ChessBoard::detectGameEnd(char& winner) {
   if (ChessRules::isCheckmate(board_, currentTurn_, state_)) {
-    winner = (currentTurn_ == 'w') ? 'b' : 'w';
+    winner = ChessUtils::opponentColor(currentTurn_);
     return GameResult::CHECKMATE;
   }
   if (ChessRules::isStalemate(board_, currentTurn_, state_)) {
@@ -304,6 +344,10 @@ GameResult ChessBoard::detectGameEnd(char& winner) {
   if (isThreefoldRepetition()) {
     winner = 'd';
     return GameResult::DRAW_3FOLD;
+  }
+  if (hasInsufficientMaterial()) {
+    winner = 'd';
+    return GameResult::DRAW_INSUFFICIENT;
   }
   winner = ' ';
   return GameResult::IN_PROGRESS;

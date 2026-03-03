@@ -6,6 +6,7 @@
 #include <string>
 
 #include "types.h"
+#include "rules.h"
 #include "utils.h"
 
 // Complete chess game state manager — the "chess.js" of this project.
@@ -34,7 +35,8 @@ class ChessBoard {
   void newGame();
 
   // Load arbitrary position from FEN.  Resets game-over state.
-  void loadFEN(const std::string& fen);
+  // Returns false (and leaves board unchanged) if the FEN is malformed.
+  bool loadFEN(const std::string& fen);
 
   // Manually end the game (resignation, timeout, abort, etc.).
   void endGame(GameResult result, char winnerColor);
@@ -63,6 +65,35 @@ class ChessBoard {
 
   // Material evaluation (positive = white advantage).
   float getEvaluation() const;
+
+  // --- Convenience wrappers (delegate to ChessRules / ChessUtils) ---
+
+  // Legal moves for the piece at (row, col). Returns moveCount; fills moves[][2].
+  void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) const {
+    ChessRules::getPossibleMoves(board_, row, col, state_, moveCount, moves);
+  }
+
+  // Is the given color's king in check?
+  bool isKingInCheck(char kingColor) const {
+    return ChessRules::isKingInCheck(board_, kingColor);
+  }
+
+  // Locate the king of the given color. Returns false if not found.
+  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
+    return ChessRules::findKingPosition(board_, kingColor, kingRow, kingCol);
+  }
+
+  // En passant analysis for a move on this board.
+  ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
+    return ChessUtils::checkEnPassant(fromRow, fromCol, toRow, toCol,
+                                      board_[fromRow][fromCol], board_[toRow][toCol]);
+  }
+
+  // Castling analysis for a move on this board.
+  ChessUtils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
+    return ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol,
+                                     board_[fromRow][fromCol]);
+  }
 
   // --- Batching (suppress callbacks during replay) ---
 
@@ -105,7 +136,7 @@ class ChessBoard {
 
   static inline int pieceToZobristIndex(char piece) {
     const char* pieces = "PNBRQKpnbrqk";
-    const char* p = __builtin_strchr(pieces, piece);
+    const char* p = std::strchr(pieces, piece);
     return p ? static_cast<int>(p - pieces) : -1;
   }
 
@@ -115,10 +146,9 @@ class ChessBoard {
 
   // Pure chess logic extracted from ChessGame::applyMove / updateGameStatus
   void applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result);
-  void updateCastlingRightsAfterMove(int fromRow, int fromCol, int toRow, int toCol, char movedPiece, char capturedPiece);
-  void applyCastling(int fromRow, int fromCol, int toRow, int toCol, char kingPiece);
   void advanceTurn();
   GameResult detectGameEnd(char& winner);
+  bool hasInsufficientMaterial() const;
 
   void fireCallback();
 };

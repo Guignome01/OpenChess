@@ -398,8 +398,8 @@ void test_manager_fifty_move_draw(void) {
 
 void test_manager_threefold_repetition(void) {
   setUpManager();
-  // Position where Ke1 and Ke8 shuffle back and forth
-  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  // Position where Ke1 and Ke8 shuffle back and forth (pawns provide sufficient material)
+  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
   // Move 1: Ke1-d1, Ke8-d8
   gm.makeMove(7, 4, 7, 3); // Ke1-d1
   gm.makeMove(0, 4, 0, 3); // Ke8-d8
@@ -433,6 +433,77 @@ void test_manager_threefold_different_castling_rights(void) {
   MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — occurrence 2 (not 3)
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
   TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+// ---------------------------------------------------------------------------
+// Insufficient material
+// ---------------------------------------------------------------------------
+
+void test_manager_insufficient_material_k_vs_k(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  // Any move should trigger DRAW_INSUFFICIENT
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+}
+
+void test_manager_insufficient_material_kb_vs_k(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4KB2 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+}
+
+void test_manager_insufficient_material_kn_vs_k(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K1N1 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+}
+
+void test_manager_insufficient_material_kb_vs_kb_same_color(void) {
+  setUpManager();
+  // Both bishops on light squares (c1=dark, d1 would be light, f1=light)
+  // c8 is light square (row 0 + col 2 = even), f1 is light square (row 7 + col 5 = even)
+  gm.loadFEN("2b1k3/8/8/8/8/8/8/4KB2 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+}
+
+void test_manager_insufficient_material_kb_vs_kb_diff_color(void) {
+  setUpManager();
+  // White bishop on f1 (light: 7+5=even), black bishop on c8 is light too.
+  // Put black bishop on d8 (dark: 0+3=odd) for different colors.
+  gm.loadFEN("3bk3/8/8/8/8/8/8/4KB2 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  // Different color bishops — NOT insufficient
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+void test_manager_sufficient_material_knn(void) {
+  setUpManager();
+  // K+N+N vs K — sufficient material (checkmate is possible)
+  gm.loadFEN("4k3/8/8/8/8/8/8/2N1KN2 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+void test_manager_sufficient_material_kp_vs_k(void) {
+  setUpManager();
+  // K+P vs K — sufficient material (pawn can promote)
+  gm.loadFEN("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
 }
 
 // ---------------------------------------------------------------------------
@@ -472,6 +543,58 @@ void test_manager_load_fen_complex(void) {
   TEST_ASSERT_EQUAL_CHAR('B', gm.getSquare(4, 2)); // Bc4
   TEST_ASSERT_EQUAL_CHAR('n', gm.getSquare(2, 2)); // Nc6
   TEST_ASSERT_EQUAL_STRING(fen.c_str(), gm.getFen().c_str());
+}
+
+// --- FEN validation ---
+
+void test_manager_load_fen_rejects_empty(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.loadFEN(""));
+}
+
+void test_manager_load_fen_rejects_too_few_ranks(void) {
+  setUpManager();
+  // Only 7 ranks (6 slashes)
+  TEST_ASSERT_FALSE(gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP w KQkq - 0 1"));
+}
+
+void test_manager_load_fen_rejects_too_many_ranks(void) {
+  setUpManager();
+  // 9 ranks (8 slashes)
+  TEST_ASSERT_FALSE(gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+}
+
+void test_manager_load_fen_rejects_invalid_piece(void) {
+  setUpManager();
+  // 'x' is not a valid piece character
+  TEST_ASSERT_FALSE(gm.loadFEN("xnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+}
+
+void test_manager_load_fen_rejects_rank_overflow(void) {
+  setUpManager();
+  // First rank sums to 9
+  TEST_ASSERT_FALSE(gm.loadFEN("rnbqkbnrr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+}
+
+void test_manager_load_fen_rejects_invalid_turn(void) {
+  setUpManager();
+  // 'x' is not a valid turn
+  TEST_ASSERT_FALSE(gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1"));
+}
+
+void test_manager_load_fen_valid_returns_true(void) {
+  setUpManager();
+  TEST_ASSERT_TRUE(gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"));
+}
+
+void test_manager_load_fen_invalid_preserves_state(void) {
+  setUpManager();
+  // Make a move so state differs from initial
+  gm.makeMove(6, 4, 4, 4); // e2e4
+  std::string fenBefore = gm.getFen();
+  // Invalid FEN should leave state unchanged
+  TEST_ASSERT_FALSE(gm.loadFEN("bad_fen"));
+  TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), gm.getFen().c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -768,11 +891,30 @@ void register_board_tests() {
   RUN_TEST(test_manager_threefold_repetition);
   RUN_TEST(test_manager_threefold_different_castling_rights);
 
+  // Insufficient material
+  RUN_TEST(test_manager_insufficient_material_k_vs_k);
+  RUN_TEST(test_manager_insufficient_material_kb_vs_k);
+  RUN_TEST(test_manager_insufficient_material_kn_vs_k);
+  RUN_TEST(test_manager_insufficient_material_kb_vs_kb_same_color);
+  RUN_TEST(test_manager_insufficient_material_kb_vs_kb_diff_color);
+  RUN_TEST(test_manager_sufficient_material_knn);
+  RUN_TEST(test_manager_sufficient_material_kp_vs_k);
+
   // FEN loading
   RUN_TEST(test_manager_load_fen_sets_turn);
   RUN_TEST(test_manager_load_fen_resets_game_over);
   RUN_TEST(test_manager_load_fen_roundtrip);
   RUN_TEST(test_manager_load_fen_complex);
+
+  // FEN validation
+  RUN_TEST(test_manager_load_fen_rejects_empty);
+  RUN_TEST(test_manager_load_fen_rejects_too_few_ranks);
+  RUN_TEST(test_manager_load_fen_rejects_too_many_ranks);
+  RUN_TEST(test_manager_load_fen_rejects_invalid_piece);
+  RUN_TEST(test_manager_load_fen_rejects_rank_overflow);
+  RUN_TEST(test_manager_load_fen_rejects_invalid_turn);
+  RUN_TEST(test_manager_load_fen_valid_returns_true);
+  RUN_TEST(test_manager_load_fen_invalid_preserves_state);
 
   // endGame
   RUN_TEST(test_manager_end_game_resignation);

@@ -64,9 +64,28 @@ class GameController {
   GameResult gameResult() const { return board_.gameResult(); }
   char winnerColor() const { return board_.winnerColor(); }
   uint8_t getCastlingRights() const { return board_.getCastlingRights(); }
-  const PositionState& positionState() const { return board_.positionState(); }
   std::string getFen() const { return board_.getFen(); }
   float getEvaluation() const { return board_.getEvaluation(); }
+
+  // --- Convenience pass-throughs (chess queries) ---
+
+  void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) const {
+    board_.getPossibleMoves(row, col, moveCount, moves);
+  }
+
+  bool isKingInCheck(char kingColor) const { return board_.isKingInCheck(kingColor); }
+
+  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
+    return board_.findKingPosition(kingColor, kingRow, kingCol);
+  }
+
+  ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
+    return board_.checkEnPassant(fromRow, fromCol, toRow, toCol);
+  }
+
+  ChessUtils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
+    return board_.checkCastling(fromRow, fromCol, toRow, toCol);
+  }
 
   // State-change callback (delegates to ChessBoard).
   void onStateChanged(ChessBoard::StateCallback cb) { board_.onStateChanged(cb); }

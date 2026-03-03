@@ -59,7 +59,8 @@ MoveResult GameController::makeMove(int fromRow, int fromCol, int toRow, int toC
 }
 
 bool GameController::loadFEN(const std::string& fen) {
-  board_.loadFEN(fen);
+  if (!board_.loadFEN(fen))
+    return false;
 
   if (recorder_ && recorder_->isRecording())
     recorder_->recordFen(fen);

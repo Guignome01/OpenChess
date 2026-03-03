@@ -157,7 +157,10 @@ bool GameRecorder::replayInto(ChessBoard& board) {
   if (logger_) logger_->infof("GameRecorder: resuming from FEN: %s", lastFen.c_str());
 
   // Load FEN into board, then replay subsequent moves
-  board.loadFEN(lastFen);
+  if (!board.loadFEN(lastFen)) {
+    if (logger_) logger_->error("GameRecorder: invalid FEN in recording");
+    return false;
+  }
   board.beginBatch();
 
   int replayed = 0;

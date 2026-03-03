@@ -31,6 +31,7 @@ class ChessGame {
   // Common initialization and game flow methods
   void waitForBoardSetup(const char targetBoard[8][8]);
   MoveResult applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
+  MoveResult applyUCIMove(const std::string& uci);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
 
   /// Try to resume a live game from GameController. Returns true if resumed.

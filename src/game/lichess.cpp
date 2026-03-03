@@ -172,15 +172,8 @@ void ChessLichess::requestEngineMove() {
       Serial.println("Skipping own move echo: " + state.lastMove);
     } else {
       Serial.println("Lichess move received: " + state.lastMove);
-      int fromRow, fromCol, toRow, toCol;
-      char promotion = ' ';
-      if (ChessCodec::parseUCIMove(std::string(state.lastMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
-        stopThinking();
-        Serial.printf("Lichess UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", state.lastMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
-        applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
-      } else {
-        Serial.println("Failed to parse Lichess UCI move: " + state.lastMove);
-      }
+      stopThinking();
+      applyUCIMove(std::string(state.lastMove.c_str()));
     }
   }
 

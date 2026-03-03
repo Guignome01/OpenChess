@@ -14,6 +14,9 @@ struct PositionState {
   int epCol = -1;                 // en passant target col (-1 if none)
   int halfmoveClock = 0;          // half-move clock (50-move rule)
   int fullmoveClock = 1;          // full-move counter (starts at 1)
+
+  // Standard starting position state (identical to default construction).
+  static PositionState initial() { return {}; }
 };
 
 // Game result codes — stored in game recording binary format.
@@ -85,5 +88,9 @@ static constexpr uint8_t FORMAT_VERSION = 1;
 static constexpr uint16_t FEN_MARKER = 0xFFFF;
 static constexpr int MAX_GAMES = 50;
 static constexpr float MAX_USAGE_PERCENT = 0.80f;
+
+// Maximum number of pseudo-legal moves a single piece can have.
+// Queen on open board: 7+7+7+7 = 28 (4 diagonals + 4 straights, max 7 each).
+static constexpr int MAX_MOVES_PER_PIECE = 28;
 
 #endif  // CORE_TYPES_H

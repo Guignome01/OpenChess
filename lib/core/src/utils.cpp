@@ -7,6 +7,15 @@
 
 namespace ChessUtils {
 
+// Extract the next space-delimited token from `remaining`, advance `remaining` past it.
+static std::string nextToken(std::string& remaining) {
+  if (remaining.empty()) return "";
+  size_t sp = remaining.find(' ');
+  std::string token = (sp != std::string::npos) ? remaining.substr(0, sp) : remaining;
+  remaining = (sp != std::string::npos) ? remaining.substr(sp + 1) : "";
+  return token;
+}
+
 std::string boardToFEN(const char board[8][8], char currentTurn, const PositionState* state) {
   std::string fen;
 
@@ -71,10 +80,8 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
   // Parse FEN string and update board state
   // FEN format: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-  // Split FEN into parts
-  size_t firstSpace = fen.find(' ');
-  std::string boardPart = (firstSpace != std::string::npos) ? fen.substr(0, firstSpace) : fen;
-  std::string remainingParts = (firstSpace != std::string::npos) ? fen.substr(firstSpace + 1) : "";
+  std::string remaining = fen;
+  std::string boardPart = nextToken(remaining);
 
   // Clear board
   for (int row = 0; row < 8; row++)
@@ -105,57 +112,42 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
     *state = PositionState{};
 
   // Parse active color
-  if (!remainingParts.empty()) {
-    size_t secondSpace = remainingParts.find(' ');
-    std::string activeColor = (secondSpace != std::string::npos) ? remainingParts.substr(0, secondSpace) : remainingParts;
+  std::string activeColor = nextToken(remaining);
+  if (!activeColor.empty())
     currentTurn = (activeColor == "w" || activeColor == "W") ? 'w' : 'b';
-    remainingParts = (secondSpace != std::string::npos) ? remainingParts.substr(secondSpace + 1) : "";
-  }
 
   // Parse castling rights
-  if (!remainingParts.empty()) {
-    size_t thirdSpace = remainingParts.find(' ');
-    if (state != nullptr)
-      state->castlingRights = ChessCodec::castlingRightsFromString((thirdSpace != std::string::npos) ? remainingParts.substr(0, thirdSpace) : remainingParts);
-    remainingParts = (thirdSpace != std::string::npos) ? remainingParts.substr(thirdSpace + 1) : "";
-  }
+  std::string castlingStr = nextToken(remaining);
+  if (!castlingStr.empty() && state != nullptr)
+    state->castlingRights = ChessCodec::castlingRightsFromString(castlingStr);
 
   // Parse en passant target square
-  if (!remainingParts.empty()) {
-    size_t fourthSpace = remainingParts.find(' ');
-    std::string enPassantSquare = (fourthSpace != std::string::npos) ? remainingParts.substr(0, fourthSpace) : remainingParts;
+  std::string enPassantSquare = nextToken(remaining);
+  if (!enPassantSquare.empty() && enPassantSquare != "-" && enPassantSquare.length() >= 2) {
+    char file = enPassantSquare[0];
+    char rankChar = enPassantSquare[1];
 
-    if (enPassantSquare != "-" && enPassantSquare.length() >= 2) {
-      char file = enPassantSquare[0];
-      char rankChar = enPassantSquare[1];
-
-      if (file >= 'a' && file <= 'h' && rankChar >= '1' && rankChar <= '8') {
-        int epCol = file - 'a';
-        int rank = rankChar - '0';
-        int epRow = 8 - rank;
-        if (state != nullptr) {
-          state->epRow = epRow;
-          state->epCol = epCol;
-        }
+    if (file >= 'a' && file <= 'h' && rankChar >= '1' && rankChar <= '8') {
+      int epCol = file - 'a';
+      int rank = rankChar - '0';
+      int epRow = 8 - rank;
+      if (state != nullptr) {
+        state->epRow = epRow;
+        state->epCol = epCol;
       }
     }
-    remainingParts = (fourthSpace != std::string::npos) ? remainingParts.substr(fourthSpace + 1) : "";
   }
 
   // Parse halfmove clock
-  if (!remainingParts.empty()) {
-    size_t fifthSpace = remainingParts.find(' ');
-    std::string halfmoveStr = (fifthSpace != std::string::npos) ? remainingParts.substr(0, fifthSpace) : remainingParts;
-    if (state != nullptr)
-      state->halfmoveClock = std::stoi(halfmoveStr);
-    remainingParts = (fifthSpace != std::string::npos) ? remainingParts.substr(fifthSpace + 1) : "";
-  }
+  std::string halfmoveStr = nextToken(remaining);
+  if (!halfmoveStr.empty() && state != nullptr)
+    state->halfmoveClock = std::stoi(halfmoveStr);
 
   // Parse fullmove number
-  if (!remainingParts.empty()) {
-    int fullmove = std::stoi(remainingParts);
-    if (state != nullptr)
-      state->fullmoveClock = fullmove > 0 ? fullmove : 1;
+  std::string fullmoveStr = nextToken(remaining);
+  if (!fullmoveStr.empty() && state != nullptr) {
+    int fullmove = std::stoi(fullmoveStr);
+    state->fullmoveClock = fullmove > 0 ? fullmove : 1;
   }
 }
 
