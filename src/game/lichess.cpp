@@ -1,5 +1,6 @@
 #include "lichess.h"
 #include "codec.h"
+#include "game_controller.h"
 #include "utils.h"
 #include "led_colors.h"
 #include "lichess_api.h"
@@ -25,8 +26,8 @@ static char lichessWinnerToColor(const String& winner) {
   return 'd'; // draw or empty
 }
 
-ChessLichess::ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, LichessConfig cfg)
-    : ChessBot(bd, wm, nullptr, 'w'),
+ChessLichess::ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg)
+    : ChessBot(bd, wm, gc, 'w'),
       lichessConfig(cfg),
       currentGameId(""),
       lastKnownMoves(""),
@@ -39,7 +40,7 @@ void ChessLichess::begin() {
   if (!wifiManager->isWiFiConnected()) {
     Serial.println("Not connected to WiFi. Lichess mode unavailable.");
     boardDriver->flashBoardAnimation(LedColors::Red);
-    gm_.endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(RESULT_ABORTED, ' ');
     return;
   }
 
@@ -47,7 +48,7 @@ void ChessLichess::begin() {
     Serial.println("No Lichess API token configured!");
     Serial.println("Please set your Lichess API token via the web interface.");
     boardDriver->flashBoardAnimation(LedColors::Red);
-    gm_.endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(RESULT_ABORTED, ' ');
     return;
   }
 
@@ -56,7 +57,7 @@ void ChessLichess::begin() {
   if (!LichessAPI::verifyToken(username)) {
     Serial.println("Invalid Lichess API token!");
     boardDriver->flashBoardAnimation(LedColors::Red);
-    gm_.endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(RESULT_ABORTED, ' ');
     return;
   }
 
@@ -73,7 +74,7 @@ void ChessLichess::waitForLichessGame() {
   std::atomic<bool>* waitAnim = boardDriver->startWaitingAnimation();
   LichessEvent event;
   event.type = LichessEventType::UNKNOWN;
-  while (!gm_.isGameOver()) {
+  while (!controller_->isGameOver()) {
     if (!LichessAPI::pollForGameEvent(event) || event.type != LichessEventType::GAME_START) {
       delay(2000);
       continue;
@@ -121,14 +122,13 @@ void ChessLichess::waitForLichessGame() {
   syncBoardWithLichess(state);
 
   // Wait for board setup with the current position
-  waitForBoardSetup(gm_.getBoard());
+  waitForBoardSetup(controller_->getBoard());
 
   Serial.println("Board synchronized! Game starting...");
-  wifiManager->updateBoardState(gm_.getFen(), gm_.getEvaluation());
 }
 
 void ChessLichess::syncBoardWithLichess(const LichessGameState& state) {
-  initializeBoard();
+  controller_->newGame();
 
   playerColor = state.myColor;
   currentGameId = state.gameId;
@@ -186,7 +186,7 @@ void ChessLichess::requestEngineMove() {
 
   // External game-end from Lichess (resign, timeout, abort) — only if
   // ChessBoard didn't already detect it through move processing above.
-  if (state.gameEnded && !gm_.isGameOver()) {
+  if (state.gameEnded && !controller_->isGameOver()) {
     Serial.println("Game ended externally! Status: " + state.status);
     if (state.winner.length() > 0)
       Serial.println("Winner: " + state.winner);
@@ -194,7 +194,7 @@ void ChessLichess::requestEngineMove() {
     GameResult result = lichessStatusToResult(state.status);
     char winner = lichessWinnerToColor(state.winner);
     boardDriver->fireworkAnimation(winner == 'd' ? LedColors::Cyan : SystemUtils::colorLed(winner));
-    gm_.endGame(result, winner);
+    controller_->endGame(result, winner);
   }
 }
 
@@ -226,38 +226,14 @@ void ChessLichess::sendMoveToLichess(int fromRow, int fromCol, int toRow, int to
     }
   }
   if (!sent) {
-    gm_.endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(RESULT_ABORTED, ' ');
     Serial.println("ERROR: All attempts to send move to Lichess failed, ending game!");
     boardDriver->flashBoardAnimation(LedColors::Red);
     lastSentMove = "";
   }
 }
 
-bool ChessLichess::handleResign(char resignColor) {
-  bool wasThinking = (thinkingAnimation != nullptr);
-  if (wasThinking) stopThinking();
-
-  bool flipped = (playerColor == 'b');
-
-  Serial.printf("Lichess resign confirmation for %s...\n", ChessUtils::colorName(resignColor));
-
-  if (!boardConfirm(boardDriver, flipped)) {
-    Serial.println("Resign cancelled");
-    // Restart thinking animation if it was running before
-    if (wasThinking && gm_.currentTurn() != playerColor && !gm_.isGameOver())
-      startThinking();
-    return false;
-  }
-
-  // Send resign to Lichess API
+void ChessLichess::onResignConfirmed(char resignColor) {
   Serial.println("Sending resign to Lichess...");
   LichessAPI::resignGame(currentGameId);
-
-  char winnerColor = (resignColor == 'w') ? 'b' : 'w';
-  Serial.printf("RESIGNATION! %s resigns on Lichess. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
-
-  boardDriver->fireworkAnimation(SystemUtils::colorLed(winnerColor));
-  // Lichess mode has no local moveHistory (nullptr)
-  gm_.endGame(RESULT_RESIGNATION, winnerColor);
-  return true;
 }

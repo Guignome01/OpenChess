@@ -25,7 +25,7 @@ class ChessStockfish : public ChessBot {
   float getEngineEvaluation() override { return currentEvaluation; }
 
  public:
-  ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh, char playerColor, StockfishSettings settings);
+  ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor, StockfishSettings settings);
   void begin() override;
 };
 

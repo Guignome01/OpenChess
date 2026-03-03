@@ -2,10 +2,13 @@
 #include "game/player.h"
 #include "game/lichess.h"
 #include "game/stockfish.h"
+#include "game_controller.h"
+#include "littlefs_storage.h"
+#include "recorder.h"
+#include "serial_logger.h"
 #include "system_utils.h"
 #include "led_colors.h"
 #include "menu_config.h"
-#include "move_history.h"
 #include "sensor_test.h"
 #ifdef FACTORY_RESET
 #include <nvs_flash.h>
@@ -31,8 +34,11 @@ char playerColor = 'w';
 LichessConfig lichessConfig = {""};
 
 BoardDriver boardDriver;
-MoveHistory moveHistory;
-WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
+SerialLogger logger;
+LittleFSStorage storage(&logger);
+GameRecorder recorder(&storage, &logger);
+WiFiManagerESP32 wifiManager(&boardDriver, &storage);
+GameController controller(&recorder, &wifiManager);
 ChessGame* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 
@@ -69,7 +75,7 @@ void setup() {
     Serial.println("ERROR: LittleFS mount failed!");
   else
     Serial.println("LittleFS mounted successfully");
-  moveHistory.begin();
+  storage.initialize();
   boardDriver.begin();
   wifiManager.begin();
   Serial.println();
@@ -88,8 +94,9 @@ void setup() {
 }
 
 void checkForResumableGame() {
-  uint8_t resumeMode = 0, resumePlayerColor = 0, resumeBotDepth = 0;
-  if (!moveHistory.hasLiveGame() || !moveHistory.getLiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
+  uint8_t resumePlayerColor = 0, resumeBotDepth = 0;
+  GameModeCode resumeMode = static_cast<GameModeCode>(0);
+  if (!controller.hasActiveGame() || !controller.getActiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
     return;
 
   Serial.println("========== Live game found on flash ==========");
@@ -109,9 +116,14 @@ void checkForResumableGame() {
       flipped = (resumePlayerColor == 'b');
       Serial.printf("  Mode: Bot (player=%c, depth=%d)\n", (char)resumePlayerColor, resumeBotDepth);
       break;
+    case GAME_MODE_LICHESS:
+      Serial.println("  Lichess game found — cannot resume locally, discarding");
+      controller.discardRecording();
+      Serial.println("================================================");
+      return;
     default:
       Serial.println("Unknown live game mode, discarding");
-      moveHistory.discardLiveGame();
+      controller.discardRecording();
       Serial.println("================================================");
       return;
   }
@@ -137,7 +149,7 @@ void checkForResumableGame() {
     }
   } else {
     Serial.println("  -> Player chose to DISCARD");
-    moveHistory.discardLiveGame();
+    controller.discardRecording();
   }
 
   Serial.println("================================================");
@@ -328,7 +340,7 @@ void initializeSelectedMode(GameMode mode) {
   if (resumingGame)
     resumingGame = false;
   else
-    moveHistory.discardLiveGame(); // Discard any incomplete live game that wasn't properly finished or resumed (finishGame already removes live files for completed games)
+    controller.discardRecording(); // Discard any incomplete live game that wasn't properly finished or resumed
 
   // Clean up previous game/test
   delete activeGame;
@@ -339,17 +351,17 @@ void initializeSelectedMode(GameMode mode) {
   switch (mode) {
     case MODE_CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      activeGame = new ChessPlayer(&boardDriver, &wifiManager, &moveHistory);
+      activeGame = new ChessPlayer(&boardDriver, &wifiManager, &controller);
       activeGame->begin();
       break;
     case MODE_BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new ChessStockfish(&boardDriver, &wifiManager, &moveHistory, playerColor, stockfishSettings);
+      activeGame = new ChessStockfish(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
       activeGame->begin();
       break;
     case MODE_LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new ChessLichess(&boardDriver, &wifiManager, lichessConfig);
+      activeGame = new ChessLichess(&boardDriver, &wifiManager, &controller, lichessConfig);
       activeGame->begin();
       break;
     case MODE_SENSOR_TEST:

@@ -3,24 +3,22 @@
 
 #include "board_driver.h"
 #include "board_menu.h"
-#include "board.h"
 #include "led_colors.h"
+#include "types.h"
 #include <Arduino.h>
 
 // Forward declarations to avoid circular dependencies
 class WiFiManagerESP32;
-class MoveHistory;
+class GameController;
 
-// Base class for chess game modes (shared state and common functionality)
+// Base class for chess game modes (shared state and common functionality).
+// All chess-state mutations flow through `controller_` (GameController facade),
+// which atomically updates the board, records moves, and notifies observers.
 class ChessGame {
  protected:
   BoardDriver* boardDriver;
   WiFiManagerESP32* wifiManager;
-  MoveHistory* moveHistory; // nullptr for Lichess mode (moves already recorded on Lichess cloud)
-
-  ChessBoard gm_;
-
-  bool replaying; // True while replaying moves during resume (suppresses LEDs and physical move waits)
+  GameController* controller_;
 
   // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
@@ -28,15 +26,14 @@ class ChessGame {
   bool resignPending = false;    // Set by web resign endpoint
 
   // Constructor
-  ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh);
+  ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
 
   // Common initialization and game flow methods
-  void initializeBoard();
   void waitForBoardSetup(const char targetBoard[8][8]);
   MoveResult applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
 
-  /// Try to resume a live game from MoveHistory. Returns true if resumed.
+  /// Try to resume a live game from GameController. Returns true if resumed.
   /// If no live game exists, returns false (caller should start a new game).
   bool tryResumeGame();
 
@@ -46,9 +43,22 @@ class ChessGame {
   bool processResign();
   /// Show standard invalid-move feedback (red blink) on a square.
   void showIllegalMoveFeedback(int row, int col);
-  /// Handle resign confirmation and game-end sequence.
-  /// Virtual so ChessLichess can add API call and animation management.
-  virtual bool handleResign(char resignColor);
+  /// Handle resign confirmation and game-end sequence (Template Method).
+  /// Uses virtual hooks so subclasses can customize behavior without
+  /// duplicating the flow.  Not virtual — override the hooks instead.
+  bool handleResign(char resignColor);
+
+  // --- Resign hooks (override in subclasses) ---
+
+  /// Board orientation for the confirm dialog (true = black at bottom).
+  /// Default: white at bottom.
+  virtual bool isFlipped() const { return false; }
+  /// Called before the confirm dialog (e.g. stop thinking animation).
+  virtual void onBeforeResignConfirm() {}
+  /// Called when the user cancels the resign (e.g. restart thinking).
+  virtual void onResignCancelled() {}
+  /// Called after resign is confirmed, before endGame (e.g. API calls).
+  virtual void onResignConfirmed(char resignColor) {}
 
  private:
   /// Blocking loop for the 2 quick lifts after the initial king return.
@@ -74,13 +84,8 @@ class ChessGame {
   virtual void update() = 0;
 
   void setBoardStateFromFEN(const std::string& fen);
-  bool isGameOver() const { return gm_.isGameOver(); }
+  bool isGameOver() const;
   void setResignPending(bool pending) { resignPending = pending; }
-
-  // --- Replay support (used by MoveHistory) ---
-  void beginReplay();
-  void endReplay();
-  MoveResult replayMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 };
 
 #endif // BASE_H

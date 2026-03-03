@@ -36,7 +36,7 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 
 | File | Purpose |
 |------|---------|
-| `game/base.h/.cpp` | Abstract base class for all game modes. Owns a `ChessBoard` (`gm_`) that manages the board state, current turn, game-over flag, and chess rules internally. Implements shared logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessBoard::makeMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. |
+| `game/base.h/.cpp` | Abstract base class for all game modes. Holds a `GameController*` that coordinates chess state, recording, and observer notification. Implements shared logic: `tryPlayerMove()`, `applyMove()` (delegates to `GameController::makeMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. |
 | `game/bot.h/.cpp` | Abstract intermediate class for remote-engine modes (Template Method pattern). Concrete `update()` drives the game loop: player turn → `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; engine turn → `requestEngineMove()`. Provides thinking animation helpers, remote-move LED guidance (`waitForRemoteMoveCompletion()`), and resign with animation lifecycle. |
 | `game/player.h/.cpp` | Human vs Human mode. Minimal subclass of `ChessGame` — implements `begin()` (board setup, game recording) and `update()` (sensor polling, move processing). |
 | `game/stockfish.h/.cpp` | Human vs Stockfish mode. Extends `ChessBot` — overrides `requestEngineMove()` to call the Stockfish API and `getEngineEvaluation()` to return the engine's score. |
@@ -56,7 +56,8 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 | File | Purpose |
 |------|---------|
 | `wifi_manager_esp32.h/.cpp` | WiFi connection management (state machine with AP/STA modes), async web server (ESPAsyncWebServer), all HTTP API endpoints, mDNS, known-networks registry (NVS), OTA password management, and board state relay to the web UI. |
-| `move_history.h/.cpp` | Game recording and crash recovery. Binary format: 16-byte packed `GameHeader` + 2-byte UCI-encoded moves + FEN snapshot table. Live game persistence to LittleFS for crash recovery. JSON API for the web UI game list. Game replay for resume. |
+| `littlefs_storage.h/.cpp` | Concrete `IGameStorage` backed by LittleFS. Manages `/games/` directory, binary game files (header + moves + FEN table), storage limits enforcement, and JSON game list API for the web UI. |
+| `serial_logger.h/.cpp` | Concrete `ILogger` using Arduino `Serial`. |
 | `board_menu.h/.cpp` | Reusable board menu primitive. Displays options as colored LEDs, uses two-phase debounce for selection, supports orientation flipping, back buttons, and blink feedback. Also provides `boardConfirm()` dialog. |
 | `menu_navigator.h/.cpp` | Stack-based menu orchestrator (max depth 4). Push/pop navigation, auto back-button handling, parent menu re-display. |
 | `menu_config.h/.cpp` | Menu layout definitions. `MenuId` namespace with ID ranges per level, `constexpr MenuItem[]` arrays for each menu, extern menu/navigator instances, and `initMenus()` two-phase initializer. |
@@ -105,8 +106,13 @@ The `lib/core/` library contains all natively-compilable chess logic with zero A
 | `src/board.h/.cpp` | `ChessBoard` class: complete game-state manager. Owns the board array, current turn, game-over flag, result, and all position state via `PositionState` (castling rights, en passant, halfmove/fullmove clocks). Zobrist hashing for threefold repetition. Public API: `newGame()`, `loadFEN()`, `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`, callback/batching. |
 | `src/utils.h/.cpp` | `ChessUtils` namespace: FEN ↔ board conversion, piece color detection, material evaluation, and inline helper functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `getEnPassantCapturedPawnRow`, `isCastlingMove`, `colorName`). |
 | `src/codec.h/.cpp` | `ChessCodec` namespace: UCI move encoding/parsing, castling rights strings, compact 2-byte move encoding for binary storage. |
-| `src/types.h` | Shared chess types: `PositionState` struct (castling rights, en passant target, halfmove/fullmove clocks — passed to `ChessRules` methods and owned by `ChessBoard`), `GameResult` enum, `MoveResult` struct (returned by `ChessBoard::makeMove()`), `invalidMoveResult()` factory. |
+| `src/types.h` | Shared chess types: `PositionState` struct (castling rights, en passant target, halfmove/fullmove clocks — passed to `ChessRules` methods and owned by `ChessBoard`), `GameResult` enum, `MoveResult` struct (returned by `ChessBoard::makeMove()`), `GameHeader` packed struct (16 bytes), `GameModeCode` enum, storage constants (`FORMAT_VERSION`, `FEN_MARKER`, `MAX_GAMES`, `MAX_USAGE_PERCENT`), `invalidMoveResult()` factory. |
 | `src/zobrist_keys.h` | Pre-computed Zobrist hash tables (~6.2KB flash) with PROGMEM guard for ESP32/native portability. |
+| `src/recorder.h/.cpp` | `GameRecorder` class: pure recording orchestration. Encodes moves via `ChessCodec`, manages `GameHeader`, delegates persistence to `IGameStorage`. Replays games directly into a `ChessBoard` using batch mode. |
+| `src/game_controller.h/.cpp` | `GameController` class: thin facade coordinating `ChessBoard` + `GameRecorder` + `IGameObserver`. Atomically applies board mutations, records moves, auto-finishes on game-end, and notifies the observer. |
+| `src/logger.h` | `ILogger` abstract interface: `info()`, `error()`, and `infof()`/`errorf()` formatted helpers. |
+| `src/game_observer.h` | `IGameObserver` abstract interface: `onBoardStateChanged(fen, evaluation)`. |
+| `src/game_storage.h` | `IGameStorage` abstract interface: game file lifecycle (begin, append, finalize, discard), read-back for replay, and storage management. |
 
 ## Unit Tests (`test/`)
 
@@ -122,7 +128,8 @@ test/
     ├── test_rules_special.cpp    Castling, en passant, promotion, helper functions
     ├── test_utils.cpp            FEN round-trip, evaluation, piece color helpers, 50-move rule
     ├── test_codec.cpp            UCI move conversion, castling rights strings
-    └── test_board.cpp            ChessBoard lifecycle, moves, special moves, draws, FEN, callbacks
+    ├── test_board.cpp            ChessBoard lifecycle, moves, special moves, draws, FEN, callbacks
+    └── test_recorder.cpp         GameRecorder + GameController: recording, replay, observer notification
 ```
 
 Run with `pio test -e native`. See [PlatformIO Unit Testing docs](https://docs.platformio.org/en/latest/advanced/unit-testing/index.html).

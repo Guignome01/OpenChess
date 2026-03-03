@@ -7,7 +7,7 @@
 // Encoding / decoding helpers for chess data:
 //   - UCI move strings  ↔  array coordinates
 //   - Castling rights bitmask  ↔  FEN string fragment
-//   - Compact 2-byte move encoding (used by MoveHistory binary format)
+//   - Compact 2-byte move encoding (used by game recording binary format)
 //
 // Pure functions, no hardware dependencies.
 

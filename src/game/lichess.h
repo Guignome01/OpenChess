@@ -33,11 +33,11 @@ class ChessLichess : public ChessBot {
   void requestEngineMove() override;
   void onPlayerMoveApplied(const MoveResult& result, int fromRow, int fromCol, int toRow, int toCol) override;
 
-  // --- Resign (adds Lichess API call) ---
-  bool handleResign(char resignColor) override;
+  // --- Resign hook (adds Lichess API call) ---
+  void onResignConfirmed(char resignColor) override;
 
  public:
-  ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, LichessConfig cfg);
+  ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg);
   void begin() override;
 };
 

@@ -1,7 +1,7 @@
 #include "wifi_manager_esp32.h"
 #include "game/lichess.h"
 #include "system_utils.h"
-#include "move_history.h"
+#include "littlefs_storage.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -44,7 +44,7 @@ WiFiManagerESP32* WiFiManagerESP32::instance = nullptr;
 // WiFiManagerESP32
 // ===========================
 
-WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd, MoveHistory* mh) : boardDriver(bd), moveHistory(mh), server(AP_PORT), gameMode("0"), lichessToken(""), stockfishSettings(), botPlayerColor('w'), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
+WiFiManagerESP32::WiFiManagerESP32(BoardDriver* bd, LittleFSStorage* st) : boardDriver(bd), storage_(st), server(AP_PORT), gameMode("0"), lichessToken(""), stockfishSettings(), botPlayerColor('w'), currentFen(INITIAL_FEN), hasPendingEdit(false), boardEvaluation(0.0f) {}
 
 void WiFiManagerESP32::begin() {
   Serial.println("=== Starting LibreChess WiFi Manager (ESP32) ===");
@@ -843,7 +843,10 @@ LichessConfig WiFiManagerESP32::getLichessConfig() {
   return config;
 }
 
-void WiFiManagerESP32::updateBoardState(const std::string& fen, float evaluation) {
+// TODO: currentFen/boardEvaluation are written here (main loop task) and read by
+// getBoardUpdateJSON() (async_tcp task) without synchronization. Add a portMUX_TYPE
+// spinlock around both the write and read sites to eliminate the data race.
+void WiFiManagerESP32::onBoardStateChanged(const std::string& fen, float evaluation) {
   currentFen = fen;
   boardEvaluation = evaluation;
 }
@@ -867,7 +870,7 @@ void WiFiManagerESP32::handleGamesRequest(AsyncWebServerRequest* request) {
 
     // GET /games?id=live1 — return live moves file directly
     if (idStr == "live1") {
-      if (!MoveHistory::quietExists("/games/live.bin")) {
+      if (!LittleFSStorage::quietExists("/games/live.bin")) {
         sendJsonError(request, 404, "No live game");
         return;
       }
@@ -878,7 +881,7 @@ void WiFiManagerESP32::handleGamesRequest(AsyncWebServerRequest* request) {
 
     // GET /games?id=live2 — return live FEN table file directly
     if (idStr == "live2") {
-      if (!MoveHistory::quietExists("/games/live_fen.bin")) {
+      if (!LittleFSStorage::quietExists("/games/live_fen.bin")) {
         sendJsonError(request, 404, "No live FEN table");
         return;
       }
@@ -894,8 +897,8 @@ void WiFiManagerESP32::handleGamesRequest(AsyncWebServerRequest* request) {
       return;
     }
 
-    String path = MoveHistory::gamePath(id);
-    if (!MoveHistory::quietExists(path.c_str())) {
+    String path = LittleFSStorage::gamePath(id);
+    if (!LittleFSStorage::quietExists(path.c_str())) {
       sendJsonError(request, 404, "Game not found");
       return;
     }
@@ -903,7 +906,7 @@ void WiFiManagerESP32::handleGamesRequest(AsyncWebServerRequest* request) {
     request->send(response);
   } else {
     // GET /games — return JSON list of all saved games
-    request->send(200, "application/json", moveHistory->getGameListJSON());
+    request->send(200, "application/json", storage_->getGameListJSON());
   }
 }
 
@@ -919,7 +922,7 @@ void WiFiManagerESP32::handleDeleteGame(AsyncWebServerRequest* request) {
     return;
   }
 
-  if (moveHistory->deleteGame(id))
+  if (storage_->deleteGame(id))
     sendJsonOk(request);
   else
     sendJsonError(request, 404, "Game not found");

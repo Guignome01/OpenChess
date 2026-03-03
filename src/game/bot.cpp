@@ -1,67 +1,52 @@
 #include "bot.h"
+#include "game_controller.h"
 #include "led_colors.h"
-#include "move_history.h"
 #include "system_utils.h"
 #include "utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessBot::ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh, char playerClr)
-    : ChessGame(bd, wm, mh), playerColor(playerClr), thinkingAnimation(nullptr) {}
+ChessBot::ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr)
+    : ChessGame(bd, wm, gc), playerColor(playerClr), thinkingAnimation(nullptr), wasThinkingBeforeResign_(false) {}
+
+float ChessBot::getEngineEvaluation() { return controller_->getEvaluation(); }
 
 // --- Template Method: game loop skeleton ---
 // Player turn: tryPlayerMove → applyMove → onPlayerMoveApplied hook.
 // Engine turn: requestEngineMove (subclass drives the move).
 
 void ChessBot::update() {
-  if (gm_.isGameOver()) return;
+  if (controller_->isGameOver()) return;
 
   boardDriver->readSensors();
 
   if (processResign()) return;
 
-  bool isPlayerTurn = (gm_.currentTurn() == playerColor);
+  bool isPlayerTurn = (controller_->currentTurn() == playerColor);
 
   if (isPlayerTurn) {
     int fromRow, fromCol, toRow, toCol;
     if (tryPlayerMove(playerColor, fromRow, fromCol, toRow, toCol)) {
       MoveResult result = applyMove(fromRow, fromCol, toRow, toCol);
-      wifiManager->updateBoardState(gm_.getFen(), getEngineEvaluation());
       onPlayerMoveApplied(result, fromRow, fromCol, toRow, toCol);
     }
   } else {
     requestEngineMove();
-    if (!gm_.isGameOver())
-      wifiManager->updateBoardState(gm_.getFen(), getEngineEvaluation());
   }
 
   boardDriver->updateSensorPrev();
 }
 
-// --- Resign with thinking-animation management ---
+// --- Resign hooks (thinking-animation management) ---
 
-bool ChessBot::handleResign(char resignColor) {
-  bool wasThinking = (thinkingAnimation != nullptr);
-  if (wasThinking) stopThinking();
+void ChessBot::onBeforeResignConfirm() {
+  wasThinkingBeforeResign_ = (thinkingAnimation != nullptr);
+  if (wasThinkingBeforeResign_) stopThinking();
+}
 
-  bool flipped = (playerColor == 'b');
-
-  Serial.printf("Engine resign confirmation for %s...\n", ChessUtils::colorName(resignColor));
-
-  if (!boardConfirm(boardDriver, flipped)) {
-    Serial.println("Resign cancelled");
-    if (wasThinking && gm_.currentTurn() != playerColor && !gm_.isGameOver())
-      startThinking();
-    return false;
-  }
-
-  char winnerColor = (resignColor == 'w') ? 'b' : 'w';
-  Serial.printf("RESIGNATION! %s resigns. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
-
-  boardDriver->fireworkAnimation(SystemUtils::colorLed(winnerColor));
-  if (moveHistory) moveHistory->finishGame(RESULT_RESIGNATION, winnerColor);
-  gm_.endGame(RESULT_RESIGNATION, winnerColor);
-  return true;
+void ChessBot::onResignCancelled() {
+  if (wasThinkingBeforeResign_ && controller_->currentTurn() != playerColor && !controller_->isGameOver())
+    startThinking();
 }
 
 // --- Thinking animation helpers ---

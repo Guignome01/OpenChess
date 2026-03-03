@@ -24,6 +24,9 @@ ChessBoard::ChessBoard()
       gameOver_(false),
       gameResult_(RESULT_IN_PROGRESS),
       winnerColor_(' '),
+      cachedEval_(0.0f),
+      fenDirty_(true),
+      evalDirty_(true),
       batchDepth_(0),
       batchDirty_(false),
       positionHistoryCount_(0) {
@@ -42,6 +45,7 @@ void ChessBoard::newGame() {
   winnerColor_ = ' ';
   state_ = PositionState{};
   positionHistoryCount_ = 0;
+  invalidateCache();
   recordPosition();
   fireCallback();
 }
@@ -53,6 +57,7 @@ void ChessBoard::loadFEN(const std::string& fen) {
   gameOver_ = false;
   gameResult_ = RESULT_IN_PROGRESS;
   winnerColor_ = ' ';
+  invalidateCache();
   fireCallback();
 }
 
@@ -60,6 +65,7 @@ void ChessBoard::endGame(GameResult result, char winnerColor) {
   gameOver_ = true;
   gameResult_ = result;
   winnerColor_ = winnerColor;
+  invalidateCache();
   fireCallback();
 }
 
@@ -106,6 +112,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   if (endResult == RESULT_IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
     result.isCheck = true;
 
+  invalidateCache();
   fireCallback();
   return result;
 }
@@ -115,11 +122,24 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
 // ---------------------------------------------------------------------------
 
 std::string ChessBoard::getFen() const {
-  return ChessUtils::boardToFEN(board_, currentTurn_, &state_);
+  if (fenDirty_) {
+    cachedFen_ = ChessUtils::boardToFEN(board_, currentTurn_, &state_);
+    fenDirty_ = false;
+  }
+  return cachedFen_;
 }
 
 float ChessBoard::getEvaluation() const {
-  return ChessUtils::evaluatePosition(board_);
+  if (evalDirty_) {
+    cachedEval_ = ChessUtils::evaluatePosition(board_);
+    evalDirty_ = false;
+  }
+  return cachedEval_;
+}
+
+void ChessBoard::invalidateCache() {
+  fenDirty_ = true;
+  evalDirty_ = true;
 }
 
 // ---------------------------------------------------------------------------

@@ -3,12 +3,12 @@
 
 #include "base.h"
 
-class MoveHistory;
+class GameController;
 
 // Human vs human local game mode
 class ChessPlayer : public ChessGame {
  public:
-  ChessPlayer(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh);
+  ChessPlayer(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
   void begin() override;
   void update() override;
 };

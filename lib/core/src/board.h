@@ -85,6 +85,13 @@ class ChessBoard {
   char winnerColor_;
   PositionState state_;  // castling rights, en passant, clocks
 
+  // FEN / evaluation cache (mutable: updated lazily from const getters)
+  mutable std::string cachedFen_;
+  mutable float cachedEval_;
+  mutable bool fenDirty_;
+  mutable bool evalDirty_;
+  void invalidateCache();
+
   // Batching
   int batchDepth_;
   bool batchDirty_;

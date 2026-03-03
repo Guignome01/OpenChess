@@ -1,19 +1,16 @@
 #include "player.h"
+#include "game_controller.h"
 #include "led_colors.h"
-#include "move_history.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessPlayer::ChessPlayer(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh) : ChessGame(bd, wm, mh) {}
+ChessPlayer::ChessPlayer(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc) : ChessGame(bd, wm, gc) {}
 
 void ChessPlayer::begin() {
   Serial.println("=== Starting Chess Moves Mode ===");
-  initializeBoard();
-  if (!tryResumeGame()) {
-    moveHistory->startGame(GAME_MODE_CHESS_MOVES);
-    moveHistory->addFen(gm_.getFen());
-  }
-  waitForBoardSetup(gm_.getBoard());
+  if (!tryResumeGame())
+    controller_->startNewGame(GAME_MODE_CHESS_MOVES);
+  waitForBoardSetup(controller_->getBoard());
 }
 
 void ChessPlayer::update() {
@@ -22,10 +19,8 @@ void ChessPlayer::update() {
   if (processResign()) return;
 
   int fromRow, fromCol, toRow, toCol;
-  if (tryPlayerMove(gm_.currentTurn(), fromRow, fromCol, toRow, toCol)) {
+  if (tryPlayerMove(controller_->currentTurn(), fromRow, fromCol, toRow, toCol))
     applyMove(fromRow, fromCol, toRow, toCol);
-    wifiManager->updateBoardState(gm_.getFen(), gm_.getEvaluation());
-  }
 
   boardDriver->updateSensorPrev();
 }

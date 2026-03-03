@@ -15,7 +15,7 @@ class ChessBot : public ChessGame {
   char playerColor;                    // 'w' or 'b' — the color the local player controls
   std::atomic<bool>* thinkingAnimation;  // Thinking animation stop flag (nullptr when not running)
 
-  ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh, char playerColor);
+  ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor);
 
   // --- Template Method hooks (override in subclasses) ---
 
@@ -30,14 +30,18 @@ class ChessBot : public ChessGame {
 
   // Return the engine's evaluation for relay to the web UI.
   // Default: material evaluation from ChessBoard.
-  virtual float getEngineEvaluation() { return gm_.getEvaluation(); }
+  virtual float getEngineEvaluation();
 
-  // --- Resign ---
-  bool handleResign(char resignColor) override;
+  // --- Resign hooks ---
+  bool isFlipped() const override { return playerColor == 'b'; }
+  void onBeforeResignConfirm() override;
+  void onResignCancelled() override;
 
   // --- Thinking animation helpers ---
   void startThinking();
   void stopThinking();
+
+  bool wasThinkingBeforeResign_;  // Preserved across resign dialog
 
  private:
   // Concrete implementation of remote move guidance (LED + sensor blocking).

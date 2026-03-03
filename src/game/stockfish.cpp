@@ -1,13 +1,13 @@
 #include "stockfish.h"
 #include "codec.h"
+#include "game_controller.h"
 #include "led_colors.h"
-#include "move_history.h"
 #include "stockfish_api.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessStockfish::ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, MoveHistory* mh, char playerClr, StockfishSettings cfg)
-    : ChessBot(bd, wm, mh, playerClr), settings(cfg), currentEvaluation(0.0f) {}
+ChessStockfish::ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr, StockfishSettings cfg)
+    : ChessBot(bd, wm, gc, playerClr), settings(cfg), currentEvaluation(0.0f) {}
 
 void ChessStockfish::begin() {
   Serial.println("=== Starting Stockfish Mode ===");
@@ -16,16 +16,13 @@ void ChessStockfish::begin() {
   Serial.printf("Bot Difficulty: Depth %d, Timeout %dms\n", settings.depth, settings.timeoutMs);
   Serial.println("====================================");
   if (wifiManager->isWiFiConnected()) {
-    initializeBoard();
-    if (!tryResumeGame()) {
-      moveHistory->startGame(GAME_MODE_BOT, playerColor, (uint8_t)settings.depth);
-      moveHistory->addFen(gm_.getFen());
-    }
-    waitForBoardSetup(gm_.getBoard());
+    if (!tryResumeGame())
+      controller_->startNewGame(GAME_MODE_BOT, playerColor, (uint8_t)settings.depth);
+    waitForBoardSetup(controller_->getBoard());
   } else {
     Serial.println("Failed to connect to WiFi. Stockfish mode unavailable.");
     boardDriver->flashBoardAnimation(LedColors::Red);
-    gm_.endGame(RESULT_ABORTED, ' ');
+    controller_->endGame(RESULT_ABORTED, ' ');
     return;
   }
 }
@@ -95,7 +92,7 @@ void ChessStockfish::requestEngineMove() {
   Serial.println("=== STOCKFISH MOVE CALCULATION ===");
   startThinking();
   String bestMove;
-  String response = makeStockfishRequest(gm_.getFen());
+  String response = makeStockfishRequest(controller_->getFen());
   stopThinking();
   if (parseStockfishResponse(response, bestMove, currentEvaluation)) {
     Serial.println("=== STOCKFISH EVALUATION ===");
@@ -107,7 +104,7 @@ void ChessStockfish::requestEngineMove() {
       Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
       Serial.println("============================");
       // Verify the move is from the correct color piece
-      char piece = gm_.getSquare(fromRow, fromCol);
+      char piece = controller_->getSquare(fromRow, fromCol);
       char engineColor = (playerColor == 'w') ? 'b' : 'w';
       bool isEnginePiece = (engineColor == 'w') ? (piece >= 'A' && piece <= 'Z') : (piece >= 'a' && piece <= 'z');
       if (!isEnginePiece) {

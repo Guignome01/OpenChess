@@ -2,6 +2,7 @@
 #define WIFI_MANAGER_ESP32_H
 
 #include "board_driver.h"
+#include "game_observer.h"
 #include "stockfish_settings.h"
 #include <Arduino.h>
 #include <AsyncTCP.h>
@@ -14,7 +15,7 @@
 
 // Forward declarations
 struct LichessConfig;
-class MoveHistory;
+class LittleFSStorage;
 
 // ---------------------------
 // WiFi Configuration
@@ -57,7 +58,7 @@ struct SavedNetwork {
 // ---------------------------
 // WiFi Manager Class for ESP32
 // ---------------------------
-class WiFiManagerESP32 {
+class WiFiManagerESP32 : public IGameObserver {
  private:
   AsyncWebServer server;
   Preferences prefs;
@@ -67,7 +68,7 @@ class WiFiManagerESP32 {
   StockfishSettings stockfishSettings = StockfishSettings::medium();
   char botPlayerColor = 'w'; // 'w' or 'b' — color the local player controls in bot mode
 
-  MoveHistory* moveHistory;
+  LittleFSStorage* storage_;
   BoardDriver* boardDriver;
   std::string currentFen;
   float boardEvaluation;
@@ -140,9 +141,12 @@ class WiFiManagerESP32 {
   void handleDeleteGame(AsyncWebServerRequest* request);
 
  public:
-  WiFiManagerESP32(BoardDriver* boardDriver, MoveHistory* moveHistory);
+  WiFiManagerESP32(BoardDriver* boardDriver, LittleFSStorage* storage);
   void begin();
   void update(); // Called from loop() — handles reconnection
+
+  // IGameObserver
+  void onBoardStateChanged(const std::string& fen, float evaluation) override;
 
   // Configuration getters
   // Game selection via web
@@ -155,7 +159,6 @@ class WiFiManagerESP32 {
   LichessConfig getLichessConfig();
   String getLichessToken() { return lichessToken; }
   // Board state management (FEN-based)
-  void updateBoardState(const std::string& fen, float evaluation = 0.0f);
   const std::string& getCurrentFen() const { return currentFen; }
   float getEvaluation() const { return boardEvaluation; }
   // Board edit management (FEN-based)

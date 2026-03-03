@@ -16,9 +16,9 @@ SensorTest (standalone, does not inherit ChessGame)
 
 `ChessGame` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessBoard::makeMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `ChessGame` instance owns a `ChessBoard` (`gm_`) which owns the board array, current turn, game-over state, and all position state (castling rights, en passant target, clocks). All chess mutations flow through the `ChessBoard`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
 
-`ChessBot` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `ChessBot` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and `handleResign()` with animation lifecycle.
+`ChessBot` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `ChessBot` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and resign hooks (`isFlipped()`, `onBeforeResignConfirm()`, `onResignCancelled()`).
 
-`ChessStockfish` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `ChessLichess` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `handleResign()` to also resign on the Lichess API.
+`ChessStockfish` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `ChessLichess` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `onResignConfirmed()` to also resign on the Lichess API.
 
 `SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `ChessGame` subclass — it doesn't need chess logic, FEN state, or move history.
 
@@ -28,12 +28,15 @@ Components are wired through pointer injection at construction time. No global s
 
 ```cpp
 BoardDriver boardDriver;
-MoveHistory moveHistory;
-WiFiManagerESP32 wifiManager(&boardDriver, &moveHistory);
-ChessStockfish stockfishGame(&boardDriver, &wifiManager, &moveHistory, playerColor, stockfishSettings);
+SerialLogger logger;
+LittleFSStorage storage(&logger);
+GameRecorder recorder(&storage, &logger);
+WiFiManagerESP32 wifiManager(&boardDriver, &storage);
+GameController controller(&recorder, &wifiManager);
+ChessStockfish stockfishGame(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
 ```
 
-Each `ChessGame` owns its `ChessBoard` internally — there is no shared chess state. A game mode receives exactly the hardware/network services it needs. `ChessLichess` does not receive a `MoveHistory*` — Lichess games are recorded on the server, not locally (it passes `nullptr` for `moveHistory`).
+`GameController` owns the `ChessBoard` internally — there is no shared chess state. All game classes interact with chess state through the controller facade. `GameRecorder` is nullable inside the controller — `ChessLichess` uses a controller with a null recorder since Lichess games are recorded on the server, not locally.
 
 ## Coordinate System
 
@@ -80,6 +83,7 @@ Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has n
 
 Also in `lib/core/` (`board.h/cpp`). Complete chess game-state manager — the "chess.js" of the project. Owns the board array, current turn, game-over state, and all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock). Public API: `newGame()`, `loadFEN()`, `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`, callback/batching. Calls `ChessRules` static methods for rule evaluation, passing `state_` where position-dependent context is needed.
 
+- **FEN / evaluation cache** — `getFen()` and `getEvaluation()` use dirty-flag caching (`mutable` fields) to avoid recomputing on repeated calls. The cache is invalidated automatically on every mutation (`newGame()`, `loadFEN()`, `makeMove()`, `endGame()`).
 - **Position tracking** — Zobrist hashing with pre-computed random tables (~6.2KB flash, defined in `zobrist_keys.h`). Each piece-square combination has a unique 64-bit hash. `positionHistory_[MAX_POSITION_HISTORY]` (128 entries, fixed array) stores hashes, cleared on irreversible moves (pawn moves, captures) for memory efficiency. `isThreefoldRepetition()` scans the history for 3 occurrences of the current hash. En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Positions are recorded automatically after each move and on `newGame()`/`loadFEN()`.
 
 ### ChessUtils & SystemUtils
@@ -102,15 +106,19 @@ Manages WiFi connectivity, the web server, and all HTTP API endpoints. Key subsy
 
 **Web server** — `AsyncWebServer` on port 80. Serves gzipped static files from LittleFS via `serveStatic`. API endpoints handle JSON requests for board state, game selection, settings, WiFi management, Lichess token, OTA updates, game history, board editing, and resign. All configuration getters and setters are exposed as `public` methods for the main loop to relay state between the web layer and game logic (e.g., `getSelectedGameMode()`, `getPendingBoardEdit()`, `getPendingResign()`).
 
-**Board state relay** — `updateBoardState(fen, evaluation)` is called by the active game on every move. The web UI polls `GET /board/update` which returns the current FEN, evaluation, move list, and game state as JSON.
+**Board state relay** — `WiFiManagerESP32` implements `IGameObserver`. `GameController` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation. The web UI polls `GET /board/update` which returns the current FEN, evaluation, move list, and game state as JSON.
 
 **Board editing** — `handleBoardEditSuccess()` stores a pending FEN string from the web UI's board editor. The main loop checks `getPendingBoardEdit()` each cycle and applies it to the active game via `setBoardStateFromFEN()`, then calls `clearPendingEdit()`.
 
 **Web resign** — the web UI's resign button sends `POST /resign`. The handler sets `hasPendingResign = true`. The main `loop()` relays this to the active game via `setResignPending(true)`, then clears the web flag. The game's `processResign()` picks it up on the next `update()` call.
 
-### MoveHistory
+### GameRecorder / GameController / LittleFSStorage
 
-LittleFS-based game recording and crash recovery system. Uses `ChessGame`'s public `beginReplay()`/`replayMove()`/`endReplay()` API during game restoration.
+Game recording and crash recovery follow a layered architecture with clean separation:
+
+- **`GameRecorder`** (`lib/core/`) — pure recording orchestration. Encodes moves via `ChessCodec`, manages the `GameHeader`, delegates persistence to `IGameStorage`. Flushes the header to storage every full turn (2 half-moves) to reduce flash wear; FEN snapshots always trigger an immediate flush. Validates moves during replay — rejects corrupted recordings with invalid moves. Replays games directly into a `ChessBoard` using batch mode — no game-layer involvement, no `replaying` flag.
+- **`GameController`** (`lib/core/`) — thin facade coordinating `ChessBoard` + `GameRecorder` + `IGameObserver`. Each mutation (move, load FEN, end game) atomically updates the board, records, and notifies. Provides `startNewGame(mode, ...)` for atomic board-reset + recording-start. `endGame()` is guarded against double-calls.
+- **`LittleFSStorage`** (`src/`) — concrete `IGameStorage` backed by LittleFS.
 
 **Binary format** — each game consists of two files:
 - `<id>.bin` (or `live.bin`) — 16-byte packed `GameHeader` followed by 2-byte UCI-encoded move entries
@@ -120,8 +128,8 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 | Field | Type | Description |
 |-------|------|-------------|
 | `version` | `uint8_t` | Format version (currently 1) |
-| `mode` | `uint8_t` | `GameModeCode` (1 = ChessMoves, 2 = Bot) |
-| `result` | `uint8_t` | `GameResult` enum (0 = in-progress, 1 = checkmate, 2 = stalemate, 3 = draw_50, 4 = draw_3fold, 5 = resignation) |
+| `mode` | `GameModeCode` | Game mode (1 = ChessMoves, 2 = Bot, 3 = Lichess) |
+| `result` | `GameResult` | Game outcome enum (0 = in-progress, 1 = checkmate, 2 = stalemate, 3 = draw_50, 4 = draw_3fold, 5 = resignation, 6 = draw_insufficient, 7 = draw_agreement, 8 = timeout, 9 = aborted) |
 | `winnerColor` | `uint8_t` | `'w'`, `'b'`, `'d'` (draw), or `'?'` (in-progress) |
 | `playerColor` | `uint8_t` | Human's color for bot mode, `'?'` for ChessMoves |
 | `botDepth` | `uint8_t` | Stockfish depth for bot mode, 0 for ChessMoves |
@@ -134,7 +142,7 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 **FEN snapshots** — periodic FEN strings are appended to the FEN table file. During replay, the system finds the last FEN snapshot, restores the board to that position, and replays only the moves that follow. This bounds replay time regardless of game length.
 
-**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is updated on each move. On boot, `hasLiveGame()` checks if these files exist. If so, `getLiveGameInfo()` reads the header to determine the mode and configuration, and `replayIntoGame()` restores the full game state. The `replaying` flag on `ChessGame` suppresses LED feedback and physical move waits during replay.
+**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is flushed every full turn (2 half-moves) rather than every move, reducing flash write cycles by half. On boot, `hasActiveGame()` checks if these files exist. If so, `getActiveGameInfo()` reads the header to determine the mode and configuration, and `GameRecorder::replayInto()` restores the full game state directly into the `ChessBoard` via batch mode. Move data size is derived from the file size (not the header's `moveCount`) for robustness against mid-turn crashes. Each move is validated during replay — corrupted or invalid moves cause the replay to abort.
 
 **Storage limits** — `MAX_GAMES` = 50 games, `MAX_USAGE_PERCENT` = 80% of LittleFS capacity. `enforceStorageLimits()` is called after each game finishes and deletes the oldest games (lowest ID) until both limits are satisfied.
 
@@ -142,10 +150,10 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 ### ChessRules Interaction
 
-The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `ChessBoard` (chess state):
+The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `GameController` (chess state + recording + notification):
 
-1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `ChessRules::getPossibleMoves(board, row, col, gm_.positionState(), ...)`, waits for placement, validates the move, then calls `applyMove()`.
-2. `applyMove()` — calls `gm_.makeMove()` which updates the board, castling rights, en passant, clocks, and detects game-end conditions. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, MoveHistory recording, remote-move guidance, and game-end animations.
+1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `ChessRules::getPossibleMoves(board, row, col, controller_->positionState(), ...)`, waits for placement, validates the move, then calls `applyMove()`.
+2. `applyMove()` — calls `controller_->makeMove()` which atomically updates the board, records the move, and notifies the observer. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, remote-move guidance, and game-end animations.
 3. Turn advancement, castling rights, and game-end detection are all handled internally by `ChessBoard::makeMove()` — the firmware never modifies the board or turn directly.
 
 ## Game Mode Lifecycle
@@ -155,7 +163,7 @@ The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `Che
 1. `Serial.begin(115200)`, NVS initialization
 2. (Optional) Factory reset if `-DFACTORY_RESET` build flag is set
 3. `LittleFS.begin()` — mount filesystem
-4. `moveHistory.begin()` — create `/games/` directory if needed
+4. `storage.initialize()` — create `/games/` directory if needed
 5. `boardDriver.begin()` — initialize LED strip, GPIO pins, calibration (may block for interactive serial calibration on first boot), and start the animation FreeRTOS task
 6. `wifiManager.begin()` — start AP, load saved networks, begin STA connection attempts, start web server, configure mDNS
 7. `initMenus(&boardDriver)` — two-phase menu initialization (set `BoardDriver*` on all menus, configure items and back buttons)
@@ -182,9 +190,9 @@ Every iteration of `loop()`:
 1. If not resuming, discard any leftover live game file
 2. `delete` the previous `activeGame` and `sensorTest` objects
 3. Create the new game object via `new` (the only heap allocation for game modes)
-4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `moveHistory.startGame()` to begin recording
+4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `controller_->startRecording()` to begin recording
 
-For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `moveHistory.replayIntoGame()` to restore state, then continues with normal `update()` calls.
+For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `GameRecorder::replayInto()` to restore the full game state directly into the `ChessBoard` via batch mode, then continues with normal `update()` calls.
 
 ### Menu Navigation
 
@@ -401,7 +409,7 @@ All NVS access uses Arduino's `Preferences` library. `SystemUtils::ensureNvsInit
 
 ### NTP Time Sync
 
-`configTime(0, 0, "pool.ntp.org", "time.nist.gov")` is called once in `setup()`. The call is non-blocking — NTP resolves in the background over WiFi. `MoveHistory::getTimestamp()` returns the current Unix epoch, or 0 if NTP hasn't synced yet. Timestamps are stored in game headers for the web UI's game history display.
+`configTime(0, 0, "pool.ntp.org", "time.nist.gov")` is called once in `setup()`. The call is non-blocking — NTP resolves in the background over WiFi. `LittleFSStorage::getTimestamp()` returns the current Unix epoch, or 0 if NTP hasn't synced yet. Timestamps are stored in game headers for the web UI's game history display.
 
 ## Security
 

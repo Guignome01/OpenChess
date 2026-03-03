@@ -472,6 +472,42 @@ void test_codec_encode_decode_corner_squares(void) {
 }
 
 // ---------------------------------------------------------------------------
+// FEN / evaluation cache
+// ---------------------------------------------------------------------------
+
+void test_manager_fen_cache_consistent(void) {
+  setUpManager();
+  std::string fen1 = gm.getFen();
+  std::string fen2 = gm.getFen();
+  TEST_ASSERT_EQUAL_STRING(fen1.c_str(), fen2.c_str());
+
+  gm.makeMove(6, 4, 4, 4);  // e2e4
+  std::string fen3 = gm.getFen();
+  TEST_ASSERT_TRUE(fen3 != fen1);  // FEN changed after move
+}
+
+void test_manager_eval_cache_consistent(void) {
+  setUpManager();
+  float eval1 = gm.getEvaluation();
+  float eval2 = gm.getEvaluation();
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, eval1, eval2);  // Same value from cache
+
+  // Load asymmetric position (white missing e-pawn) and verify cache updates
+  gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1");
+  float eval3 = gm.getEvaluation();
+  // White has one fewer pawn → negative evaluation
+  TEST_ASSERT_TRUE(eval3 < eval1);
+}
+
+void test_manager_end_game_preserves_fen(void) {
+  setUpManager();
+  std::string fenBefore = gm.getFen();
+  gm.endGame(RESULT_RESIGNATION, 'b');
+  std::string fenAfter = gm.getFen();
+  TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), fenAfter.c_str());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -549,4 +585,9 @@ void register_board_tests() {
   RUN_TEST(test_codec_encode_decode_roundtrip);
   RUN_TEST(test_codec_encode_decode_with_promotion);
   RUN_TEST(test_codec_encode_decode_corner_squares);
+
+  // FEN/eval cache
+  RUN_TEST(test_manager_fen_cache_consistent);
+  RUN_TEST(test_manager_eval_cache_consistent);
+  RUN_TEST(test_manager_end_game_preserves_fen);
 }

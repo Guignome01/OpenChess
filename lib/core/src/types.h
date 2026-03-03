@@ -16,7 +16,7 @@ struct PositionState {
   int fullmoveClock = 1;          // full-move counter (starts at 1)
 };
 
-// Game result codes — stored in MoveHistory binary format.
+// Game result codes — stored in game recording binary format.
 // Values 0–5 match the existing on-disk header (FORMAT_VERSION 1).
 // New values are appended so older files remain readable.
 enum GameResult : uint8_t {
@@ -52,5 +52,37 @@ struct MoveResult {
 inline MoveResult invalidMoveResult() {
   return {false, false, false, -1, false, false, ' ', false, RESULT_IN_PROGRESS, ' '};
 }
+
+// ---------------------------------------------------------------------------
+// Game recording types — used by GameRecorder and IGameStorage.
+// ---------------------------------------------------------------------------
+
+// Game mode identifiers stored in the binary game header.
+enum GameModeCode : uint8_t {
+  GAME_MODE_CHESS_MOVES = 1,
+  GAME_MODE_BOT = 2,
+  GAME_MODE_LICHESS = 3
+};
+
+// Binary file header for recorded games (on-disk format).
+struct __attribute__((packed)) GameHeader {
+  uint8_t version;        // Format version (currently 1)
+  GameModeCode mode;      // Game mode identifier
+  GameResult result;      // Game outcome
+  uint8_t winnerColor;    // 'w', 'b', 'd' (draw), '?' (in-progress)
+  uint8_t playerColor;    // For bot mode: human's color ('w'/'b'), '?' for ChessMoves
+  uint8_t botDepth;       // For bot mode: Stockfish depth, 0 for ChessMoves
+  uint16_t moveCount;     // Number of 2-byte entries (incl. FEN markers)
+  uint16_t fenEntryCnt;   // Number of FEN table entries
+  uint16_t lastFenOffset; // Byte offset of the last FEN entry within the FEN table
+  uint32_t timestamp;     // Unix epoch (from NTP, 0 if unavailable)
+};
+static_assert(sizeof(GameHeader) == 16, "GameHeader must be 16 bytes");
+
+// Recording constants
+static constexpr uint8_t FORMAT_VERSION = 1;
+static constexpr uint16_t FEN_MARKER = 0xFFFF;
+static constexpr int MAX_GAMES = 50;
+static constexpr float MAX_USAGE_PERCENT = 0.80f;
 
 #endif  // TYPES_H
