@@ -28,8 +28,7 @@ ChessBoard::ChessBoard()
       fenDirty_(true),
       evalDirty_(true),
       batchDepth_(0),
-      batchDirty_(false),
-      positionHistoryCount_(0) {
+      batchDirty_(false) {
   memcpy(board_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
 }
 
@@ -44,7 +43,7 @@ void ChessBoard::newGame() {
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
   state_ = PositionState::initial();
-  positionHistoryCount_ = 0;
+  history_.clear();
   invalidateCache();
   recordPosition();
   fireCallback();
@@ -90,7 +89,7 @@ bool ChessBoard::loadFEN(const std::string& fen) {
 
   // --- Validated: apply FEN ---
   ChessUtils::fenToBoard(fen, board_, currentTurn_, &state_);
-  positionHistoryCount_ = 0;
+  history_.clear();
   recordPosition();
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
@@ -130,6 +129,10 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   // Validate move legality via rules
   if (!ChessRules::isValidMove(board_, fromRow, fromCol, toRow, toCol, state_)) return invalidMoveResult();
 
+  // Save pre-move state for history
+  char targetPiece = board_[toRow][toCol];
+  PositionState prevState = state_;
+
   // Build result and apply
   MoveResult result;
   result.valid = true;
@@ -151,6 +154,31 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   result.isCheck = false;
   if (endResult == GameResult::IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
     result.isCheck = true;
+
+  // Record move in history
+  char captured = ' ';
+  if (result.isEnPassant) {
+    captured = ChessUtils::isWhitePiece(piece) ? 'p' : 'P';
+  } else if (result.isCapture) {
+    captured = targetPiece;
+  }
+
+  MoveEntry entry;
+  entry.fromRow = fromRow;
+  entry.fromCol = fromCol;
+  entry.toRow = toRow;
+  entry.toCol = toCol;
+  entry.piece = piece;
+  entry.captured = captured;
+  entry.promotion = result.isPromotion ? result.promotedTo : ' ';
+  entry.isCapture = result.isCapture;
+  entry.isEnPassant = result.isEnPassant;
+  entry.epCapturedRow = result.epCapturedRow;
+  entry.isCastling = result.isCastling;
+  entry.isPromotion = result.isPromotion;
+  entry.isCheck = result.isCheck;
+  entry.prevState = prevState;
+  history_.addMove(entry);
 
   invalidateCache();
   fireCallback();
@@ -205,13 +233,13 @@ bool ChessBoard::findKingPosition(char kingColor, int& kingRow, int& kingCol) co
 
 bool ChessBoard::isDraw() const {
   if (state_.halfmoveClock >= 100) return true;
-  if (isThreefoldRepetitionInternal()) return true;
+  if (history_.isThreefoldRepetition()) return true;
   if (hasInsufficientMaterialInternal()) return true;
   return false;
 }
 
 bool ChessBoard::isThreefoldRepetition() const {
-  return isThreefoldRepetitionInternal();
+  return history_.isThreefoldRepetition();
 }
 
 bool ChessBoard::isInsufficientMaterial() const {
@@ -382,7 +410,7 @@ GameResult ChessBoard::detectGameEnd(char& winner) {
     winner = 'd';
     return GameResult::DRAW_50;
   }
-  if (isThreefoldRepetitionInternal()) {
+  if (history_.isThreefoldRepetition()) {
     winner = 'd';
     return GameResult::DRAW_3FOLD;
   }
@@ -449,27 +477,7 @@ void ChessBoard::recordPosition() {
   // never recur, so this is safe and keeps memory usage bounded by the
   // 50-move rule (~100 entries max).
   if (state_.halfmoveClock == 0)
-    positionHistoryCount_ = 0;
+    history_.resetPositionHistory();
 
-  if (positionHistoryCount_ < MAX_POSITION_HISTORY)
-    positionHistory_[positionHistoryCount_++] = computeZobristHash();
-}
-
-bool ChessBoard::isThreefoldRepetitionInternal() const {
-  // Minimum 5 half-moves for 3 occurrences of same position
-  if (positionHistoryCount_ < 5)
-    return false;
-
-  uint64_t current = positionHistory_[positionHistoryCount_ - 1];
-  int count = 1;  // Current position counts as 1
-  // Scan backwards, skipping every other entry (only same side-to-move can
-  // match). Backwards scan finds recent repetitions faster for early exit.
-  for (int i = positionHistoryCount_ - 3; i >= 0; i -= 2) {
-    if (positionHistory_[i] == current) {
-      count++;
-      if (count >= 3)
-        return true;
-    }
-  }
-  return false;
+  history_.recordPosition(computeZobristHash());
 }

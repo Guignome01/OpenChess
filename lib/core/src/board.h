@@ -6,6 +6,7 @@
 #include <functional>
 #include <string>
 
+#include "history.h"
 #include "types.h"
 #include "rules.h"
 #include "utils.h"
@@ -136,6 +137,11 @@ class ChessBoard {
                                      board_[fromRow][fromCol]);
   }
 
+  // --- History ---
+
+  // Access the in-game move/position history.
+  const ChessHistory& history() const { return history_; }
+
   // --- Batching (suppress callbacks during replay) ---
 
   void beginBatch();
@@ -156,6 +162,7 @@ class ChessBoard {
   GameResult gameResult_;
   char winnerColor_;
   PositionState state_;  // castling rights, en passant, clocks
+  ChessHistory history_;  // move log + position hash tracking
 
   // FEN / evaluation cache (mutable: updated lazily from const getters)
   mutable std::string cachedFen_;
@@ -170,10 +177,7 @@ class ChessBoard {
 
   StateCallback stateCallback_;
 
-  // --- Position history (Zobrist hash-based threefold repetition) ---
-  static constexpr int MAX_POSITION_HISTORY = 128;
-  uint64_t positionHistory_[MAX_POSITION_HISTORY];
-  int positionHistoryCount_;
+  // --- Zobrist hashing (computed here, stored in history_) ---
 
   static inline int pieceToZobristIndex(char piece) {
     const char* pieces = "PNBRQKpnbrqk";
@@ -183,7 +187,6 @@ class ChessBoard {
 
   uint64_t computeZobristHash() const;
   void recordPosition();
-  bool isThreefoldRepetitionInternal() const;
   bool hasInsufficientMaterialInternal() const;
 
   // Pure chess logic extracted from GameMode::applyMove / updateGameStatus

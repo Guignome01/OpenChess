@@ -27,6 +27,7 @@ void register_utils_tests();
 void register_codec_tests();
 void register_board_tests();
 void register_recorder_tests();
+void register_history_tests();
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
@@ -37,5 +38,6 @@ int main(int argc, char** argv) {
   register_codec_tests();
   register_board_tests();
   register_recorder_tests();
+  register_history_tests();
   return UNITY_END();
 }

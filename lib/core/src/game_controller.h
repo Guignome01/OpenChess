@@ -95,6 +95,8 @@ class GameController {
 
   int moveNumber() const { return board_.moveNumber(); }
 
+  const ChessHistory& history() const { return board_.history(); }
+
   ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
     return board_.checkEnPassant(fromRow, fromCol, toRow, toCol);
   }
