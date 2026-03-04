@@ -297,7 +297,7 @@ void test_isEnPassantMove_non_pawn(void) {
   TEST_ASSERT_FALSE(ChessUtils::isEnPassantMove(4, 4, 3, 3, 'B', ' '));
 }
 
-void register_rules_special_tests() {
+void register_chess_rules_special_tests() {
   needsDefaultKings = true;
 
   // Castling

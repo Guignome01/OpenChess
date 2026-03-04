@@ -1005,7 +1005,7 @@ void test_board_position_history_reset_on_pawn_move(void) {
 // Registration
 // ---------------------------------------------------------------------------
 
-void register_board_tests() {
+void register_chess_board_tests() {
   needsDefaultKings = false;
 
   // Initial state

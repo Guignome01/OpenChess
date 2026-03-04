@@ -450,7 +450,7 @@ void test_initial_position_black_moves(void) {
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
 
-void register_rules_moves_tests() {
+void register_chess_rules_moves_tests() {
   needsDefaultKings = true;
 
   // Pawns

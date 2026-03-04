@@ -123,15 +123,14 @@ test/
 ├── test_helpers.h                  Shared utilities (setupInitialBoard, clearBoard, placePiece, etc.)
 └── test_core/
     ├── test_core.cpp             Main entry: setUp/tearDown, shared globals, register calls
-    ├── test_rules_moves.cpp      Move generation per piece type, captures, initial position
-    ├── test_rules_check.cpp      Check detection, checkmate, stalemate, move legality
-    ├── test_rules_special.cpp    Castling, en passant, promotion, helper functions
-    ├── test_utils.cpp            FEN round-trip, evaluation, piece color helpers, 50-move rule
-    ├── test_codec.cpp            UCI move conversion, castling rights strings
-    ├── test_board.cpp            ChessBoard: moves, special moves, draws, FEN, API queries
-    ├── test_chess_game.cpp       ChessGame: threefold repetition, draw detection, callbacks/batching, history
-    ├── test_history.cpp          ChessHistory: move log, position hash tracking, threefold repetition
-    └── test_recorder.cpp         ChessHistory recording + ChessGame: recording, replay, observer notification
+    ├── test_chess_rules_moves.cpp  Move generation per piece type, captures, initial position
+    ├── test_chess_rules_check.cpp  Check detection, checkmate, stalemate, move legality
+    ├── test_chess_rules_special.cpp Castling, en passant, promotion, helper functions
+    ├── test_chess_utils.cpp        FEN round-trip, evaluation, piece color helpers, 50-move rule
+    ├── test_chess_codec.cpp        UCI move conversion, castling rights strings
+    ├── test_chess_board.cpp        ChessBoard: moves, special moves, draws, FEN, API queries
+    ├── test_chess_game.cpp         ChessGame: threefold repetition, draw detection, callbacks/batching, history
+    └── test_chess_history.cpp      ChessHistory: move log, recording, replay, observer notification
 ```
 
 Run with `pio test -e native`. See [PlatformIO Unit Testing docs](https://docs.platformio.org/en/latest/advanced/unit-testing/index.html).

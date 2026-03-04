@@ -1,17 +1,22 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
+#include <chess_board.h>
 #include <chess_codec.h>
 #include <chess_game.h>
+#include <chess_history.h>
 #include <game_observer.h>
 #include <game_storage.h>
-#include <chess_history.h>
 #include <logger.h>
 #include <types.h>
 
 #include <cstring>
 #include <string>
 #include <vector>
+
+// Shared globals from test_core.cpp
+extern char board[8][8];
+extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
 // MockLogger — captures log messages for verification
@@ -119,11 +124,12 @@ class MockGameObserver : public IGameObserver {
 };
 
 // ---------------------------------------------------------------------------
-// ChessHistory recording tests
+// Shared state
 // ---------------------------------------------------------------------------
 
 static MockLogger logger;
 static MockGameStorage storage;
+static ChessHistory hist;
 static ChessHistory history(&storage, &logger);
 
 static void setupRecorder() {
@@ -131,6 +137,110 @@ static void setupRecorder() {
   storage = MockGameStorage();
   history = ChessHistory(&storage, &logger);
 }
+
+// ---------------------------------------------------------------------------
+// Standalone ChessHistory (move log) tests
+// ---------------------------------------------------------------------------
+
+void test_history_initial_empty(void) {
+  ChessHistory h;
+  TEST_ASSERT_EQUAL(0, h.moveCount());
+  TEST_ASSERT_TRUE(h.empty());
+}
+
+void test_history_clear(void) {
+  hist = ChessHistory();
+  MoveEntry e = {};
+  e.fromRow = 6; e.fromCol = 4; e.toRow = 4; e.toCol = 4;
+  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
+  hist.addMove(e);
+  TEST_ASSERT_EQUAL(1, hist.moveCount());
+
+  hist.clear();
+  TEST_ASSERT_EQUAL(0, hist.moveCount());
+  TEST_ASSERT_TRUE(hist.empty());
+}
+
+void test_history_add_and_get_move(void) {
+  hist = ChessHistory();
+  MoveEntry e = {};
+  e.fromRow = 6; e.fromCol = 4; e.toRow = 4; e.toCol = 4;
+  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
+  e.isCapture = false; e.isEnPassant = false; e.isCastling = false;
+  e.isPromotion = false; e.isCheck = false; e.epCapturedRow = -1;
+  hist.addMove(e);
+
+  TEST_ASSERT_EQUAL(1, hist.moveCount());
+  TEST_ASSERT_FALSE(hist.empty());
+  const MoveEntry& got = hist.getMove(0);
+  TEST_ASSERT_EQUAL(6, got.fromRow);
+  TEST_ASSERT_EQUAL(4, got.fromCol);
+  TEST_ASSERT_EQUAL(4, got.toRow);
+  TEST_ASSERT_EQUAL(4, got.toCol);
+  TEST_ASSERT_EQUAL('P', got.piece);
+  TEST_ASSERT_EQUAL(' ', got.captured);
+}
+
+void test_history_last_move(void) {
+  hist = ChessHistory();
+  MoveEntry e1 = {};
+  e1.fromRow = 6; e1.fromCol = 4; e1.toRow = 4; e1.toCol = 4;
+  e1.piece = 'P'; e1.captured = ' '; e1.promotion = ' ';
+  hist.addMove(e1);
+
+  MoveEntry e2 = {};
+  e2.fromRow = 1; e2.fromCol = 4; e2.toRow = 3; e2.toCol = 4;
+  e2.piece = 'p'; e2.captured = ' '; e2.promotion = ' ';
+  hist.addMove(e2);
+
+  TEST_ASSERT_EQUAL(2, hist.moveCount());
+  const MoveEntry& last = hist.lastMove();
+  TEST_ASSERT_EQUAL(1, last.fromRow);
+  TEST_ASSERT_EQUAL('p', last.piece);
+}
+
+void test_history_pop_move(void) {
+  hist = ChessHistory();
+  MoveEntry e = {};
+  e.fromRow = 6; e.fromCol = 0; e.toRow = 4; e.toCol = 0;
+  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
+  hist.addMove(e);
+
+  MoveEntry popped = {};
+  TEST_ASSERT_TRUE(hist.popMove(popped));
+  TEST_ASSERT_EQUAL(6, popped.fromRow);
+  TEST_ASSERT_EQUAL('P', popped.piece);
+  TEST_ASSERT_EQUAL(0, hist.moveCount());
+  TEST_ASSERT_TRUE(hist.empty());
+}
+
+void test_history_pop_empty(void) {
+  hist = ChessHistory();
+  MoveEntry popped = {};
+  TEST_ASSERT_FALSE(hist.popMove(popped));
+}
+
+void test_history_multiple_moves(void) {
+  hist = ChessHistory();
+  for (int i = 0; i < 10; i++) {
+    MoveEntry e = {};
+    e.fromRow = i % 8;
+    e.fromCol = i % 8;
+    e.toRow = (i + 1) % 8;
+    e.toCol = (i + 1) % 8;
+    e.piece = 'N';
+    e.captured = ' ';
+    e.promotion = ' ';
+    hist.addMove(e);
+  }
+  TEST_ASSERT_EQUAL(10, hist.moveCount());
+  TEST_ASSERT_EQUAL(0, hist.getMove(0).fromRow);
+  TEST_ASSERT_EQUAL(1, hist.getMove(9).fromRow);  // 9 % 8 = 1
+}
+
+// ---------------------------------------------------------------------------
+// ChessHistory recording tests
+// ---------------------------------------------------------------------------
 
 void test_recorder_start_recording(void) {
   setupRecorder();
@@ -235,8 +345,161 @@ void test_recorder_replay_into_board(void) {
   TEST_ASSERT_EQUAL_CHAR('w', board.currentTurn());
 }
 
+void test_recorder_turn_based_header_flush(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+  int initial = storage.headerUpdateCount;
+
+  history.recordMove(6, 4, 4, 4, ' ');  // e2e4 (1st half-move)
+  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);  // Not flushed
+
+  history.recordMove(1, 4, 3, 4, ' ');  // e7e5 (2nd half-move)
+  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // Flushed!
+  TEST_ASSERT_EQUAL_UINT16(2, storage.storedHeader.moveCount);
+}
+
+void test_recorder_fen_always_flushes_header(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+  int initial = storage.headerUpdateCount;
+
+  history.recordMove(6, 4, 4, 4, ' ');  // 1 move, no flush
+  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);
+
+  history.recordFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // FEN always flushes
+}
+
+void test_recorder_replay_rejects_invalid_move(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+
+  // Record initial FEN
+  std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  history.recordFen(initialFen);
+
+  // Record valid e2e4
+  history.recordMove(6, 4, 4, 4, ' ');
+
+  // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
+  uint16_t illegal = ChessCodec::encodeMove(6, 3, 4, 3, ' ');
+  storage.moveData.push_back(illegal & 0xFF);
+  storage.moveData.push_back((illegal >> 8) & 0xFF);
+
+  ChessBoard board;
+  board.newGame();
+  bool ok = history.replayInto(board);
+  TEST_ASSERT_FALSE(ok);  // Replay should fail on the illegal move
+}
+
+void test_recorder_start_recording_lichess_mode(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::LICHESS, 'w', 0);
+  TEST_ASSERT_TRUE(history.isRecording());
+  TEST_ASSERT_ENUM_EQ(GameModeId::LICHESS, storage.storedHeader.mode);
+}
+
+void test_recorder_start_recording_while_active(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+  history.recordMove(6, 4, 4, 4, ' ');  // record a move
+  TEST_ASSERT_TRUE(history.isRecording());
+
+  // Start again — previous game should be discarded
+  history.startRecording(GameModeId::BOT, 'w', 5);
+  TEST_ASSERT_TRUE(history.isRecording());
+  TEST_ASSERT_ENUM_EQ(GameModeId::BOT, storage.storedHeader.mode);
+  TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
+  // Move data should be cleared (new game)
+  TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
+}
+
+void test_recorder_finish_not_recording(void) {
+  setupRecorder();
+  // finishRecording when not recording should be a safe no-op
+  history.finishRecording(GameResult::CHECKMATE, 'w');
+  TEST_ASSERT_FALSE(history.isRecording());
+  TEST_ASSERT_FALSE(storage.gameFinalized);
+}
+
+void test_recorder_discard_not_recording(void) {
+  setupRecorder();
+  // discardRecording when not recording should not crash
+  history.discardRecording();
+  TEST_ASSERT_FALSE(history.isRecording());
+}
+
+void test_recorder_replay_wrong_version(void) {
+  setupRecorder();
+  // Manually set up storage with a bad version header
+  storage.gameActive = true;
+  storage.storedHeader.version = 99;
+  storage.storedHeader.fenEntryCnt = 1;
+
+  ChessBoard board;
+  board.newGame();
+  bool ok = history.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_no_fen_entry(void) {
+  setupRecorder();
+  // Header has version=1 but fenEntryCnt=0
+  storage.gameActive = true;
+  storage.storedHeader.version = FORMAT_VERSION;
+  storage.storedHeader.fenEntryCnt = 0;
+
+  ChessBoard board;
+  board.newGame();
+  bool ok = history.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_null_storage(void) {
+  // ChessHistory with null storage — replayInto should return false
+  ChessHistory nullHist(nullptr, &logger);
+  ChessBoard board;
+  board.newGame();
+  bool ok = nullHist.replayInto(board);
+  TEST_ASSERT_FALSE(ok);
+}
+
+void test_recorder_replay_empty_after_fen(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+
+  // Record only an initial FEN and no moves
+  std::string initialFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+  history.recordFen(initialFen);
+
+  // Replay — should load FEN with no moves to replay
+  ChessBoard board;
+  board.newGame();
+  bool ok = history.replayInto(board);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_CHAR('b', board.currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));  // e4 has white pawn
+}
+
+void test_recorder_replay_with_promotion(void) {
+  setupRecorder();
+  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
+
+  // Record a position where white can promote
+  std::string fen = "8/4P3/8/8/8/8/8/4K2k w - - 0 1";
+  history.recordFen(fen);
+  history.recordMove(1, 4, 0, 4, 'q');  // e7-e8=Q
+
+  // Replay and verify promotion
+  ChessBoard board;
+  board.newGame();
+  bool ok = history.replayInto(board);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_CHAR('Q', board.getSquare(0, 4));  // Queen on e8
+}
+
 // ---------------------------------------------------------------------------
-// ChessGame tests (replaces GameController)
+// ChessGame recording integration tests
 // ---------------------------------------------------------------------------
 
 static MockGameObserver observer;
@@ -394,167 +657,6 @@ void test_controller_pass_throughs(void) {
   teardownController();
 }
 
-// ---------------------------------------------------------------------------
-// Turn-based header flush tests
-// ---------------------------------------------------------------------------
-
-void test_recorder_turn_based_header_flush(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  int initial = storage.headerUpdateCount;
-
-  history.recordMove(6, 4, 4, 4, ' ');  // e2e4 (1st half-move)
-  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);  // Not flushed
-
-  history.recordMove(1, 4, 3, 4, ' ');  // e7e5 (2nd half-move)
-  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // Flushed!
-  TEST_ASSERT_EQUAL_UINT16(2, storage.storedHeader.moveCount);
-}
-
-void test_recorder_fen_always_flushes_header(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  int initial = storage.headerUpdateCount;
-
-  history.recordMove(6, 4, 4, 4, ' ');  // 1 move, no flush
-  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);
-
-  history.recordFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // FEN always flushes
-}
-
-void test_recorder_replay_rejects_invalid_move(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record initial FEN
-  std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-  history.recordFen(initialFen);
-
-  // Record valid e2e4
-  history.recordMove(6, 4, 4, 4, ' ');
-
-  // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
-  uint16_t illegal = ChessCodec::encodeMove(6, 3, 4, 3, ' ');
-  storage.moveData.push_back(illegal & 0xFF);
-  storage.moveData.push_back((illegal >> 8) & 0xFF);
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);  // Replay should fail on the illegal move
-}
-
-void test_recorder_start_recording_lichess_mode(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::LICHESS, 'w', 0);
-  TEST_ASSERT_TRUE(history.isRecording());
-  TEST_ASSERT_ENUM_EQ(GameModeId::LICHESS, storage.storedHeader.mode);
-}
-
-void test_recorder_start_recording_while_active(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  history.recordMove(6, 4, 4, 4, ' ');  // record a move
-  TEST_ASSERT_TRUE(history.isRecording());
-
-  // Start again — previous game should be discarded
-  history.startRecording(GameModeId::BOT, 'w', 5);
-  TEST_ASSERT_TRUE(history.isRecording());
-  TEST_ASSERT_ENUM_EQ(GameModeId::BOT, storage.storedHeader.mode);
-  TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
-  // Move data should be cleared (new game)
-  TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
-}
-
-void test_recorder_finish_not_recording(void) {
-  setupRecorder();
-  // finishRecording when not recording should be a safe no-op
-  history.finishRecording(GameResult::CHECKMATE, 'w');
-  TEST_ASSERT_FALSE(history.isRecording());
-  TEST_ASSERT_FALSE(storage.gameFinalized);
-}
-
-void test_recorder_discard_not_recording(void) {
-  setupRecorder();
-  // discardRecording when not recording should not crash
-  history.discardRecording();
-  TEST_ASSERT_FALSE(history.isRecording());
-}
-
-void test_recorder_replay_wrong_version(void) {
-  setupRecorder();
-  // Manually set up storage with a bad version header
-  storage.gameActive = true;
-  storage.storedHeader.version = 99;
-  storage.storedHeader.fenEntryCnt = 1;
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_no_fen_entry(void) {
-  setupRecorder();
-  // Header has version=1 but fenEntryCnt=0
-  storage.gameActive = true;
-  storage.storedHeader.version = FORMAT_VERSION;
-  storage.storedHeader.fenEntryCnt = 0;
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_null_storage(void) {
-  // ChessHistory with null storage — replayInto should return false
-  ChessHistory nullHist(nullptr, &logger);
-  ChessBoard board;
-  board.newGame();
-  bool ok = nullHist.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_empty_after_fen(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record only an initial FEN and no moves
-  std::string initialFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  history.recordFen(initialFen);
-
-  // Replay — should load FEN with no moves to replay
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', board.currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));  // e4 has white pawn
-}
-
-void test_recorder_replay_with_promotion(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record a position where white can promote
-  std::string fen = "8/4P3/8/8/8/8/8/4K2k w - - 0 1";
-  history.recordFen(fen);
-  history.recordMove(1, 4, 0, 4, 'q');  // e7-e8=Q
-
-  // Replay and verify promotion
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('Q', board.getSquare(0, 4));  // Queen on e8
-}
-
-// ---------------------------------------------------------------------------
-// ChessGame: endGame guard & startNewGame
-// ---------------------------------------------------------------------------
-
 void test_controller_end_game_idempotent(void) {
   setupController();
   ctrl->newGame();
@@ -637,7 +739,18 @@ void test_controller_make_move_records_promotion(void) {
 // Registration
 // ---------------------------------------------------------------------------
 
-void register_recorder_tests() {
+void register_chess_history_tests() {
+  needsDefaultKings = false;
+
+  // Standalone ChessHistory (move log)
+  RUN_TEST(test_history_initial_empty);
+  RUN_TEST(test_history_clear);
+  RUN_TEST(test_history_add_and_get_move);
+  RUN_TEST(test_history_last_move);
+  RUN_TEST(test_history_pop_move);
+  RUN_TEST(test_history_pop_empty);
+  RUN_TEST(test_history_multiple_moves);
+
   // ChessHistory recording
   RUN_TEST(test_recorder_start_recording);
   RUN_TEST(test_recorder_record_move);
@@ -661,7 +774,7 @@ void register_recorder_tests() {
   RUN_TEST(test_recorder_replay_empty_after_fen);
   RUN_TEST(test_recorder_replay_with_promotion);
 
-  // ChessGame
+  // ChessGame recording integration
   RUN_TEST(test_controller_new_game);
   RUN_TEST(test_controller_make_move);
   RUN_TEST(test_controller_make_move_auto_finish);

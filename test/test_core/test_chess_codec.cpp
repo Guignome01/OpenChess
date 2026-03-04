@@ -205,7 +205,7 @@ void test_game_header_size(void) {
   TEST_ASSERT_EQUAL(16, (int)sizeof(GameHeader));
 }
 
-void register_codec_tests() {
+void register_chess_codec_tests() {
   needsDefaultKings = false;
 
   // UCI

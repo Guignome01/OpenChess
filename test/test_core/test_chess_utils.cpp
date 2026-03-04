@@ -384,7 +384,7 @@ void test_positionState_initial(void) {
   TEST_ASSERT_EQUAL_INT(1, st.fullmoveClock);
 }
 
-void register_utils_tests() {
+void register_chess_utils_tests() {
   needsDefaultKings = false;
 
   // FEN

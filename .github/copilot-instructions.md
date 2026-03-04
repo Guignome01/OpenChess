@@ -71,15 +71,14 @@ Unit tests run natively on the host machine (no ESP32 required) using the Platfo
 The `lib/core/` library contains all natively-compilable chess logic (`ChessGame`, `ChessBoard`, `ChessHistory`, `ChessRules`, `ChessCodec`, `ChessUtils`, types, Zobrist keys) with zero Arduino dependencies. Tests include `lib/core/` headers directly. Shared test utilities live in `test/test_helpers.h`.
 
 All tests are consolidated under `test/test_core/` — one suite, one binary. Test groups within the suite:
-- **`test_rules_moves.cpp`** — move generation for each piece type, blocked/capture scenarios, initial position.
-- **`test_rules_check.cpp`** — check detection, checkmate, stalemate, move legality under check, king position.
-- **`test_rules_special.cpp`** — castling (rights, blocking, through-check), en passant, promotion, helper functions.
-- **`test_utils.cpp`** — FEN round-trip, material evaluation, piece color helpers, 50-move rule, legal move queries.
-- **`test_codec.cpp`** — UCI move conversion, castling rights strings.
-- **`test_board.cpp`** — ChessBoard: new game, moves, captures, en passant, castling, promotion, check, checkmate, stalemate, 50-move draw, insufficient material, threefold repetition, FEN loading, endGame, codec encode/decode, API queries.
+- **`test_chess_rules_moves.cpp`** — move generation for each piece type, blocked/capture scenarios, initial position.
+- **`test_chess_rules_check.cpp`** — check detection, checkmate, stalemate, move legality under check, king position.
+- **`test_chess_rules_special.cpp`** — castling (rights, blocking, through-check), en passant, promotion, helper functions.
+- **`test_chess_utils.cpp`** — FEN round-trip, material evaluation, piece color helpers, 50-move rule, legal move queries.
+- **`test_chess_codec.cpp`** — UCI move conversion, castling rights strings.
+- **`test_chess_board.cpp`** — ChessBoard: new game, moves, captures, en passant, castling, promotion, check, checkmate, stalemate, 50-move draw, insufficient material, threefold repetition, FEN loading, endGame, codec encode/decode, API queries.
 - **`test_chess_game.cpp`** — ChessGame: draw detection, callbacks/batching, history integration.
-- **`test_history.cpp`** — ChessHistory: move log.
-- **`test_recorder.cpp`** — ChessHistory recording + ChessGame: recording lifecycle, replay, observer notification.
+- **`test_chess_history.cpp`** — ChessHistory: move log, recording lifecycle, replay, observer notification, ChessGame recording integration.
 
 ### Testing Principles
 

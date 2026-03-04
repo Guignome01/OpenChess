@@ -338,7 +338,7 @@ void test_diagonal_pin(void) {
   TEST_ASSERT_EQUAL_INT(0, moveCount);
 }
 
-void register_rules_check_tests() {
+void register_chess_rules_check_tests() {
   needsDefaultKings = false;
 
   // Check detection
