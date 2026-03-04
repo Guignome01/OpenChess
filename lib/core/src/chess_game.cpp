@@ -2,8 +2,8 @@
 
 #include <cstring>
 
-#include "codec.h"
-#include "rules.h"
+#include "chess_codec.h"
+#include "chess_rules.h"
 
 ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
     : history_(storage, logger), observer_(observer), batchDepth_(0), batchDirty_(false) {}

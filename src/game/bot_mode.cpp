@@ -2,7 +2,7 @@
 #include "chess_game.h"
 #include "led_colors.h"
 #include "system_utils.h"
-#include "utils.h"
+#include "chess_utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 

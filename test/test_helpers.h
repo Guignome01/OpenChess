@@ -1,10 +1,10 @@
 #ifndef TEST_HELPERS_H
 #define TEST_HELPERS_H
 
-#include <utils.h>
-#include <rules.h>
-#include <codec.h>
-#include <board.h>
+#include <chess_utils.h>
+#include <chess_rules.h>
+#include <chess_codec.h>
+#include <chess_board.h>
 #include <chess_game.h>
 
 #include <cstring>

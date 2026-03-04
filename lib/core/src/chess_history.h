@@ -1,5 +1,5 @@
-#ifndef CORE_HISTORY_H
-#define CORE_HISTORY_H
+#ifndef CORE_CHESS_HISTORY_H
+#define CORE_CHESS_HISTORY_H
 
 #include <cstdint>
 #include <string>
@@ -115,4 +115,4 @@ class ChessHistory {
   uint8_t movesSinceFlush_;
 };
 
-#endif  // CORE_HISTORY_H
+#endif  // CORE_CHESS_HISTORY_H

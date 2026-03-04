@@ -1,7 +1,7 @@
 #include <unity.h>
 
-#include <utils.h>
-#include <rules.h>
+#include <chess_utils.h>
+#include <chess_rules.h>
 
 #include "../test_helpers.h"
 

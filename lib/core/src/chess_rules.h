@@ -1,5 +1,5 @@
-#ifndef CORE_RULES_H
-#define CORE_RULES_H
+#ifndef CORE_CHESS_RULES_H
+#define CORE_CHESS_RULES_H
 
 #include "types.h"
 
@@ -54,4 +54,4 @@ class ChessRules {
   static bool isStalemate(const char board[8][8], char colorToMove, const PositionState& flags);
 };
 
-#endif // CORE_RULES_H
+#endif  // CORE_CHESS_RULES_H

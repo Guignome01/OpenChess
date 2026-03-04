@@ -1,11 +1,11 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <codec.h>
+#include <chess_codec.h>
 #include <chess_game.h>
 #include <game_observer.h>
 #include <game_storage.h>
-#include <history.h>
+#include <chess_history.h>
 #include <logger.h>
 #include <types.h>
 

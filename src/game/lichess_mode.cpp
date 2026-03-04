@@ -1,6 +1,6 @@
 #include "lichess_mode.h"
 #include "chess_game.h"
-#include "utils.h"
+#include "chess_utils.h"
 #include "led_colors.h"
 #include "lichess_api.h"
 #include "system_utils.h"

@@ -1,4 +1,4 @@
-#include "codec.h"
+#include "chess_codec.h"
 
 #include <cctype>
 

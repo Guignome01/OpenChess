@@ -1,5 +1,5 @@
-#ifndef CORE_CODEC_H
-#define CORE_CODEC_H
+#ifndef CORE_CHESS_CODEC_H
+#define CORE_CHESS_CODEC_H
 
 #include <cstdint>
 #include <string>
@@ -38,4 +38,4 @@ void decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& t
 
 }  // namespace ChessCodec
 
-#endif  // CORE_CODEC_H
+#endif  // CORE_CHESS_CODEC_H

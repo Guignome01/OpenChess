@@ -1,7 +1,7 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <history.h>
+#include <chess_history.h>
 
 // Shared globals from test_core.cpp
 extern char board[8][8];

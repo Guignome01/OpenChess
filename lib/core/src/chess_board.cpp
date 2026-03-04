@@ -1,10 +1,10 @@
-#include "board.h"
+#include "chess_board.h"
 
 #include <cctype>
 #include <cmath>
 #include <cstring>
 
-#include "rules.h"
+#include "chess_rules.h"
 
 const char ChessBoard::INITIAL_BOARD[8][8] = {
     {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'},  // row 0 = rank 8

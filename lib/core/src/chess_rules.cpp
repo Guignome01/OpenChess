@@ -1,5 +1,5 @@
-#include "rules.h"
-#include "utils.h"
+#include "chess_rules.h"
+#include "chess_utils.h"
 #include <cctype>
 #include <cstring>
 

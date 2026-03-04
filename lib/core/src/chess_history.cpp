@@ -1,11 +1,11 @@
-#include "history.h"
+#include "chess_history.h"
 
 #include <algorithm>
 #include <cstring>
 #include <vector>
 
-#include "board.h"
-#include "codec.h"
+#include "chess_board.h"
+#include "chess_codec.h"
 
 ChessHistory::ChessHistory(IGameStorage* storage, ILogger* logger)
     : moveCount_(0),

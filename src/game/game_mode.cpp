@@ -1,6 +1,6 @@
 #include "game_mode.h"
 #include "chess_game.h"
-#include "utils.h"
+#include "chess_utils.h"
 #include "system_utils.h"
 #include "wifi_manager_esp32.h"
 #include <string.h>

@@ -1,8 +1,8 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <codec.h>
-#include <board.h>
+#include <chess_codec.h>
+#include <chess_board.h>
 #include <types.h>
 
 // Shared globals from test_core.cpp

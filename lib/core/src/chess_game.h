@@ -4,9 +4,9 @@
 #include <functional>
 #include <string>
 
-#include "board.h"
+#include "chess_board.h"
 #include "game_observer.h"
-#include "history.h"
+#include "chess_history.h"
 #include "types.h"
 
 // Central chess game orchestrator — the primary API for all game-level operations.

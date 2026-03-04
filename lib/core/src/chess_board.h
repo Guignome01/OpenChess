@@ -1,13 +1,13 @@
-#ifndef CORE_BOARD_H
-#define CORE_BOARD_H
+#ifndef CORE_CHESS_BOARD_H
+#define CORE_CHESS_BOARD_H
 
 #include <cctype>
 #include <cstring>
 #include <string>
 
 #include "types.h"
-#include "rules.h"
-#include "utils.h"
+#include "chess_rules.h"
+#include "chess_utils.h"
 #include "zobrist_keys.h"
 
 // Board representation and position-level chess logic.
@@ -179,4 +179,4 @@ class ChessBoard {
   GameResult detectGameEnd(char& winner);
 };
 
-#endif  // CORE_BOARD_H
+#endif  // CORE_CHESS_BOARD_H

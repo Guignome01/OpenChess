@@ -1,6 +1,6 @@
-#include "utils.h"
+#include "chess_utils.h"
 
-#include "codec.h"
+#include "chess_codec.h"
 
 #include <cctype>
 #include <string>
