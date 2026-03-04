@@ -1,4 +1,4 @@
-#include "base.h"
+#include "game_mode.h"
 #include "codec.h"
 #include "game_controller.h"
 #include "utils.h"
@@ -12,12 +12,12 @@
 // ---------------------------
 static constexpr float RESIGN_BRIGHTNESS_LEVELS[] = {0.25f, 0.50f, 0.75f, 1.0f};
 
-ChessGame::ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc)
+GameMode::GameMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc)
     : boardDriver_(bd), wifiManager_(wm), controller_(gc) {}
 
-bool ChessGame::isGameOver() const { return controller_->isGameOver(); }
+bool GameMode::isGameOver() const { return controller_->isGameOver(); }
 
-bool ChessGame::tryResumeGame() {
+bool GameMode::tryResumeGame() {
   if (controller_->hasActiveGame()) {
     Serial.println("Resuming live game...");
     return controller_->resumeGame();
@@ -25,7 +25,7 @@ bool ChessGame::tryResumeGame() {
   return false;
 }
 
-void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
+void GameMode::waitForBoardSetup(const char targetBoard[8][8]) {
   Serial.println("Set up the board in the required position...");
 
   {
@@ -83,7 +83,7 @@ void ChessGame::waitForBoardSetup(const char targetBoard[8][8]) {
   boardDriver_->updateSensorPrev();
 }
 
-MoveResult ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion, bool isRemoteMove) {
+MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion, bool isRemoteMove) {
   // Capture piece type before the move for logging
   char piece = controller_->getSquare(fromRow, fromCol);
 
@@ -151,7 +151,7 @@ MoveResult ChessGame::applyMove(int fromRow, int fromCol, int toRow, int toCol, 
   return result;
 }
 
-MoveResult ChessGame::applyUCIMove(const std::string& uci) {
+MoveResult GameMode::applyUCIMove(const std::string& uci) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
   if (!ChessCodec::parseUCIMove(uci, fromRow, fromCol, toRow, toCol, promotion)) {
@@ -161,7 +161,7 @@ MoveResult ChessGame::applyUCIMove(const std::string& uci) {
   return applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
 }
 
-bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
+bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
   for (int row = 0; row < 8; row++)
     for (int col = 0; col < 8; col++) {
       // Continue if nothing was picked up from this square
@@ -361,7 +361,7 @@ bool ChessGame::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int&
   return false;
 }
 
-void ChessGame::setBoardStateFromFEN(const std::string& fen) {
+void GameMode::setBoardStateFromFEN(const std::string& fen) {
   controller_->loadFEN(fen);
   Serial.println("Board state set from FEN: " + String(fen.c_str()));
   SystemUtils::printBoard(controller_->getBoard());
@@ -370,7 +370,7 @@ void ChessGame::setBoardStateFromFEN(const std::string& fen) {
 // --- Hardware-only castling interactions ---
 // Board already updated by ChessBoard — this only handles LED prompts and sensor waits.
 
-void ChessGame::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion) {
+void GameMode::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion) {
   auto ci = ChessUtils::checkCastling(kingFromRow, kingFromCol, kingToRow, kingToCol, kingPiece);
   if (!ci.isCastling) return;
 
@@ -425,7 +425,7 @@ void ChessGame::applyCastlingHardware(int kingFromRow, int kingFromCol, int king
   boardDriver_->clearAllLEDs();
 } // LedGuard released
 
-void ChessGame::confirmSquareCompletion(int row, int col) {
+void GameMode::confirmSquareCompletion(int row, int col) {
   boardDriver_->blinkSquare(row, col, LedColors::Green, 1);
 }
 
@@ -433,24 +433,24 @@ void ChessGame::confirmSquareCompletion(int row, int col) {
 // Resign Feature
 // ---------------------------
 
-void ChessGame::showIllegalMoveFeedback(int row, int col) {
+void GameMode::showIllegalMoveFeedback(int row, int col) {
   boardDriver_->blinkSquare(row, col, LedColors::Red, 2);
 }
 
-void ChessGame::showResignProgress(int row, int col, int level, bool clearFirst) {
+void GameMode::showResignProgress(int row, int col, int level, bool clearFirst) {
   BoardDriver::LedGuard guard(boardDriver_);
   if (clearFirst) boardDriver_->clearAllLEDs(false);
   boardDriver_->setSquareLED(row, col, LedColors::scaleColor(LedColors::Orange, RESIGN_BRIGHTNESS_LEVELS[level]));
   boardDriver_->showLEDs();
 }
 
-void ChessGame::clearResignFeedback(int row, int col) {
+void GameMode::clearResignFeedback(int row, int col) {
   BoardDriver::LedGuard guard(boardDriver_);
   boardDriver_->setSquareLED(row, col, LedColors::Off);
   boardDriver_->showLEDs();
 }
 
-bool ChessGame::processResign() {
+bool GameMode::processResign() {
   if (!resignPending_) return false;
   resignPending_ = false;
   handleResign(controller_->currentTurn());
@@ -458,7 +458,7 @@ bool ChessGame::processResign() {
   return true;
 }
 
-bool ChessGame::continueResignGesture(int row, int col, char color) {
+bool GameMode::continueResignGesture(int row, int col, char color) {
   // Called inline from tryPlayerMove after king returned (50% showing).
   // Need 2 more lift-and-return cycles. Each return brightens: 75% then 100%.
 
@@ -504,7 +504,7 @@ bool ChessGame::continueResignGesture(int row, int col, char color) {
   return handleResign(color);
 }
 
-bool ChessGame::handleResign(char resignColor) {
+bool GameMode::handleResign(char resignColor) {
   onBeforeResignConfirm();
 
   bool flipped = isFlipped();

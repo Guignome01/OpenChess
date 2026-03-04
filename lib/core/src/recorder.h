@@ -19,7 +19,7 @@ class GameRecorder {
 
   // --- Recording lifecycle ---
 
-  void startRecording(GameMode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
+  void startRecording(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
   void recordMove(int fromRow, int fromCol, int toRow, int toCol, char promotion);
   void recordFen(const std::string& fen);
   void finishRecording(GameResult result, char winnerColor);
@@ -29,7 +29,7 @@ class GameRecorder {
 
   bool isRecording() const { return recording_; }
   bool hasActiveGame();
-  bool getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth);
+  bool getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth);
 
   // --- Replay ---
 

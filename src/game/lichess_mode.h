@@ -1,7 +1,7 @@
-#ifndef GAME_LICHESS_H
-#define GAME_LICHESS_H
+#ifndef GAME_LICHESS_MODE_H
+#define GAME_LICHESS_MODE_H
 
-#include "bot.h"
+#include "bot_mode.h"
 #include "lichess_api.h"
 
 // Lichess game configuration
@@ -9,7 +9,7 @@ struct LichessConfig {
   String apiToken;
 };
 
-class ChessLichess : public ChessBot {
+class LichessMode : public BotMode {
  private:
   LichessConfig lichessConfig_;
   String currentGameId_;
@@ -29,7 +29,7 @@ class ChessLichess : public ChessBot {
   void sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
  protected:
-  // --- ChessBot hooks ---
+  // --- BotMode hooks ---
   void requestEngineMove() override;
   void onPlayerMoveApplied(const MoveResult& result, int fromRow, int fromCol, int toRow, int toCol) override;
 
@@ -37,8 +37,8 @@ class ChessLichess : public ChessBot {
   void onResignConfirmed(char resignColor) override;
 
  public:
-  ChessLichess(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg);
+  LichessMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg);
   void begin() override;
 };
 
-#endif // GAME_LICHESS_H
+#endif // GAME_LICHESS_MODE_H

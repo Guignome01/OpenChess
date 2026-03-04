@@ -1,7 +1,7 @@
-#ifndef GAME_STOCKFISH_H
-#define GAME_STOCKFISH_H
+#ifndef GAME_STOCKFISH_MODE_H
+#define GAME_STOCKFISH_MODE_H
 
-#include "bot.h"
+#include "bot_mode.h"
 #include "stockfish_api.h"
 #include "stockfish_settings.h"
 
@@ -10,7 +10,7 @@
 #include <WiFiClientSecure.h>
 #define WiFiSSLClient WiFiClientSecure
 
-class ChessStockfish : public ChessBot {
+class StockfishMode : public BotMode {
  private:
   StockfishSettings settings_;
   float currentEvaluation_;
@@ -20,13 +20,13 @@ class ChessStockfish : public ChessBot {
   bool parseStockfishResponse(const String& response, String& bestMove, float& evaluation);
 
  protected:
-  // ChessBot hooks
+  // BotMode hooks
   void requestEngineMove() override;
   float getEngineEvaluation() override { return currentEvaluation_; }
 
  public:
-  ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor, StockfishSettings settings);
+  StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor, StockfishSettings settings);
   void begin() override;
 };
 
-#endif  // GAME_STOCKFISH_H
+#endif  // GAME_STOCKFISH_MODE_H

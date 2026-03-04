@@ -1,7 +1,7 @@
 #include "board_driver.h"
-#include "game/player.h"
-#include "game/lichess.h"
-#include "game/stockfish.h"
+#include "game/player_mode.h"
+#include "game/lichess_mode.h"
+#include "game/stockfish_mode.h"
 #include "game_controller.h"
 #include "littlefs_storage.h"
 #include "recorder.h"
@@ -39,7 +39,7 @@ LittleFSStorage storage(&logger);
 GameRecorder recorder(&storage, &logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
 GameController controller(&recorder, &wifiManager);
-ChessGame* activeGame = nullptr;
+GameMode* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 
 AppMode currentMode = AppMode::SELECTION;
@@ -95,7 +95,7 @@ void setup() {
 
 void checkForResumableGame() {
   uint8_t resumePlayerColor = 0, resumeBotDepth = 0;
-  GameMode resumeMode = static_cast<GameMode>(0);
+  GameModeId resumeMode = static_cast<GameModeId>(0);
   if (!controller.hasActiveGame() || !controller.getActiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
     return;
 
@@ -106,17 +106,17 @@ void checkForResumableGame() {
   bool flipped = false;
 
   switch (resumeMode) {
-    case GameMode::CHESS_MOVES:
+    case GameModeId::CHESS_MOVES:
       indicatorColor = LedColors::Blue;
       modeName = "Chess Moves";
       break;
-    case GameMode::BOT:
+    case GameModeId::BOT:
       indicatorColor = LedColors::Green;
       modeName = "Bot";
       flipped = (resumePlayerColor == 'b');
       Serial.printf("  Mode: Bot (player=%c, depth=%d)\n", (char)resumePlayerColor, resumeBotDepth);
       break;
-    case GameMode::LICHESS:
+    case GameModeId::LICHESS:
       Serial.println("  Lichess game found — cannot resume locally, discarding");
       controller.discardRecording();
       Serial.println("================================================");
@@ -136,11 +136,11 @@ void checkForResumableGame() {
   if (boardConfirm(&boardDriver, flipped)) {
     Serial.println("  -> Player chose to RESUME");
     switch (resumeMode) {
-      case GameMode::CHESS_MOVES:
+      case GameModeId::CHESS_MOVES:
         currentMode = AppMode::CHESS_MOVES;
         resumingGame = true;
         break;
-      case GameMode::BOT:
+      case GameModeId::BOT:
         currentMode = AppMode::BOT;
         resumingGame = true;
         playerColor = (char)resumePlayerColor;
@@ -351,17 +351,17 @@ void initializeSelectedMode(AppMode mode) {
   switch (mode) {
     case AppMode::CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      activeGame = new ChessPlayer(&boardDriver, &wifiManager, &controller);
+      activeGame = new PlayerMode(&boardDriver, &wifiManager, &controller);
       activeGame->begin();
       break;
     case AppMode::BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new ChessStockfish(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
+      activeGame = new StockfishMode(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
       activeGame->begin();
       break;
     case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new ChessLichess(&boardDriver, &wifiManager, &controller, lichessConfig);
+      activeGame = new LichessMode(&boardDriver, &wifiManager, &controller, lichessConfig);
       activeGame->begin();
       break;
     case AppMode::SENSOR_TEST:

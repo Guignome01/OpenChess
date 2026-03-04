@@ -1,4 +1,4 @@
-#include "bot.h"
+#include "bot_mode.h"
 #include "game_controller.h"
 #include "led_colors.h"
 #include "system_utils.h"
@@ -6,16 +6,16 @@
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessBot::ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr)
-    : ChessGame(bd, wm, gc), playerColor_(playerClr), thinkingAnimation_(nullptr), wasThinkingBeforeResign_(false) {}
+BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr)
+    : GameMode(bd, wm, gc), playerColor_(playerClr), thinkingAnimation_(nullptr), wasThinkingBeforeResign_(false) {}
 
-float ChessBot::getEngineEvaluation() { return controller_->getEvaluation(); }
+float BotMode::getEngineEvaluation() { return controller_->getEvaluation(); }
 
 // --- Template Method: game loop skeleton ---
 // Player turn: tryPlayerMove → applyMove → onPlayerMoveApplied hook.
 // Engine turn: requestEngineMove (subclass drives the move).
 
-void ChessBot::update() {
+void BotMode::update() {
   if (controller_->isGameOver()) return;
 
   boardDriver_->readSensors();
@@ -39,24 +39,24 @@ void ChessBot::update() {
 
 // --- Resign hooks (thinking-animation management) ---
 
-void ChessBot::onBeforeResignConfirm() {
+void BotMode::onBeforeResignConfirm() {
   wasThinkingBeforeResign_ = (thinkingAnimation_ != nullptr);
   if (wasThinkingBeforeResign_) stopThinking();
 }
 
-void ChessBot::onResignCancelled() {
+void BotMode::onResignCancelled() {
   if (wasThinkingBeforeResign_ && controller_->currentTurn() != playerColor_ && !controller_->isGameOver())
     startThinking();
 }
 
 // --- Thinking animation helpers ---
 
-void ChessBot::startThinking() {
+void BotMode::startThinking() {
   boardDriver_->waitForAnimationQueueDrain();
   thinkingAnimation_ = boardDriver_->startThinkingAnimation();
 }
 
-void ChessBot::stopThinking() {
+void BotMode::stopThinking() {
   if (thinkingAnimation_) {
     boardDriver_->stopAndWaitForAnimation(thinkingAnimation_);
     thinkingAnimation_ = nullptr;
@@ -67,7 +67,7 @@ void ChessBot::stopThinking() {
 // Shared by all engine subclasses. Guides the local player to physically
 // execute a move made by the remote engine on the board.
 
-void ChessBot::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant, int enPassantCapturedPawnRow) {
+void BotMode::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant, int enPassantCapturedPawnRow) {
   BoardDriver::LedGuard guard(boardDriver_);
   boardDriver_->clearAllLEDs(false);
   // Show source square (where to pick up from)

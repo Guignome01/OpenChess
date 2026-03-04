@@ -826,6 +826,247 @@ void test_manager_fullmove_increments_after_black(void) {
 }
 
 // ---------------------------------------------------------------------------
+// findPiece
+// ---------------------------------------------------------------------------
+
+void test_manager_find_piece_kings_initial(void) {
+  setUpManager();
+  int positions[2][2];
+  int count = gm.findPiece('K', 'w', positions, 2);
+  TEST_ASSERT_EQUAL_INT(1, count);
+  TEST_ASSERT_EQUAL_INT(7, positions[0][0]); // row 7 = rank 1
+  TEST_ASSERT_EQUAL_INT(4, positions[0][1]); // col 4 = file e
+}
+
+void test_manager_find_piece_black_pawns_initial(void) {
+  setUpManager();
+  int positions[8][2];
+  int count = gm.findPiece('P', 'b', positions, 8);
+  TEST_ASSERT_EQUAL_INT(8, count);
+  // All should be on row 1 (rank 7)
+  for (int i = 0; i < count; i++) {
+    TEST_ASSERT_EQUAL_INT(1, positions[i][0]);
+  }
+}
+
+void test_manager_find_piece_not_found(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  int positions[8][2];
+  int count = gm.findPiece('Q', 'w', positions, 8);
+  TEST_ASSERT_EQUAL_INT(0, count);
+}
+
+void test_manager_find_piece_multiple_bishops(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/2B1B3/8/4K3 w - - 0 1");
+  int positions[4][2];
+  int count = gm.findPiece('B', 'w', positions, 4);
+  TEST_ASSERT_EQUAL_INT(2, count);
+}
+
+void test_manager_find_piece_max_limit(void) {
+  setUpManager();
+  // 8 white pawns, but limit to 3
+  int positions[3][2];
+  int count = gm.findPiece('P', 'w', positions, 3);
+  TEST_ASSERT_EQUAL_INT(3, count);
+}
+
+// ---------------------------------------------------------------------------
+// findKingPosition (now backed by findPiece)
+// ---------------------------------------------------------------------------
+
+void test_manager_find_king_position_white(void) {
+  setUpManager();
+  int row, col;
+  bool found = gm.findKingPosition('w', row, col);
+  TEST_ASSERT_TRUE(found);
+  TEST_ASSERT_EQUAL_INT(7, row);
+  TEST_ASSERT_EQUAL_INT(4, col);
+}
+
+void test_manager_find_king_position_black(void) {
+  setUpManager();
+  int row, col;
+  bool found = gm.findKingPosition('b', row, col);
+  TEST_ASSERT_TRUE(found);
+  TEST_ASSERT_EQUAL_INT(0, row);
+  TEST_ASSERT_EQUAL_INT(4, col);
+}
+
+void test_manager_find_king_position_missing(void) {
+  setUpManager();
+  // Position with no white king — abnormal, but findKingPosition should return false
+  gm.loadFEN("4k3/8/8/8/8/8/8/4q3 w - - 0 1");
+  int row, col;
+  bool found = gm.findKingPosition('w', row, col);
+  TEST_ASSERT_FALSE(found);
+}
+
+// ---------------------------------------------------------------------------
+// inCheck (no-arg, uses current turn)
+// ---------------------------------------------------------------------------
+
+void test_manager_in_check_true(void) {
+  setUpManager();
+  // White king in check from black queen
+  gm.loadFEN("4k3/8/8/8/8/8/8/3qK3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.inCheck());
+}
+
+void test_manager_in_check_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.inCheck());
+}
+
+// ---------------------------------------------------------------------------
+// isCheckmate (no-arg, uses current turn)
+// ---------------------------------------------------------------------------
+
+void test_manager_is_checkmate_true(void) {
+  setUpManager();
+  // Back rank mate: white king on h1, black rook delivers mate on a1
+  gm.loadFEN("6k1/8/8/8/8/8/5PPP/r5K1 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isCheckmate());
+}
+
+void test_manager_is_checkmate_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isCheckmate());
+}
+
+// ---------------------------------------------------------------------------
+// isStalemate (no-arg, uses current turn)
+// ---------------------------------------------------------------------------
+
+void test_manager_is_stalemate_true(void) {
+  setUpManager();
+  // Stalemate: black king on a8, white queen on b6, white king on c8 — black to move
+  gm.loadFEN("k7/8/1Q6/8/8/8/8/2K5 b - - 0 1");
+  TEST_ASSERT_TRUE(gm.isStalemate());
+}
+
+void test_manager_is_stalemate_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isStalemate());
+}
+
+// ---------------------------------------------------------------------------
+// isDraw (aggregate query)
+// ---------------------------------------------------------------------------
+
+void test_manager_is_draw_insufficient_material(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_manager_is_draw_fifty_move(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 100 50");
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_manager_is_draw_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isDraw());
+}
+
+// ---------------------------------------------------------------------------
+// isThreefoldRepetition (public)
+// ---------------------------------------------------------------------------
+
+void test_manager_is_threefold_repetition(void) {
+  setUpManager();
+  // Repeat rook moves to produce threefold repetition (sufficient material)
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 1, 7, 0); // Rb1-a1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 1, 7, 0); // Rb1-a1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  // Position has now occurred 3 times
+  TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
+}
+
+void test_manager_is_threefold_repetition_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
+}
+
+// ---------------------------------------------------------------------------
+// isInsufficientMaterial (public)
+// ---------------------------------------------------------------------------
+
+void test_manager_is_insufficient_material_true(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isInsufficientMaterial());
+}
+
+void test_manager_is_insufficient_material_false(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isInsufficientMaterial());
+}
+
+// ---------------------------------------------------------------------------
+// isAttacked
+// ---------------------------------------------------------------------------
+
+void test_manager_is_attacked_by_white(void) {
+  setUpManager();
+  // White pawn on e4 attacks d5 and f5
+  gm.loadFEN("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isAttacked(3, 3, 'w'));  // d5 attacked by white
+  TEST_ASSERT_TRUE(gm.isAttacked(3, 5, 'w'));  // f5 attacked by white
+  TEST_ASSERT_FALSE(gm.isAttacked(3, 4, 'w')); // e5 not attacked by white pawn
+}
+
+void test_manager_is_attacked_by_black(void) {
+  setUpManager();
+  // Black knight on f6 attacks e4, g4, d5, h5, d7, h7, e8, g8
+  gm.loadFEN("4k3/8/5n2/8/8/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isAttacked(4, 4, 'b'));  // e4 attacked by black knight
+  TEST_ASSERT_TRUE(gm.isAttacked(4, 6, 'b'));  // g4 attacked by black knight
+  TEST_ASSERT_FALSE(gm.isAttacked(4, 5, 'b')); // f4 not attacked by black knight
+}
+
+void test_manager_is_attacked_empty_square(void) {
+  setUpManager();
+  // Empty square can be attacked
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isAttacked(0, 0, 'w')); // a8 attacked by Ra1 along file
+}
+
+// ---------------------------------------------------------------------------
+// moveNumber
+// ---------------------------------------------------------------------------
+
+void test_manager_move_number_initial(void) {
+  setUpManager();
+  TEST_ASSERT_EQUAL_INT(1, gm.moveNumber());
+}
+
+void test_manager_move_number_after_moves(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+  gm.makeMove(6, 4, 4, 4); // e2-e4 (white, fullmove stays 1)
+  TEST_ASSERT_EQUAL_INT(1, gm.moveNumber());
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8 (black, fullmove → 2)
+  TEST_ASSERT_EQUAL_INT(2, gm.moveNumber());
+}
+
+void test_manager_move_number_from_fen(void) {
+  setUpManager();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 42");
+  TEST_ASSERT_EQUAL_INT(42, gm.moveNumber());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -946,4 +1187,51 @@ void register_board_tests() {
   RUN_TEST(test_manager_halfmove_clock_increments);
   RUN_TEST(test_manager_halfmove_clock_resets_on_pawn_move);
   RUN_TEST(test_manager_fullmove_increments_after_black);
+
+  // findPiece
+  RUN_TEST(test_manager_find_piece_kings_initial);
+  RUN_TEST(test_manager_find_piece_black_pawns_initial);
+  RUN_TEST(test_manager_find_piece_not_found);
+  RUN_TEST(test_manager_find_piece_multiple_bishops);
+  RUN_TEST(test_manager_find_piece_max_limit);
+
+  // findKingPosition (uses findPiece)
+  RUN_TEST(test_manager_find_king_position_white);
+  RUN_TEST(test_manager_find_king_position_black);
+  RUN_TEST(test_manager_find_king_position_missing);
+
+  // inCheck (no-arg)
+  RUN_TEST(test_manager_in_check_true);
+  RUN_TEST(test_manager_in_check_false);
+
+  // isCheckmate (no-arg)
+  RUN_TEST(test_manager_is_checkmate_true);
+  RUN_TEST(test_manager_is_checkmate_false);
+
+  // isStalemate (no-arg)
+  RUN_TEST(test_manager_is_stalemate_true);
+  RUN_TEST(test_manager_is_stalemate_false);
+
+  // isDraw
+  RUN_TEST(test_manager_is_draw_insufficient_material);
+  RUN_TEST(test_manager_is_draw_fifty_move);
+  RUN_TEST(test_manager_is_draw_false);
+
+  // isThreefoldRepetition (public)
+  RUN_TEST(test_manager_is_threefold_repetition);
+  RUN_TEST(test_manager_is_threefold_repetition_false);
+
+  // isInsufficientMaterial (public)
+  RUN_TEST(test_manager_is_insufficient_material_true);
+  RUN_TEST(test_manager_is_insufficient_material_false);
+
+  // isAttacked
+  RUN_TEST(test_manager_is_attacked_by_white);
+  RUN_TEST(test_manager_is_attacked_by_black);
+  RUN_TEST(test_manager_is_attacked_empty_square);
+
+  // moveNumber
+  RUN_TEST(test_manager_move_number_initial);
+  RUN_TEST(test_manager_move_number_after_moves);
+  RUN_TEST(test_manager_move_number_from_fen);
 }

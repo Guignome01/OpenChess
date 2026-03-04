@@ -25,10 +25,10 @@ class GameController {
   void newGame();
 
   // Start a new game and begin recording. Resets the board, then starts recording.
-  void startNewGame(GameMode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
+  void startNewGame(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
 
   // Start recording (delegates to GameRecorder + auto-snapshots initial FEN).
-  void startRecording(GameMode mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
+  void startRecording(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
 
   // End the game — finishes recording (if active) and sets board game-over state.
   void endGame(GameResult result, char winnerColor);
@@ -53,7 +53,7 @@ class GameController {
   // --- Resume queries ---
 
   bool hasActiveGame();
-  bool getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth);
+  bool getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth);
 
   // --- Read-only pass-throughs to ChessBoard ---
 
@@ -74,10 +74,26 @@ class GameController {
   }
 
   bool isKingInCheck(char kingColor) const { return board_.isKingInCheck(kingColor); }
+  bool inCheck() const { return board_.inCheck(); }
+  bool isCheckmate() const { return board_.isCheckmate(); }
+  bool isStalemate() const { return board_.isStalemate(); }
+  bool isDraw() const { return board_.isDraw(); }
+  bool isThreefoldRepetition() const { return board_.isThreefoldRepetition(); }
+  bool isInsufficientMaterial() const { return board_.isInsufficientMaterial(); }
+
+  bool isAttacked(int row, int col, char byColor) const {
+    return board_.isAttacked(row, col, byColor);
+  }
+
+  int findPiece(char type, char color, int positions[][2], int maxPositions) const {
+    return board_.findPiece(type, color, positions, maxPositions);
+  }
 
   bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
     return board_.findKingPosition(kingColor, kingRow, kingCol);
   }
+
+  int moveNumber() const { return board_.moveNumber(); }
 
   ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
     return board_.checkEnPassant(fromRow, fromCol, toRow, toCol);

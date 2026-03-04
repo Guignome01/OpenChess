@@ -177,6 +177,47 @@ float ChessBoard::getEvaluation() const {
   return cachedEval_;
 }
 
+int ChessBoard::findPiece(char type, char color, int positions[][2], int maxPositions) const {
+  int count = 0;
+  char target = (color == 'w') ? toupper(type) : tolower(type);
+  for (int r = 0; r < 8 && count < maxPositions; r++) {
+    for (int c = 0; c < 8 && count < maxPositions; c++) {
+      if (board_[r][c] == target) {
+        positions[count][0] = r;
+        positions[count][1] = c;
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+bool ChessBoard::findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
+  int positions[1][2];
+  int count = findPiece('K', kingColor, positions, 1);
+  if (count > 0) {
+    kingRow = positions[0][0];
+    kingCol = positions[0][1];
+    return true;
+  }
+  return false;
+}
+
+bool ChessBoard::isDraw() const {
+  if (state_.halfmoveClock >= 100) return true;
+  if (isThreefoldRepetitionInternal()) return true;
+  if (hasInsufficientMaterialInternal()) return true;
+  return false;
+}
+
+bool ChessBoard::isThreefoldRepetition() const {
+  return isThreefoldRepetitionInternal();
+}
+
+bool ChessBoard::isInsufficientMaterial() const {
+  return hasInsufficientMaterialInternal();
+}
+
 void ChessBoard::invalidateCache() {
   fenDirty_ = true;
   evalDirty_ = true;
@@ -278,7 +319,7 @@ void ChessBoard::advanceTurn() {
 // Internal: insufficient material detection (FIDE dead position)
 // ---------------------------------------------------------------------------
 
-bool ChessBoard::hasInsufficientMaterial() const {
+bool ChessBoard::hasInsufficientMaterialInternal() const {
   int whiteMinorCount = 0, blackMinorCount = 0;
   int whiteBishopSquareColor = -1, blackBishopSquareColor = -1;
 
@@ -341,11 +382,11 @@ GameResult ChessBoard::detectGameEnd(char& winner) {
     winner = 'd';
     return GameResult::DRAW_50;
   }
-  if (isThreefoldRepetition()) {
+  if (isThreefoldRepetitionInternal()) {
     winner = 'd';
     return GameResult::DRAW_3FOLD;
   }
-  if (hasInsufficientMaterial()) {
+  if (hasInsufficientMaterialInternal()) {
     winner = 'd';
     return GameResult::DRAW_INSUFFICIENT;
   }
@@ -414,7 +455,7 @@ void ChessBoard::recordPosition() {
     positionHistory_[positionHistoryCount_++] = computeZobristHash();
 }
 
-bool ChessBoard::isThreefoldRepetition() const {
+bool ChessBoard::isThreefoldRepetitionInternal() const {
   // Minimum 5 half-moves for 3 occurrences of same position
   if (positionHistoryCount_ < 5)
     return false;

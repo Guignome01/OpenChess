@@ -1,6 +1,7 @@
 #ifndef CORE_BOARD_H
 #define CORE_BOARD_H
 
+#include <cctype>
 #include <cstring>
 #include <functional>
 #include <string>
@@ -78,10 +79,50 @@ class ChessBoard {
     return ChessRules::isKingInCheck(board_, kingColor);
   }
 
-  // Locate the king of the given color. Returns false if not found.
-  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
-    return ChessRules::findKingPosition(board_, kingColor, kingRow, kingCol);
+  // Is the side to move in check?
+  bool inCheck() const {
+    return ChessRules::isKingInCheck(board_, currentTurn_);
   }
+
+  // Is the side to move checkmated?
+  bool isCheckmate() const {
+    return ChessRules::isCheckmate(board_, currentTurn_, state_);
+  }
+
+  // Is the side to move stalemated?
+  bool isStalemate() const {
+    return ChessRules::isStalemate(board_, currentTurn_, state_);
+  }
+
+  // Is the position a draw (50-move, threefold repetition, or insufficient material)?
+  bool isDraw() const;
+
+  // Has the current position occurred three or more times?
+  bool isThreefoldRepetition() const;
+
+  // Is the position drawn due to insufficient material?
+  bool isInsufficientMaterial() const;
+
+  // Is the given square attacked by pieces of the specified color?
+  // "byColor" is the attacking side: 'w' or 'b'.
+  bool isAttacked(int row, int col, char byColor) const {
+    // ChessRules defines "defendingColor" as the side that owns the square.
+    // Attacked-by 'w' means squares defended by 'w' = attacked from 'b' perspective.
+    char defendingColor = (byColor == 'w') ? 'b' : 'w';
+    return ChessRules::isSquareUnderAttack(board_, row, col, defendingColor);
+  }
+
+  // Find all pieces of the given type and color.
+  // type: uppercase piece letter ('P','N','B','R','Q','K').
+  // color: 'w' or 'b'.
+  // Returns count; fills positions[][2] with [row, col] pairs.
+  int findPiece(char type, char color, int positions[][2], int maxPositions) const;
+
+  // Locate the king of the given color. Returns false if not found.
+  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const;
+
+  // Current full-move number (starts at 1, increments after black's move).
+  int moveNumber() const { return state_.fullmoveClock; }
 
   // En passant analysis for a move on this board.
   ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
@@ -142,13 +183,13 @@ class ChessBoard {
 
   uint64_t computeZobristHash() const;
   void recordPosition();
-  bool isThreefoldRepetition() const;
+  bool isThreefoldRepetitionInternal() const;
+  bool hasInsufficientMaterialInternal() const;
 
-  // Pure chess logic extracted from ChessGame::applyMove / updateGameStatus
+  // Pure chess logic extracted from GameMode::applyMove / updateGameStatus
   void applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result);
   void advanceTurn();
   GameResult detectGameEnd(char& winner);
-  bool hasInsufficientMaterial() const;
 
   void fireCallback();
 };

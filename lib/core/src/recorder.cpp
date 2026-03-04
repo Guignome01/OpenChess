@@ -13,7 +13,7 @@ GameRecorder::GameRecorder(IGameStorage* storage, ILogger* logger)
 // Recording lifecycle
 // ---------------------------------------------------------------------------
 
-void GameRecorder::startRecording(GameMode mode, uint8_t playerColor, uint8_t botDepth) {
+void GameRecorder::startRecording(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
   if (!storage_) return;
 
   // Discard any leftover live game
@@ -94,7 +94,7 @@ bool GameRecorder::hasActiveGame() {
   return storage_->hasActiveGame();
 }
 
-bool GameRecorder::getActiveGameInfo(GameMode& mode, uint8_t& playerColor, uint8_t& botDepth) {
+bool GameRecorder::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
   if (!storage_) return false;
 
   GameHeader hdr;

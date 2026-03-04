@@ -1,21 +1,21 @@
-#ifndef GAME_BOT_H
-#define GAME_BOT_H
+#ifndef GAME_BOT_MODE_H
+#define GAME_BOT_MODE_H
 
-#include "base.h"
+#include "game_mode.h"
 #include <atomic>
 
 // Abstract intermediate class for all remote-engine game modes (human vs engine).
 // Uses the Template Method pattern: update() defines the game loop skeleton,
 // subclasses override only the engine-specific hooks.
 //
-// Hierarchy: ChessGame → ChessBot → ChessStockfish / ChessLichess
+// Hierarchy: GameMode → BotMode → StockfishMode / LichessMode
 //
-class ChessBot : public ChessGame {
+class BotMode : public GameMode {
  protected:
   char playerColor_;                    // 'w' or 'b' — the color the local player controls
   std::atomic<bool>* thinkingAnimation_;  // Thinking animation stop flag (nullptr when not running)
 
-  ChessBot(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor);
+  BotMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor);
 
   // --- Template Method hooks (override in subclasses) ---
 
@@ -49,9 +49,9 @@ class ChessBot : public ChessGame {
   void waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1) override;
 
  public:
-  ~ChessBot() override {}
+  ~BotMode() override {}
 
   void update() override;
 };
 
-#endif  // GAME_BOT_H
+#endif  // GAME_BOT_MODE_H

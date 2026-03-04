@@ -180,11 +180,11 @@ void test_game_result_pinned_values(void) {
 }
 
 void test_game_mode_pinned_values(void) {
-  // GameMode enum values are stored in binary game headers.
-  TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(GameMode::NONE));
-  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(GameMode::CHESS_MOVES));
-  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(GameMode::BOT));
-  TEST_ASSERT_EQUAL_UINT8(3, static_cast<uint8_t>(GameMode::LICHESS));
+  // GameModeId enum values are stored in binary game headers.
+  TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(GameModeId::NONE));
+  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(GameModeId::CHESS_MOVES));
+  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(GameModeId::BOT));
+  TEST_ASSERT_EQUAL_UINT8(3, static_cast<uint8_t>(GameModeId::LICHESS));
 }
 
 void test_fen_marker_no_collision(void) {

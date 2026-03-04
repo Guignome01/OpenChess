@@ -1,4 +1,4 @@
-#include "stockfish.h"
+#include "stockfish_mode.h"
 #include "codec.h"
 #include "game_controller.h"
 #include "led_colors.h"
@@ -7,10 +7,10 @@
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-ChessStockfish::ChessStockfish(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr, StockfishSettings cfg)
-    : ChessBot(bd, wm, gc, playerClr), settings_(cfg), currentEvaluation_(0.0f) {}
+StockfishMode::StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr, StockfishSettings cfg)
+    : BotMode(bd, wm, gc, playerClr), settings_(cfg), currentEvaluation_(0.0f) {}
 
-void ChessStockfish::begin() {
+void StockfishMode::begin() {
   Serial.println("=== Starting Stockfish Mode ===");
   Serial.printf("Player plays: %s\n", playerColor_ == 'w' ? "White" : "Black");
   Serial.printf("Bot plays: %s\n", playerColor_ == 'w' ? "Black" : "White");
@@ -18,7 +18,7 @@ void ChessStockfish::begin() {
   Serial.println("====================================");
   if (wifiManager_->isWiFiConnected()) {
     if (!tryResumeGame())
-      controller_->startNewGame(GameMode::BOT, playerColor_, (uint8_t)settings_.depth);
+      controller_->startNewGame(GameModeId::BOT, playerColor_, (uint8_t)settings_.depth);
     waitForBoardSetup(controller_->getBoard());
   } else {
     Serial.println("Failed to connect to WiFi. Stockfish mode unavailable.");
@@ -28,7 +28,7 @@ void ChessStockfish::begin() {
   }
 }
 
-String ChessStockfish::makeStockfishRequest(const std::string& fen) {
+String StockfishMode::makeStockfishRequest(const std::string& fen) {
   WiFiSSLClient client;
   client.setInsecure();
   String path = StockfishAPI::buildRequestURL(String(fen.c_str()), settings_.depth);
@@ -71,7 +71,7 @@ String ChessStockfish::makeStockfishRequest(const std::string& fen) {
   return "";
 }
 
-bool ChessStockfish::parseStockfishResponse(const String& response, String& bestMove, float& evaluation) {
+bool StockfishMode::parseStockfishResponse(const String& response, String& bestMove, float& evaluation) {
   StockfishResponse stockfishResp;
   if (!StockfishAPI::parseResponse(response, stockfishResp)) {
     Serial.printf("Failed to parse Stockfish response: %s\n", stockfishResp.errorMessage.c_str());
@@ -89,7 +89,7 @@ bool ChessStockfish::parseStockfishResponse(const String& response, String& best
   return true;
 }
 
-void ChessStockfish::requestEngineMove() {
+void StockfishMode::requestEngineMove() {
   Serial.println("=== STOCKFISH MOVE CALCULATION ===");
   startThinking();
   String bestMove;

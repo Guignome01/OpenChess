@@ -1,5 +1,5 @@
 #include "wifi_manager_esp32.h"
-#include "game/lichess.h"
+#include "game/lichess_mode.h"
 #include "system_utils.h"
 #include "littlefs_storage.h"
 #include <Arduino.h>

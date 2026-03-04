@@ -1,5 +1,5 @@
-#ifndef GAME_BASE_H
-#define GAME_BASE_H
+#ifndef GAME_MODE_H
+#define GAME_MODE_H
 
 #include "board_driver.h"
 #include "board_menu.h"
@@ -14,7 +14,7 @@ class GameController;
 // Base class for chess game modes (shared state and common functionality).
 // All chess-state mutations flow through `controller_` (GameController facade),
 // which atomically updates the board, records moves, and notifies observers.
-class ChessGame {
+class GameMode {
  protected:
   BoardDriver* boardDriver_;
   WiFiManagerESP32* wifiManager_;
@@ -26,7 +26,7 @@ class ChessGame {
   bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
-  ChessGame(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
+  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
 
   // Common initialization and game flow methods
   void waitForBoardSetup(const char targetBoard[8][8]);
@@ -79,7 +79,7 @@ class ChessGame {
   virtual void waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1) {}
 
  public:
-  virtual ~ChessGame() {}
+  virtual ~GameMode() {}
 
   virtual void begin() = 0;
   virtual void update() = 0;
@@ -89,4 +89,4 @@ class ChessGame {
   void setResignPending(bool pending) { resignPending_ = pending; }
 };
 
-#endif // GAME_BASE_H
+#endif // GAME_MODE_H

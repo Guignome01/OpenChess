@@ -61,7 +61,7 @@ inline MoveResult invalidMoveResult() {
 // ---------------------------------------------------------------------------
 
 // Game mode identifiers stored in the binary game header.
-enum class GameMode : uint8_t {
+enum class GameModeId : uint8_t {
   NONE = 0,
   CHESS_MOVES = 1,
   BOT = 2,
@@ -71,7 +71,7 @@ enum class GameMode : uint8_t {
 // Binary file header for recorded games (on-disk format).
 struct __attribute__((packed)) GameHeader {
   uint8_t version;        // Format version (currently 1)
-  GameMode mode;          // Game mode identifier
+  GameModeId mode;          // Game mode identifier
   GameResult result;      // Game outcome
   uint8_t winnerColor;    // 'w', 'b', 'd' (draw), '?' (in-progress)
   uint8_t playerColor;    // For bot mode: human's color ('w'/'b'), '?' for ChessMoves
