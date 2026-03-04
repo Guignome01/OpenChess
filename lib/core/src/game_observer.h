@@ -3,7 +3,7 @@
 
 #include <string>
 
-// Abstract observer interface — notified by GameController after every board
+// Abstract observer interface — notified by ChessGame after every board
 // mutation (makeMove, loadFEN, newGame, endGame).  Allows the core library to
 // push state changes to the firmware layer (e.g. web UI) without depending on
 // any concrete implementation.

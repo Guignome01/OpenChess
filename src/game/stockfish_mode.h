@@ -25,7 +25,7 @@ class StockfishMode : public BotMode {
   float getEngineEvaluation() override { return currentEvaluation_; }
 
  public:
-  StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor, StockfishSettings settings);
+  StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, char playerColor, StockfishSettings settings);
   void begin() override;
 };
 

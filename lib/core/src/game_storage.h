@@ -10,7 +10,7 @@
 
 // Abstract persistence interface for game recording.
 // Concrete implementations live in the firmware layer (e.g. LittleFSStorage).
-// GameRecorder depends only on this interface — no filesystem coupling in core.
+// ChessHistory depends only on this interface — no filesystem coupling in core.
 class IGameStorage {
  public:
   virtual ~IGameStorage() = default;

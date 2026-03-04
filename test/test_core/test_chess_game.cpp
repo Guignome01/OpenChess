@@ -1,0 +1,360 @@
+#include <unity.h>
+
+#include "../test_helpers.h"
+#include <chess_game.h>
+#include <types.h>
+
+// Shared globals from test_core.cpp
+extern char board[8][8];
+extern bool needsDefaultKings;
+
+static ChessGame gm;
+
+// Reset ChessGame before every test
+static void setUpGame(void) {
+  gm = ChessGame();
+  gm.newGame();
+}
+
+// ---------------------------------------------------------------------------
+// Threefold repetition (detected inside ChessBoard::detectGameEnd)
+// ---------------------------------------------------------------------------
+
+void test_game_threefold_repetition(void) {
+  setUpGame();
+  // Position where Ke1 and Ke8 shuffle back and forth (pawns provide sufficient material)
+  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
+  // Move 1: Ke1-d1, Ke8-d8
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  // Move 2: Kd1-e1, Kd8-e8 (back to original — occurrence 2)
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  // Move 3: Ke1-d1, Ke8-d8
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  // Move 4: Kd1-e1, Kd8-e8 (back to original — occurrence 3)
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — third repetition
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+}
+
+void test_game_threefold_different_castling_rights(void) {
+  setUpGame();
+  // Same as threefold test but with castling rights.
+  // King move on first half-move loses castling → initial position hash
+  // differs from subsequent "same board" hashes, so 8 half-moves is NOT
+  // enough for threefold (only 2 occurrences of castling-less position).
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K2R w K - 0 1");
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1 (loses K castling)
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8 — board same as start, but castling=0
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — occurrence 2 (not 3)
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+// ---------------------------------------------------------------------------
+// isDraw (aggregate query — delegates to board for all conditions)
+// ---------------------------------------------------------------------------
+
+void test_game_is_draw_insufficient_material(void) {
+  setUpGame();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_game_is_draw_fifty_move(void) {
+  setUpGame();
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 100 50");
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_game_is_draw_false(void) {
+  setUpGame();
+  TEST_ASSERT_FALSE(gm.isDraw());
+}
+
+// ---------------------------------------------------------------------------
+// isThreefoldRepetition (public — delegates to board)
+// ---------------------------------------------------------------------------
+
+void test_game_is_threefold_repetition(void) {
+  setUpGame();
+  // Repeat rook moves to produce threefold repetition (sufficient material)
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 1, 7, 0); // Rb1-a1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 1, 7, 0); // Rb1-a1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  // Position has now occurred 3 times
+  TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
+}
+
+void test_game_is_threefold_repetition_false(void) {
+  setUpGame();
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
+}
+
+// ---------------------------------------------------------------------------
+// Callback / batching (callbacks now live in ChessGame, not ChessBoard)
+// ---------------------------------------------------------------------------
+
+static int callbackCount;
+static void countingCallback() { callbackCount++; }
+
+void test_game_callback_fires_on_move(void) {
+  setUpGame();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  gm.makeMove(6, 4, 4, 4); // e2e4
+  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+}
+
+void test_game_callback_fires_on_new_game(void) {
+  setUpGame();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  gm.newGame();
+  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+}
+
+void test_game_batch_suppresses_callbacks(void) {
+  setUpGame();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  gm.beginBatch();
+  gm.makeMove(6, 4, 4, 4);
+  gm.makeMove(1, 4, 3, 4);
+  TEST_ASSERT_EQUAL_INT(0, callbackCount);
+  gm.endBatch();
+  TEST_ASSERT_EQUAL_INT(1, callbackCount); // single coalesced callback
+}
+
+void test_game_no_callback_when_not_set(void) {
+  setUpGame();
+  // Just ensure no crash when no callback is set
+  gm.makeMove(6, 4, 4, 4); // should not crash
+  TEST_ASSERT_TRUE(true);
+}
+
+void test_game_nested_batch(void) {
+  setUpGame();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  gm.beginBatch();
+  gm.beginBatch();  // depth 2
+  gm.makeMove(6, 4, 4, 4);
+  gm.endBatch();    // depth 1 — callback still suppressed
+  TEST_ASSERT_EQUAL_INT(0, callbackCount);
+  gm.endBatch();    // depth 0 — fires coalesced callback
+  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+}
+
+void test_game_end_batch_without_begin(void) {
+  setUpGame();
+  callbackCount = 0;
+  gm.onStateChanged(countingCallback);
+  // endBatch with no beginBatch should not crash or fire callback
+  gm.endBatch();
+  TEST_ASSERT_EQUAL_INT(0, callbackCount);
+}
+
+// ---------------------------------------------------------------------------
+// History integration (ChessGame owns history, records moves via makeMove)
+// ---------------------------------------------------------------------------
+
+void test_game_history_records_moves(void) {
+  setUpGame();
+  TEST_ASSERT_TRUE(gm.history().empty());
+  gm.makeMove(6, 4, 4, 4);  // e4
+  TEST_ASSERT_EQUAL(1, gm.history().moveCount());
+  gm.makeMove(1, 4, 3, 4);  // e5
+  TEST_ASSERT_EQUAL(2, gm.history().moveCount());
+}
+
+void test_game_history_correct_fields(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // e4
+
+  const MoveEntry& m = gm.history().getMove(0);
+  TEST_ASSERT_EQUAL(6, m.fromRow);
+  TEST_ASSERT_EQUAL(4, m.fromCol);
+  TEST_ASSERT_EQUAL(4, m.toRow);
+  TEST_ASSERT_EQUAL(4, m.toCol);
+  TEST_ASSERT_EQUAL('P', m.piece);
+  TEST_ASSERT_EQUAL(' ', m.captured);
+  TEST_ASSERT_FALSE(m.isCapture);
+  TEST_ASSERT_FALSE(m.isEnPassant);
+  TEST_ASSERT_FALSE(m.isCastling);
+  TEST_ASSERT_FALSE(m.isPromotion);
+}
+
+void test_game_history_capture_recorded(void) {
+  setUpGame();
+  // Set up a simple capture: 1. e4 d5 2. exd5
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 3, 3, 3);  // d5
+  gm.makeMove(4, 4, 3, 3);  // exd5 (capture)
+
+  const MoveEntry& m = gm.history().getMove(2);
+  TEST_ASSERT_TRUE(m.isCapture);
+  TEST_ASSERT_EQUAL('p', m.captured);  // captured black pawn
+  TEST_ASSERT_EQUAL('P', m.piece);     // white pawn captured
+}
+
+void test_game_history_en_passant_recorded(void) {
+  setUpGame();
+  // Set up en passant: 1. e4 a6 2. e5 d5 3. exd6 (en passant)
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 0, 2, 0);  // a6
+  gm.makeMove(4, 4, 3, 4);  // e5
+  gm.makeMove(1, 3, 3, 3);  // d5
+  gm.makeMove(3, 4, 2, 3);  // exd6 (en passant)
+
+  const MoveEntry& m = gm.history().getMove(4);
+  TEST_ASSERT_TRUE(m.isEnPassant);
+  TEST_ASSERT_TRUE(m.isCapture);
+  TEST_ASSERT_EQUAL('p', m.captured);  // captured black pawn
+  TEST_ASSERT_EQUAL(3, m.epCapturedRow);
+}
+
+void test_game_history_castling_recorded(void) {
+  setUpGame();
+  // Direct setup: empty between king and rook
+  gm.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+  gm.makeMove(7, 4, 7, 6);  // O-O (white kingside)
+
+  const MoveEntry& m = gm.history().lastMove();
+  TEST_ASSERT_TRUE(m.isCastling);
+  TEST_ASSERT_EQUAL('K', m.piece);
+  TEST_ASSERT_FALSE(m.isCapture);
+}
+
+void test_game_history_promotion_recorded(void) {
+  setUpGame();
+  // White pawn on 7th rank promotes
+  gm.loadFEN("8/P4k2/8/8/8/8/5K2/8 w - - 0 1");
+  gm.makeMove(1, 0, 0, 0, 'q');  // a8=Q
+
+  const MoveEntry& m = gm.history().lastMove();
+  TEST_ASSERT_TRUE(m.isPromotion);
+  TEST_ASSERT_EQUAL('Q', m.promotion);
+  TEST_ASSERT_EQUAL('P', m.piece);
+}
+
+void test_game_history_check_recorded(void) {
+  setUpGame();
+  // Set up a position where a move gives check
+  gm.loadFEN("4k3/8/8/8/8/8/4R3/4K3 w - - 0 1");
+  gm.makeMove(6, 4, 1, 4);  // Re8+ (check)
+
+  const MoveEntry& m = gm.history().lastMove();
+  TEST_ASSERT_TRUE(m.isCheck);
+}
+
+void test_game_history_new_game_clears(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);
+  TEST_ASSERT_EQUAL(1, gm.history().moveCount());
+
+  gm.newGame();
+  TEST_ASSERT_EQUAL(0, gm.history().moveCount());
+  TEST_ASSERT_TRUE(gm.history().empty());
+}
+
+void test_game_history_load_fen_clears(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);
+  TEST_ASSERT_EQUAL(1, gm.history().moveCount());
+
+  gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  TEST_ASSERT_EQUAL(0, gm.history().moveCount());
+}
+
+void test_game_history_prevstate_saved(void) {
+  setUpGame();
+  // Before e4: castling=KQkq (0x0F), ep=none, halfmove=0, fullmove=1
+  PositionState before = gm.positionState();
+  gm.makeMove(6, 4, 4, 4);  // e4
+
+  const MoveEntry& m = gm.history().getMove(0);
+  TEST_ASSERT_EQUAL(before.castlingRights, m.prevState.castlingRights);
+  TEST_ASSERT_EQUAL(before.halfmoveClock, m.prevState.halfmoveClock);
+  TEST_ASSERT_EQUAL(before.fullmoveClock, m.prevState.fullmoveClock);
+}
+
+void test_game_history_invalid_move_not_recorded(void) {
+  setUpGame();
+  // Try an illegal move
+  MoveResult r = gm.makeMove(6, 4, 3, 4);  // e2-e5 (illegal: 3 squares)
+  TEST_ASSERT_FALSE(r.valid);
+  TEST_ASSERT_EQUAL(0, gm.history().moveCount());
+}
+
+void test_game_history_last_move_after_sequence(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.makeMove(7, 6, 5, 5);  // 2. Nf3
+
+  TEST_ASSERT_EQUAL(3, gm.history().moveCount());
+  const MoveEntry& last = gm.history().lastMove();
+  TEST_ASSERT_EQUAL('N', last.piece);
+  TEST_ASSERT_EQUAL(7, last.fromRow);
+  TEST_ASSERT_EQUAL(6, last.fromCol);
+  TEST_ASSERT_EQUAL(5, last.toRow);
+  TEST_ASSERT_EQUAL(5, last.toCol);
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+void register_chess_game_tests() {
+  needsDefaultKings = false;
+
+  // Threefold repetition
+  RUN_TEST(test_game_threefold_repetition);
+  RUN_TEST(test_game_threefold_different_castling_rights);
+
+  // isDraw
+  RUN_TEST(test_game_is_draw_insufficient_material);
+  RUN_TEST(test_game_is_draw_fifty_move);
+  RUN_TEST(test_game_is_draw_false);
+
+  // isThreefoldRepetition
+  RUN_TEST(test_game_is_threefold_repetition);
+  RUN_TEST(test_game_is_threefold_repetition_false);
+
+  // Callbacks / batching
+  RUN_TEST(test_game_callback_fires_on_move);
+  RUN_TEST(test_game_callback_fires_on_new_game);
+  RUN_TEST(test_game_batch_suppresses_callbacks);
+  RUN_TEST(test_game_no_callback_when_not_set);
+  RUN_TEST(test_game_nested_batch);
+  RUN_TEST(test_game_end_batch_without_begin);
+
+  // History integration
+  RUN_TEST(test_game_history_records_moves);
+  RUN_TEST(test_game_history_correct_fields);
+  RUN_TEST(test_game_history_capture_recorded);
+  RUN_TEST(test_game_history_en_passant_recorded);
+  RUN_TEST(test_game_history_castling_recorded);
+  RUN_TEST(test_game_history_promotion_recorded);
+  RUN_TEST(test_game_history_check_recorded);
+  RUN_TEST(test_game_history_new_game_clears);
+  RUN_TEST(test_game_history_load_fen_clears);
+  RUN_TEST(test_game_history_prevstate_saved);
+  RUN_TEST(test_game_history_invalid_move_not_recorded);
+  RUN_TEST(test_game_history_last_move_after_sequence);
+}

@@ -25,7 +25,7 @@ Each class owns a single responsibility and never crosses into another's domain:
 - `BoardDriver` handles all hardware interaction (LEDs, sensors, calibration). No chess logic.
 - `ChessRules` implements chess rules and move generation. No hardware access, no network calls.
 - `WiFiManagerESP32` manages WiFi, the web server, and API endpoints. Doesn't touch the board hardware directly.
-- `GameRecorder` + `LittleFSStorage` own game persistence. Don't know about sensors or LEDs.
+- `ChessHistory` + `LittleFSStorage` own game persistence. Don't know about sensors or LEDs.
 
 When adding new functionality, determine which component owns that concern and extend it there. If the functionality crosses boundaries, coordinate through the main loop or injection — don't let one component reach into another's internals.
 
@@ -37,7 +37,7 @@ Components are connected through pointer injection at construction time, not thr
 
 Before writing new code, check whether an existing function or pattern covers the need. Shared logic is extracted into helpers (`ChessUtils`), base classes (`ChessGame`), or utility functions. If the same pattern appears in more than one place, refactor it into a single reusable implementation.
 
-New features should build on existing infrastructure. For example, `ChessLichess` extends `ChessBot` (which extends `ChessGame`) rather than reimplementing bot-move guidance from scratch.
+New features should build on existing infrastructure. For example, `LichessMode` extends `BotMode` (which extends `GameMode`) rather than reimplementing bot-move guidance from scratch.
 
 ## LED Access Rules
 

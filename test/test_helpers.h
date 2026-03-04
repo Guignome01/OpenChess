@@ -5,6 +5,7 @@
 #include <rules.h>
 #include <codec.h>
 #include <board.h>
+#include <chess_game.h>
 
 #include <cstring>
 

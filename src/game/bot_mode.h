@@ -15,7 +15,7 @@ class BotMode : public GameMode {
   char playerColor_;                    // 'w' or 'b' — the color the local player controls
   std::atomic<bool>* thinkingAnimation_;  // Thinking animation stop flag (nullptr when not running)
 
-  BotMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerColor);
+  BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, char playerColor);
 
   // --- Template Method hooks (override in subclasses) ---
 

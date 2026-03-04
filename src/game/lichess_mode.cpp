@@ -1,6 +1,5 @@
 #include "lichess_mode.h"
-#include "codec.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "utils.h"
 #include "led_colors.h"
 #include "lichess_api.h"
@@ -26,7 +25,7 @@ static char lichessWinnerToColor(const String& winner) {
   return 'd'; // draw or empty
 }
 
-LichessMode::LichessMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg)
+LichessMode::LichessMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, LichessConfig cfg)
     : BotMode(bd, wm, gc, 'w'),
       lichessConfig_(cfg),
       currentGameId_(""),
@@ -198,7 +197,7 @@ void LichessMode::onPlayerMoveApplied(const MoveResult& result, int fromRow, int
 // --- Lichess communication ---
 
 void LichessMode::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String uciMove = String(ChessCodec::toUCIMove(fromRow, fromCol, toRow, toCol, promotion).c_str());
+  String uciMove = String(ChessGame::toUCIMove(fromRow, fromCol, toRow, toCol, promotion).c_str());
   Serial.println("Sending move to Lichess: " + uciMove);
 
   // Track this move so we don't process it as a remote move when it echoes back

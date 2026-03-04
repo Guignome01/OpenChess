@@ -1,12 +1,12 @@
 #include "bot_mode.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "led_colors.h"
 #include "system_utils.h"
 #include "utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr)
+BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, char playerClr)
     : GameMode(bd, wm, gc), playerColor_(playerClr), thinkingAnimation_(nullptr), wasThinkingBeforeResign_(false) {}
 
 float BotMode::getEngineEvaluation() { return controller_->getEvaluation(); }

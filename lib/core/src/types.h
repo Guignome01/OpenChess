@@ -57,7 +57,7 @@ inline MoveResult invalidMoveResult() {
 }
 
 // ---------------------------------------------------------------------------
-// Game recording types — used by GameRecorder and IGameStorage.
+// Game recording types — used by ChessHistory and IGameStorage.
 // ---------------------------------------------------------------------------
 
 // Game mode identifiers stored in the binary game header.

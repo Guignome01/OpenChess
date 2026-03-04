@@ -28,6 +28,7 @@ void register_codec_tests();
 void register_board_tests();
 void register_recorder_tests();
 void register_history_tests();
+void register_chess_game_tests();
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
@@ -39,5 +40,6 @@ int main(int argc, char** argv) {
   register_board_tests();
   register_recorder_tests();
   register_history_tests();
+  register_chess_game_tests();
   return UNITY_END();
 }

@@ -5,22 +5,29 @@ Deep technical documentation of LibreChess internals. This document covers how t
 ## Class Hierarchy
 
 ```
-ChessGame (abstract base)
- ├─ ChessPlayer (human vs human)
- └─ ChessBot (abstract, Template Method pattern)
-     ├─ ChessStockfish (human vs Stockfish API)
-     └─ ChessLichess (online Lichess play)
+Core (lib/core/):
+  ChessGame (central game orchestrator)
+   ├─ composes ChessBoard (board representation + position logic)
+   ├─ composes ChessHistory (move log + persistent game recording)
+   └─ uses IGameObserver (notification)
 
-SensorTest (standalone, does not inherit ChessGame)
+Firmware (src/game/):
+  GameMode (abstract base)
+   ├─ PlayerMode (human vs human)
+   └─ BotMode (abstract, Template Method pattern)
+       ├─ StockfishMode (human vs Stockfish API)
+       └─ LichessMode (online Lichess play)
+
+  SensorTest (standalone, does not inherit GameMode)
 ```
 
-`ChessGame` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessBoard::makeMove()`), `applyUCIMove()` (parses UCI string + delegates to `applyMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `ChessGame` instance owns a `ChessBoard` (`gm_`) which owns the board array, current turn, game-over state, and all position state (castling rights, en passant target, clocks). All chess mutations flow through the `ChessBoard`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
+`GameMode` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`), `applyUCIMove()` (parses UCI string + delegates to `applyMove()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `GameMode` instance holds a `ChessGame*` (`controller_`) which orchestrates board state, recording, and observer notification. All chess mutations flow through `ChessGame`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
 
-`ChessBot` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `ChessBot` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and resign hooks (`isFlipped()`, `onBeforeResignConfirm()`, `onResignCancelled()`).
+`BotMode` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `BotMode` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and resign hooks (`isFlipped()`, `onBeforeResignConfirm()`, `onResignCancelled()`).
 
-`ChessStockfish` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `ChessLichess` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `onResignConfirmed()` to also resign on the Lichess API.
+`StockfishMode` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `LichessMode` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `onResignConfirmed()` to also resign on the Lichess API.
 
-`SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `ChessGame` subclass — it doesn't need chess logic, FEN state, or move history.
+`SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `GameMode` subclass — it doesn't need chess logic, FEN state, or move history.
 
 ### Dependency Injection
 
@@ -30,13 +37,12 @@ Components are wired through pointer injection at construction time. No global s
 BoardDriver boardDriver;
 SerialLogger logger;
 LittleFSStorage storage(&logger);
-GameRecorder recorder(&storage, &logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
-GameController controller(&recorder, &wifiManager);
-ChessStockfish stockfishGame(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
+ChessGame controller(&storage, &wifiManager, &logger);
+StockfishMode stockfishGame(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
 ```
 
-`GameController` owns the `ChessBoard` internally — there is no shared chess state. All game classes interact with chess state through the controller facade. `GameRecorder` is nullable inside the controller — `ChessLichess` uses a controller with a null recorder since Lichess games are recorded on the server, not locally.
+`ChessGame` owns the `ChessBoard` internally — there is no shared chess state. All game mode classes interact with chess state through the `ChessGame` facade. `ChessHistory` handles both in-memory tracking and persistent recording — when constructed without an `IGameStorage*`, recording is silently skipped (used by `LichessMode` since Lichess games are recorded on the server).
 
 ## Coordinate System
 
@@ -81,10 +87,30 @@ Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has n
 
 ### ChessBoard
 
-Also in `lib/core/` (`board.h/cpp`). Complete chess game-state manager — the "chess.js" of the project. Owns the board array, current turn, game-over state, and all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock). Public API: `newGame()`, `loadFEN()` → `bool` (validates FEN before applying — checks rank count, valid characters, rank piece sum, and turn field; returns false and leaves board unchanged on invalid input), `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`, callback/batching. Convenience wrappers delegate to `ChessRules`/`ChessUtils` without exposing internals: `getPossibleMoves()`, `isKingInCheck()`, `findKingPosition()`, `checkEnPassant()`, `checkCastling()`. Game-end detection (`detectGameEnd()`) covers checkmate, stalemate, 50-move draw, threefold repetition, and insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color bishops via `hasInsufficientMaterial()`).
+Also in `lib/core/` (`board.h/cpp`). Board representation and position-level chess logic. Owns the board array, current turn, game-over state, and all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock). Public API: `newGame()`, `loadFEN()` → `bool` (validates FEN before applying — checks rank count, valid characters, rank piece sum, and turn field; returns false and leaves board unchanged on invalid input), `makeMove()` → `MoveResult`, `endGame()`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`. Convenience wrappers delegate to `ChessRules`/`ChessUtils` without exposing internals: `getPossibleMoves()`, `isKingInCheck()`, `inCheck()`, `isCheckmate()`, `isStalemate()`, `isInsufficientMaterial()`, `isAttacked()`, `findPiece()`, `findKingPosition()`, `checkEnPassant()`, `checkCastling()`, `moveNumber()`. Game-end detection (`detectGameEnd()`) covers checkmate, stalemate, 50-move draw, insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color bishops via `hasInsufficientMaterial()`), and threefold repetition (via Zobrist hashing — pre-computed random tables in `zobrist_keys.h`, ~6.2KB flash). En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Move history, callbacks, and batching live in `ChessGame`.
 
 - **FEN / evaluation cache** — `getFen()` and `getEvaluation()` use dirty-flag caching (`mutable` fields) to avoid recomputing on repeated calls. The cache is invalidated automatically on every mutation (`newGame()`, `loadFEN()`, `makeMove()`, `endGame()`).
-- **Position tracking** — Zobrist hashing with pre-computed random tables (~6.2KB flash, defined in `zobrist_keys.h`). Each piece-square combination has a unique 64-bit hash. `positionHistory_[MAX_POSITION_HISTORY]` (128 entries, fixed array) stores hashes, cleared on irreversible moves (pawn moves, captures) for memory efficiency. `isThreefoldRepetition()` scans the history for 3 occurrences of the current hash. En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Positions are recorded automatically after each move and on `newGame()`/`loadFEN()`.
+
+### ChessHistory
+
+Also in `lib/core/` (`history.h/cpp`). In-memory game history and persistent game recording with two concerns:
+
+1. **Move log** — ordered list of `MoveEntry` structs with full move metadata (piece, captured, promotion, flags, previous `PositionState` for future undo). Fixed-size array (`MAX_MOVES` = 300, ESP32-friendly). `addMove()`, `popMove()`, `getMove()`, `lastMove()`, `moveCount()`, `clear()`.
+2. **Persistent recording** — game recording lifecycle delegated to `IGameStorage`. Encodes moves via `ChessCodec`, manages the `GameHeader`, flushes header every full turn (2 half-moves) to reduce flash wear. FEN snapshots trigger immediate flushes. Validates moves during replay — rejects corrupted recordings. `startRecording()`, `recordMove()`, `recordFen()`, `finishRecording()`, `discardRecording()`, `isRecording()`, `hasActiveGame()`, `getActiveGameInfo()`, `replayInto(ChessBoard&)`. Constructor: `ChessHistory(IGameStorage* storage = nullptr, ILogger* logger = nullptr)` — when storage is null, recording is silently skipped.
+
+Composed by `ChessGame`.
+
+### ChessGame
+
+Also in `lib/core/` (`chess_game.h/cpp`). Central game orchestrator — the primary API for all game-level operations. Composes `ChessBoard`, `ChessHistory`, and optionally `IGameObserver`. Constructor: `(IGameStorage*, IGameObserver*, ILogger*)`.
+
+All chess-state mutations (`makeMove`, `loadFEN`, `endGame`, `newGame`) flow through this class. `makeMove()` atomically: validates via board, applies (the board's `detectGameEnd()` handles all end conditions including threefold repetition internally), records in history with full `MoveEntry` metadata, records via ChessHistory's persistent recording, auto-finishes recording on game-end, fires callback, and notifies observer.
+
+Draw detection: `isDraw()` and `isThreefoldRepetition()` delegate to `ChessBoard`, which handles all draw conditions internally (50-move rule, threefold repetition, insufficient material).
+
+Callbacks and batching: `onStateChanged(callback)` registers a function called after each mutation. `beginBatch()`/`endBatch()` suppress callbacks during multi-step operations (e.g., replay), firing a single callback when the outermost batch completes.
+
+UCI convenience methods: `makeMove(const std::string& uci)` parses a UCI string and delegates to the coordinate overload. `static toUCIMove()` and `static parseUCIMove()` wrap `ChessCodec` — firmware game modes use these instead of including `ChessCodec` directly.
 
 ### ChessUtils & SystemUtils
 
@@ -106,18 +132,18 @@ Manages WiFi connectivity, the web server, and all HTTP API endpoints. Key subsy
 
 **Web server** — `AsyncWebServer` on port 80. Serves gzipped static files from LittleFS via `serveStatic`. API endpoints handle JSON requests for board state, game selection, settings, WiFi management, Lichess token, OTA updates, game history, board editing, and resign. All configuration getters and setters are exposed as `public` methods for the main loop to relay state between the web layer and game logic (e.g., `getSelectedGameMode()`, `getPendingBoardEdit()`, `getPendingResign()`).
 
-**Board state relay** — `WiFiManagerESP32` implements `IGameObserver`. `GameController` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation. The web UI polls `GET /board/update` which returns the current FEN, evaluation, move list, and game state as JSON.
+**Board state relay** — `WiFiManagerESP32` implements `IGameObserver`. `ChessGame` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation. The web UI polls `GET /board/update` which returns the current FEN, evaluation, move list, and game state as JSON.
 
 **Board editing** — `handleBoardEditSuccess()` stores a pending FEN string from the web UI's board editor. The main loop checks `getPendingBoardEdit()` each cycle and applies it to the active game via `setBoardStateFromFEN()`, then calls `clearPendingEdit()`.
 
 **Web resign** — the web UI's resign button sends `POST /resign`. The handler sets `hasPendingResign = true`. The main `loop()` relays this to the active game via `setResignPending(true)`, then clears the web flag. The game's `processResign()` picks it up on the next `update()` call.
 
-### GameRecorder / GameController / LittleFSStorage
+### ChessHistory / ChessGame / LittleFSStorage
 
 Game recording and crash recovery follow a layered architecture with clean separation:
 
-- **`GameRecorder`** (`lib/core/`) — pure recording orchestration. Encodes moves via `ChessCodec`, manages the `GameHeader`, delegates persistence to `IGameStorage`. Flushes the header to storage every full turn (2 half-moves) to reduce flash wear; FEN snapshots always trigger an immediate flush. Validates moves during replay — rejects corrupted recordings with invalid moves. Replays games directly into a `ChessBoard` using batch mode — no game-layer involvement, no `replaying` flag.
-- **`GameController`** (`lib/core/`) — thin facade coordinating `ChessBoard` + `GameRecorder` + `IGameObserver`. Each mutation (move, load FEN, end game) atomically updates the board, records, and notifies. Provides `startNewGame(mode, ...)` for atomic board-reset + recording-start. `endGame()` is guarded against double-calls. Also exposes convenience pass-throughs to `ChessBoard` query methods: `getPossibleMoves()`, `isKingInCheck()`, `findKingPosition()`, `checkEnPassant()`, `checkCastling()` — so game classes never need to access `ChessBoard` or `ChessRules` directly. Note: `positionState()` is not exposed through `GameController` — it remains accessible only on `ChessBoard` directly (used in tests).
+- **`ChessHistory`** (`lib/core/`) — handles in-memory move logging and persistent recording orchestration. Encodes moves via `ChessCodec`, manages the `GameHeader`, delegates persistence to `IGameStorage`. Flushes the header to storage every full turn (2 half-moves) to reduce flash wear; FEN snapshots always trigger an immediate flush. Validates moves during replay — rejects corrupted recordings with invalid moves. Replays games directly into a `ChessBoard`.
+- **`ChessGame`** (`lib/core/`) — central game orchestrator composing `ChessBoard` + `ChessHistory` + `IGameObserver`. Constructor: `(IGameStorage*, IGameObserver*, ILogger*)`. Each mutation (move, load FEN, end game) atomically updates the board, records in history, persists via ChessHistory's recording, and notifies the observer. Provides `startNewGame(mode, ...)` for atomic board-reset + recording-start. `endGame()` is guarded against double-calls. Exposes convenience pass-throughs to `ChessBoard` query methods: `getPossibleMoves()`, `isKingInCheck()`, `findPiece()`, `findKingPosition()`, `checkEnPassant()`, `checkCastling()` — so game mode classes never need to access `ChessBoard` or `ChessRules` directly. Also provides UCI convenience methods (`makeMove(uci)`, `toUCIMove()`, `parseUCIMove()`) so firmware never needs to include `ChessCodec` directly.
 - **`LittleFSStorage`** (`src/`) — concrete `IGameStorage` backed by LittleFS.
 
 **Binary format** — each game consists of two files:
@@ -128,7 +154,7 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 | Field | Type | Description |
 |-------|------|-------------|
 | `version` | `uint8_t` | Format version (currently 1) |
-| `mode` | `GameMode` | Game mode (1 = CHESS_MOVES, 2 = BOT, 3 = LICHESS) |
+| `mode` | `GameModeId` | Game mode (1 = CHESS_MOVES, 2 = BOT, 3 = LICHESS) |
 | `result` | `GameResult` | Game outcome enum class (0 = IN_PROGRESS, 1 = CHECKMATE, 2 = STALEMATE, 3 = DRAW_50, 4 = DRAW_3FOLD, 5 = RESIGNATION, 6 = DRAW_INSUFFICIENT, 7 = DRAW_AGREEMENT, 8 = TIMEOUT, 9 = ABORTED) |
 | `winnerColor` | `uint8_t` | `'w'`, `'b'`, `'d'` (draw), or `'?'` (in-progress) |
 | `playerColor` | `uint8_t` | Human's color for bot mode, `'?'` for ChessMoves |
@@ -142,18 +168,18 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 **FEN snapshots** — periodic FEN strings are appended to the FEN table file. During replay, the system finds the last FEN snapshot, restores the board to that position, and replays only the moves that follow. This bounds replay time regardless of game length.
 
-**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is flushed every full turn (2 half-moves) rather than every move, reducing flash write cycles by half. On boot, `hasActiveGame()` checks if these files exist. If so, `getActiveGameInfo()` reads the header to determine the mode and configuration, and `GameRecorder::replayInto()` restores the full game state directly into the `ChessBoard` via batch mode. Move data size is derived from the file size (not the header's `moveCount`) for robustness against mid-turn crashes. Each move is validated during replay — corrupted or invalid moves cause the replay to abort.
+**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is flushed every full turn (2 half-moves) rather than every move, reducing flash write cycles by half. On boot, `hasActiveGame()` checks if these files exist. If so, `getActiveGameInfo()` reads the header to determine the mode and configuration, and `ChessHistory::replayInto()` restores the full game state directly into the `ChessBoard`. `ChessGame::resumeGame()` wraps this with batch mode (the board automatically rebuilds its position hash history as moves are replayed). Move data size is derived from the file size (not the header's `moveCount`) for robustness against mid-turn crashes. Each move is validated during replay — corrupted or invalid moves cause the replay to abort.
 
 **Storage limits** — `MAX_GAMES` = 50 games, `MAX_USAGE_PERCENT` = 80% of LittleFS capacity. `enforceStorageLimits()` is called after each game finishes and deletes the oldest games (lowest ID) until both limits are satisfied.
 
 **Game list API** — `getGameListJSON()` returns a JSON array of all completed games with metadata (id, mode, result, winner, move count, timestamp, bot config). Used by the web UI's game history panel.
 
-### ChessRules Interaction
+### Game Mode Interaction with Core
 
-The `ChessGame` base class coordinates between `BoardDriver` (hardware) and `GameController` (chess state + recording + notification):
+The `GameMode` base class coordinates between `BoardDriver` (hardware) and `ChessGame` (chess state + recording + notification):
 
 1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `controller_->getPossibleMoves(row, col, ...)` (which delegates to `ChessRules::getPossibleMoves()`), waits for placement, validates the move, then calls `applyMove()`.
-2. `applyMove()` — calls `controller_->makeMove()` which atomically updates the board, records the move, and notifies the observer. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, remote-move guidance, and game-end animations.
+2. `applyMove()` — calls `controller_->makeMove()` which atomically updates the board, records the move in history, persists via ChessHistory's recording, and notifies the observer. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, remote-move guidance, and game-end animations.
 3. Turn advancement, castling rights, and game-end detection are all handled internally by `ChessBoard::makeMove()` — the firmware never modifies the board or turn directly.
 
 ## Game Mode Lifecycle
@@ -192,7 +218,7 @@ Every iteration of `loop()`:
 3. Create the new game object via `new` (the only heap allocation for game modes)
 4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `controller_->startRecording()` to begin recording
 
-For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `GameRecorder::replayInto()` to restore the full game state directly into the `ChessBoard` via batch mode, then continues with normal `update()` calls.
+For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `ChessHistory::replayInto()` to restore the full game state directly into the `ChessBoard` via batch mode, then continues with normal `update()` calls.
 
 ### Menu Navigation
 
@@ -217,7 +243,7 @@ The gesture runs inline inside `tryPlayerMove()` — no separate state machine. 
 3. Player returns the king. Orange increases to 50% (`showResignProgress(row, col, 1, clearFirst=true)`). All other LEDs are cleared.
 4. `continueResignGesture()` takes over — a blocking loop that waits for 2 more quick lift-and-return cycles, each within `RESIGN_LIFT_WINDOW_MS` (1000ms). Orange progresses to 75% then 100%.
 5. If all lifts complete in time, `boardConfirm()` shows a yes/no dialog (green/red squares).
-6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `GameResult::RESIGNATION` and plays a firework animation in the opponent's color. `ChessLichess` overrides this to also call `LichessAPI::resignGame()` and manages the thinking animation stop flag.
+6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `GameResult::RESIGNATION` and plays a firework animation in the opponent's color. `LichessMode` overrides this to also call `LichessAPI::resignGame()` and manages the thinking animation stop flag.
 
 If any step times out (king not returned within the window), the gesture is silently canceled — no error feedback, just a return to normal play. The progressive orange brightness (25% → 50% → 75% → 100%) uses `LedColors::scaleColor(LedColors::Orange, factor)` with factors from `RESIGN_BRIGHTNESS_LEVELS`.
 
@@ -360,7 +386,7 @@ All menu layout data lives in `menu_config.h/cpp`:
 | 7 | Expert | 15 | 55s |
 | 8 | Master | 17 | 65s |
 
-`StockfishSettings::fromLevel(int)` is a factory that selects by 1-based level. `BotConfig` bundles `StockfishSettings` + `playerIsWhite` flag and is passed to `ChessBot` at construction.
+`StockfishSettings::fromLevel(int)` is a factory that selects by 1-based level. `BotConfig` bundles `StockfishSettings` + `playerIsWhite` flag and is passed to `BotMode` at construction.
 
 ### Lichess
 
@@ -372,7 +398,7 @@ All menu layout data lives in `menu_config.h/cpp`:
 
 The Lichess token is stored in NVS (namespace `"lichess"`, key `"token"`). The web UI's Lichess settings page allows entering or clearing the token. API responses to the web UI return only a masked version of the token (first 4 characters + asterisks).
 
-`ChessLichess` polls in `update()` every `POLL_INTERVAL_MS` (500ms). Game state sync happens in `syncBoardWithLichess()`, which compares the server's move list against `lastKnownMoves` and applies any new remote moves. `lastSentMove` prevents the player's own move from being processed as a remote move on the next poll.
+`LichessMode` polls in `update()` every `POLL_INTERVAL_MS` (500ms). Game state sync happens in `syncBoardWithLichess()`, which compares the server's move list against `lastKnownMoves` and applies any new remote moves. `lastSentMove` prevents the player's own move from being processed as a remote move on the next poll.
 
 ## Storage
 

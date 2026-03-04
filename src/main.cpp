@@ -2,9 +2,8 @@
 #include "game/player_mode.h"
 #include "game/lichess_mode.h"
 #include "game/stockfish_mode.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "littlefs_storage.h"
-#include "recorder.h"
 #include "serial_logger.h"
 #include "system_utils.h"
 #include "led_colors.h"
@@ -36,9 +35,8 @@ LichessConfig lichessConfig = {""};
 BoardDriver boardDriver;
 SerialLogger logger;
 LittleFSStorage storage(&logger);
-GameRecorder recorder(&storage, &logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
-GameController controller(&recorder, &wifiManager);
+ChessGame controller(&storage, &wifiManager, &logger);
 GameMode* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 

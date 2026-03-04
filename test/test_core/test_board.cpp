@@ -393,49 +393,6 @@ void test_manager_fifty_move_draw(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Threefold repetition
-// ---------------------------------------------------------------------------
-
-void test_manager_threefold_repetition(void) {
-  setUpManager();
-  // Position where Ke1 and Ke8 shuffle back and forth (pawns provide sufficient material)
-  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
-  // Move 1: Ke1-d1, Ke8-d8
-  gm.makeMove(7, 4, 7, 3); // Ke1-d1
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  // Move 2: Kd1-e1, Kd8-e8 (back to original — occurrence 2)
-  gm.makeMove(7, 3, 7, 4); // Kd1-e1
-  gm.makeMove(0, 3, 0, 4); // Kd8-e8
-  // Move 3: Ke1-d1, Ke8-d8
-  gm.makeMove(7, 4, 7, 3); // Ke1-d1
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  // Move 4: Kd1-e1, Kd8-e8 (back to original — occurrence 3)
-  gm.makeMove(7, 3, 7, 4); // Kd1-e1
-  MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — third repetition
-  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
-  TEST_ASSERT_TRUE(gm.isGameOver());
-}
-
-void test_manager_threefold_different_castling_rights(void) {
-  setUpManager();
-  // Same as threefold test but with castling rights.
-  // King move on first half-move loses castling → initial position hash
-  // differs from subsequent "same board" hashes, so 8 half-moves is NOT
-  // enough for threefold (only 2 occurrences of castling-less position).
-  gm.loadFEN("4k3/8/8/8/8/8/8/4K2R w K - 0 1");
-  gm.makeMove(7, 4, 7, 3); // Ke1-d1 (loses K castling)
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  gm.makeMove(7, 3, 7, 4); // Kd1-e1
-  gm.makeMove(0, 3, 0, 4); // Kd8-e8 — board same as start, but castling=0
-  gm.makeMove(7, 4, 7, 3); // Ke1-d1
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  gm.makeMove(7, 3, 7, 4); // Kd1-e1
-  MoveResult r = gm.makeMove(0, 3, 0, 4); // Kd8-e8 — occurrence 2 (not 3)
-  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
-  TEST_ASSERT_FALSE(gm.isGameOver());
-}
-
-// ---------------------------------------------------------------------------
 // Insufficient material
 // ---------------------------------------------------------------------------
 
@@ -640,70 +597,6 @@ void test_manager_end_game_double_call(void) {
   gm.endGame(GameResult::TIMEOUT, 'w');
   TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
   TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
-}
-
-// ---------------------------------------------------------------------------
-// Callback / batching
-// ---------------------------------------------------------------------------
-
-static int callbackCount;
-static void countingCallback() { callbackCount++; }
-
-void test_manager_callback_fires_on_move(void) {
-  setUpManager();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.makeMove(6, 4, 4, 4); // e2e4
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
-}
-
-void test_manager_callback_fires_on_new_game(void) {
-  setUpManager();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.newGame();
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
-}
-
-void test_manager_batch_suppresses_callbacks(void) {
-  setUpManager();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.beginBatch();
-  gm.makeMove(6, 4, 4, 4);
-  gm.makeMove(1, 4, 3, 4);
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
-  gm.endBatch();
-  TEST_ASSERT_EQUAL_INT(1, callbackCount); // single coalesced callback
-}
-
-void test_manager_no_callback_when_not_set(void) {
-  setUpManager();
-  // Just ensure no crash when no callback is set
-  gm.makeMove(6, 4, 4, 4); // should not crash
-  TEST_ASSERT_TRUE(true);
-}
-
-void test_manager_nested_batch(void) {
-  setUpManager();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.beginBatch();
-  gm.beginBatch();  // depth 2
-  gm.makeMove(6, 4, 4, 4);
-  gm.endBatch();    // depth 1 — callback still suppressed
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
-  gm.endBatch();    // depth 0 — fires coalesced callback
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
-}
-
-void test_manager_end_batch_without_begin(void) {
-  setUpManager();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  // endBatch with no beginBatch should not crash or fire callback
-  gm.endBatch();
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -953,52 +846,6 @@ void test_manager_is_stalemate_false(void) {
 }
 
 // ---------------------------------------------------------------------------
-// isDraw (aggregate query)
-// ---------------------------------------------------------------------------
-
-void test_manager_is_draw_insufficient_material(void) {
-  setUpManager();
-  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
-  TEST_ASSERT_TRUE(gm.isDraw());
-}
-
-void test_manager_is_draw_fifty_move(void) {
-  setUpManager();
-  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 100 50");
-  TEST_ASSERT_TRUE(gm.isDraw());
-}
-
-void test_manager_is_draw_false(void) {
-  setUpManager();
-  TEST_ASSERT_FALSE(gm.isDraw());
-}
-
-// ---------------------------------------------------------------------------
-// isThreefoldRepetition (public)
-// ---------------------------------------------------------------------------
-
-void test_manager_is_threefold_repetition(void) {
-  setUpManager();
-  // Repeat rook moves to produce threefold repetition (sufficient material)
-  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
-  gm.makeMove(7, 0, 7, 1); // Ra1-b1
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  gm.makeMove(7, 1, 7, 0); // Rb1-a1
-  gm.makeMove(0, 3, 0, 4); // Kd8-e8
-  gm.makeMove(7, 0, 7, 1); // Ra1-b1
-  gm.makeMove(0, 4, 0, 3); // Ke8-d8
-  gm.makeMove(7, 1, 7, 0); // Rb1-a1
-  gm.makeMove(0, 3, 0, 4); // Kd8-e8
-  // Position has now occurred 3 times
-  TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
-}
-
-void test_manager_is_threefold_repetition_false(void) {
-  setUpManager();
-  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
-}
-
-// ---------------------------------------------------------------------------
 // isInsufficientMaterial (public)
 // ---------------------------------------------------------------------------
 
@@ -1067,6 +914,94 @@ void test_manager_move_number_from_fen(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Threefold repetition (Zobrist position tracking in ChessBoard)
+// ---------------------------------------------------------------------------
+
+void test_board_threefold_repetition(void) {
+  setUpManager();
+  // Position where Ke1 and Ke8 shuffle back and forth (pawns provide sufficient material)
+  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
+  // Move 1: Ke1-d1, Ke8-d8
+  gm.makeMove(7, 4, 7, 3);
+  gm.makeMove(0, 4, 0, 3);
+  // Move 2: Kd1-e1, Kd8-e8 (back to original — occurrence 2)
+  gm.makeMove(7, 3, 7, 4);
+  gm.makeMove(0, 3, 0, 4);
+  // Move 3: Ke1-d1, Ke8-d8
+  gm.makeMove(7, 4, 7, 3);
+  gm.makeMove(0, 4, 0, 3);
+  // Move 4: Kd1-e1, Kd8-e8 (back to original — occurrence 3)
+  gm.makeMove(7, 3, 7, 4);
+  MoveResult r = gm.makeMove(0, 3, 0, 4);  // third repetition
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+}
+
+void test_board_threefold_different_castling_rights(void) {
+  setUpManager();
+  // King move loses castling rights → initial hash differs from subsequent hashes
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K2R w K - 0 1");
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1 (loses K castling)
+  gm.makeMove(0, 4, 0, 3);
+  gm.makeMove(7, 3, 7, 4);
+  gm.makeMove(0, 3, 0, 4); // board same as start, but castling=0
+  gm.makeMove(7, 4, 7, 3);
+  gm.makeMove(0, 4, 0, 3);
+  gm.makeMove(7, 3, 7, 4);
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // occurrence 2 (not 3)
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+void test_board_threefold_not_reached(void) {
+  setUpManager();
+  // Only 2 occurrences — not enough for threefold
+  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
+  gm.makeMove(7, 4, 7, 3);
+  gm.makeMove(0, 4, 0, 3);
+  gm.makeMove(7, 3, 7, 4);
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // occurrence 2
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
+}
+
+void test_board_threefold_query(void) {
+  setUpManager();
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
+}
+
+void test_board_threefold_with_rook_moves(void) {
+  setUpManager();
+  // Repeat rook moves to produce threefold repetition (sufficient material)
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
+  gm.makeMove(7, 0, 7, 1); // Ra1-b1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 1, 7, 0); // Rb1-a1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8
+  gm.makeMove(7, 0, 7, 1);
+  gm.makeMove(0, 4, 0, 3);
+  gm.makeMove(7, 1, 7, 0);
+  MoveResult r = gm.makeMove(0, 3, 0, 4); // 3rd time
+  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
+}
+
+void test_board_position_history_reset_on_pawn_move(void) {
+  setUpManager();
+  // Start with some moves to build position history, then a pawn move resets it
+  gm.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
+  gm.makeMove(7, 4, 7, 3); // Ke1-d1
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  gm.makeMove(7, 3, 7, 4); // Kd1-e1
+  gm.makeMove(0, 3, 0, 4); // Kd8-e8 (occurrence 2)
+  // Pawn move resets halfmove clock, which resets position history
+  gm.makeMove(6, 4, 4, 4); // e2-e4
+  gm.makeMove(0, 4, 0, 3); // Ke8-d8
+  // Now even if positions repeat, the prior history is gone
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -1128,10 +1063,6 @@ void register_board_tests() {
   // 50-move rule
   RUN_TEST(test_manager_fifty_move_draw);
 
-  // Threefold repetition
-  RUN_TEST(test_manager_threefold_repetition);
-  RUN_TEST(test_manager_threefold_different_castling_rights);
-
   // Insufficient material
   RUN_TEST(test_manager_insufficient_material_k_vs_k);
   RUN_TEST(test_manager_insufficient_material_kb_vs_k);
@@ -1163,14 +1094,6 @@ void register_board_tests() {
   RUN_TEST(test_manager_end_game_aborted);
   RUN_TEST(test_manager_end_game_draw_agreement);
   RUN_TEST(test_manager_end_game_double_call);
-
-  // Callbacks / batching
-  RUN_TEST(test_manager_callback_fires_on_move);
-  RUN_TEST(test_manager_callback_fires_on_new_game);
-  RUN_TEST(test_manager_batch_suppresses_callbacks);
-  RUN_TEST(test_manager_no_callback_when_not_set);
-  RUN_TEST(test_manager_nested_batch);
-  RUN_TEST(test_manager_end_batch_without_begin);
 
   // Codec
   RUN_TEST(test_codec_encode_decode_roundtrip);
@@ -1212,15 +1135,6 @@ void register_board_tests() {
   RUN_TEST(test_manager_is_stalemate_true);
   RUN_TEST(test_manager_is_stalemate_false);
 
-  // isDraw
-  RUN_TEST(test_manager_is_draw_insufficient_material);
-  RUN_TEST(test_manager_is_draw_fifty_move);
-  RUN_TEST(test_manager_is_draw_false);
-
-  // isThreefoldRepetition (public)
-  RUN_TEST(test_manager_is_threefold_repetition);
-  RUN_TEST(test_manager_is_threefold_repetition_false);
-
   // isInsufficientMaterial (public)
   RUN_TEST(test_manager_is_insufficient_material_true);
   RUN_TEST(test_manager_is_insufficient_material_false);
@@ -1234,4 +1148,12 @@ void register_board_tests() {
   RUN_TEST(test_manager_move_number_initial);
   RUN_TEST(test_manager_move_number_after_moves);
   RUN_TEST(test_manager_move_number_from_fen);
+
+  // Threefold repetition
+  RUN_TEST(test_board_threefold_repetition);
+  RUN_TEST(test_board_threefold_different_castling_rights);
+  RUN_TEST(test_board_threefold_not_reached);
+  RUN_TEST(test_board_threefold_query);
+  RUN_TEST(test_board_threefold_with_rook_moves);
+  RUN_TEST(test_board_position_history_reset_on_pawn_move);
 }

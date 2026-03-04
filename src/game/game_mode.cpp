@@ -1,6 +1,5 @@
 #include "game_mode.h"
-#include "codec.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "utils.h"
 #include "system_utils.h"
 #include "wifi_manager_esp32.h"
@@ -12,7 +11,7 @@
 // ---------------------------
 static constexpr float RESIGN_BRIGHTNESS_LEVELS[] = {0.25f, 0.50f, 0.75f, 1.0f};
 
-GameMode::GameMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc)
+GameMode::GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc)
     : boardDriver_(bd), wifiManager_(wm), controller_(gc) {}
 
 bool GameMode::isGameOver() const { return controller_->isGameOver(); }
@@ -154,7 +153,7 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
 MoveResult GameMode::applyUCIMove(const std::string& uci) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
-  if (!ChessCodec::parseUCIMove(uci, fromRow, fromCol, toRow, toCol, promotion)) {
+  if (!ChessGame::parseUCIMove(uci, fromRow, fromCol, toRow, toCol, promotion)) {
     Serial.printf("Failed to parse UCI move: %s\n", uci.c_str());
     return invalidMoveResult();
   }

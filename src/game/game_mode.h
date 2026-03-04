@@ -9,16 +9,16 @@
 
 // Forward declarations to avoid circular dependencies
 class WiFiManagerESP32;
-class GameController;
+class ChessGame;
 
 // Base class for chess game modes (shared state and common functionality).
-// All chess-state mutations flow through `controller_` (GameController facade),
+// All chess-state mutations flow through `controller_` (ChessGame facade),
 // which atomically updates the board, records moves, and notifies observers.
 class GameMode {
  protected:
   BoardDriver* boardDriver_;
   WiFiManagerESP32* wifiManager_;
-  GameController* controller_;
+  ChessGame* controller_;
 
   // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
@@ -26,7 +26,7 @@ class GameMode {
   bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
-  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc);
+  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc);
 
   // Common initialization and game flow methods
   void waitForBoardSetup(const char targetBoard[8][8]);
@@ -34,7 +34,7 @@ class GameMode {
   MoveResult applyUCIMove(const std::string& uci);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
 
-  /// Try to resume a live game from GameController. Returns true if resumed.
+  /// Try to resume a live game from ChessGame. Returns true if resumed.
   /// If no live game exists, returns false (caller should start a new game).
   bool tryResumeGame();
 

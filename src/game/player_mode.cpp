@@ -1,10 +1,10 @@
 #include "player_mode.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "led_colors.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc) : GameMode(bd, wm, gc) {}
+PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc) : GameMode(bd, wm, gc) {}
 
 void PlayerMode::begin() {
   Serial.println("=== Starting Chess Moves Mode ===");

@@ -3,17 +3,23 @@
 
 #include <cctype>
 #include <cstring>
-#include <functional>
 #include <string>
 
-#include "history.h"
 #include "types.h"
 #include "rules.h"
 #include "utils.h"
+#include "zobrist_keys.h"
 
-// Complete chess game state manager — the "chess.js" of this project.
-// Owns the board, turn, rules, and game-over state.
+// Board representation and position-level chess logic.
+// Owns the 8x8 board array, current turn, position state (castling, en passant,
+// clocks), game-over state, and Zobrist position history for threefold repetition.
+// Handles move validation, application, and game-end detection — all end
+// conditions (checkmate, stalemate, 50-move, insufficient material, threefold)
+// are detected uniformly inside detectGameEnd().
 // Pure logic, no hardware dependencies, natively compilable for unit tests.
+//
+// Note: move history, callbacks, and batching live in ChessGame
+// (the game-level orchestrator that composes ChessBoard).
 //
 // Usage:
 //   ChessBoard cb;
@@ -25,10 +31,6 @@
 //
 class ChessBoard {
  public:
-  // State-change callback — fired after every mutating operation
-  // (makeMove, loadFEN, newGame, endGame) unless batching is active.
-  using StateCallback = std::function<void()>;
-
   ChessBoard();
 
   // --- Lifecycle ---
@@ -95,14 +97,11 @@ class ChessBoard {
     return ChessRules::isStalemate(board_, currentTurn_, state_);
   }
 
-  // Is the position a draw (50-move, threefold repetition, or insufficient material)?
-  bool isDraw() const;
+  // Is the position drawn due to insufficient material?
+  bool isInsufficientMaterial() const;
 
   // Has the current position occurred three or more times?
   bool isThreefoldRepetition() const;
-
-  // Is the position drawn due to insufficient material?
-  bool isInsufficientMaterial() const;
 
   // Is the given square attacked by pieces of the specified color?
   // "byColor" is the attacking side: 'w' or 'b'.
@@ -137,23 +136,12 @@ class ChessBoard {
                                      board_[fromRow][fromCol]);
   }
 
-  // --- History ---
-
-  // Access the in-game move/position history.
-  const ChessHistory& history() const { return history_; }
-
-  // --- Batching (suppress callbacks during replay) ---
-
-  void beginBatch();
-  void endBatch();  // fires one callback on exit if changes occurred
-
-  // --- Callback ---
-
-  void onStateChanged(StateCallback cb) { stateCallback_ = cb; }
-
   // --- Constants ---
 
   static const char INITIAL_BOARD[8][8];
+
+  // Maximum stored positions (sufficient for any legal game)
+  static constexpr int MAX_POSITION_HISTORY = 128;
 
  private:
   char board_[8][8];
@@ -162,7 +150,10 @@ class ChessBoard {
   GameResult gameResult_;
   char winnerColor_;
   PositionState state_;  // castling rights, en passant, clocks
-  ChessHistory history_;  // move log + position hash tracking
+
+  // Zobrist position history (for threefold repetition detection)
+  uint64_t positionHistory_[MAX_POSITION_HISTORY];
+  int positionHistoryCount_;
 
   // FEN / evaluation cache (mutable: updated lazily from const getters)
   mutable std::string cachedFen_;
@@ -171,30 +162,21 @@ class ChessBoard {
   mutable bool evalDirty_;
   void invalidateCache();
 
-  // Batching
-  int batchDepth_;
-  bool batchDirty_;
+  bool hasInsufficientMaterialInternal() const;
 
-  StateCallback stateCallback_;
-
-  // --- Zobrist hashing (computed here, stored in history_) ---
-
+  // Zobrist hashing
   static inline int pieceToZobristIndex(char piece) {
     const char* pieces = "PNBRQKpnbrqk";
     const char* p = std::strchr(pieces, piece);
     return p ? static_cast<int>(p - pieces) : -1;
   }
-
   uint64_t computeZobristHash() const;
   void recordPosition();
-  bool hasInsufficientMaterialInternal() const;
 
   // Pure chess logic extracted from GameMode::applyMove / updateGameStatus
   void applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result);
   void advanceTurn();
   GameResult detectGameEnd(char& winner);
-
-  void fireCallback();
 };
 
 #endif  // CORE_BOARD_H

@@ -4,9 +4,7 @@
 #include <cmath>
 #include <cstring>
 
-#include "codec.h"
 #include "rules.h"
-#include "zobrist_keys.h"
 
 const char ChessBoard::INITIAL_BOARD[8][8] = {
     {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'},  // row 0 = rank 8
@@ -24,11 +22,10 @@ ChessBoard::ChessBoard()
       gameOver_(false),
       gameResult_(GameResult::IN_PROGRESS),
       winnerColor_(' '),
+      positionHistoryCount_(0),
       cachedEval_(0.0f),
       fenDirty_(true),
-      evalDirty_(true),
-      batchDepth_(0),
-      batchDirty_(false) {
+      evalDirty_(true) {
   memcpy(board_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
 }
 
@@ -43,10 +40,9 @@ void ChessBoard::newGame() {
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
   state_ = PositionState::initial();
-  history_.clear();
+  positionHistoryCount_ = 0;
   invalidateCache();
   recordPosition();
-  fireCallback();
 }
 
 bool ChessBoard::loadFEN(const std::string& fen) {
@@ -89,13 +85,12 @@ bool ChessBoard::loadFEN(const std::string& fen) {
 
   // --- Validated: apply FEN ---
   ChessUtils::fenToBoard(fen, board_, currentTurn_, &state_);
-  history_.clear();
-  recordPosition();
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
+  positionHistoryCount_ = 0;
   invalidateCache();
-  fireCallback();
+  recordPosition();
   return true;
 }
 
@@ -105,7 +100,6 @@ void ChessBoard::endGame(GameResult result, char winnerColor) {
   gameResult_ = result;
   winnerColor_ = winnerColor;
   invalidateCache();
-  fireCallback();
 }
 
 // ---------------------------------------------------------------------------
@@ -129,17 +123,14 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   // Validate move legality via rules
   if (!ChessRules::isValidMove(board_, fromRow, fromCol, toRow, toCol, state_)) return invalidMoveResult();
 
-  // Save pre-move state for history
-  char targetPiece = board_[toRow][toCol];
-  PositionState prevState = state_;
-
   // Build result and apply
   MoveResult result;
   result.valid = true;
   applyMoveToBoard(fromRow, fromCol, toRow, toCol, promotion, result);
 
-  // Advance turn and detect end conditions
+  // Advance turn and record position for repetition detection
   advanceTurn();
+  recordPosition();
   char winner = ' ';
   GameResult endResult = detectGameEnd(winner);
   result.gameResult = endResult;
@@ -155,33 +146,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   if (endResult == GameResult::IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
     result.isCheck = true;
 
-  // Record move in history
-  char captured = ' ';
-  if (result.isEnPassant) {
-    captured = ChessUtils::isWhitePiece(piece) ? 'p' : 'P';
-  } else if (result.isCapture) {
-    captured = targetPiece;
-  }
-
-  MoveEntry entry;
-  entry.fromRow = fromRow;
-  entry.fromCol = fromCol;
-  entry.toRow = toRow;
-  entry.toCol = toCol;
-  entry.piece = piece;
-  entry.captured = captured;
-  entry.promotion = result.isPromotion ? result.promotedTo : ' ';
-  entry.isCapture = result.isCapture;
-  entry.isEnPassant = result.isEnPassant;
-  entry.epCapturedRow = result.epCapturedRow;
-  entry.isCastling = result.isCastling;
-  entry.isPromotion = result.isPromotion;
-  entry.isCheck = result.isCheck;
-  entry.prevState = prevState;
-  history_.addMove(entry);
-
   invalidateCache();
-  fireCallback();
   return result;
 }
 
@@ -231,40 +196,31 @@ bool ChessBoard::findKingPosition(char kingColor, int& kingRow, int& kingCol) co
   return false;
 }
 
-bool ChessBoard::isDraw() const {
-  if (state_.halfmoveClock >= 100) return true;
-  if (history_.isThreefoldRepetition()) return true;
-  if (hasInsufficientMaterialInternal()) return true;
-  return false;
+bool ChessBoard::isInsufficientMaterial() const {
+  return hasInsufficientMaterialInternal();
 }
 
 bool ChessBoard::isThreefoldRepetition() const {
-  return history_.isThreefoldRepetition();
-}
+  // Minimum 5 half-moves for 3 occurrences of the same position
+  if (positionHistoryCount_ < 5) return false;
 
-bool ChessBoard::isInsufficientMaterial() const {
-  return hasInsufficientMaterialInternal();
+  uint64_t current = positionHistory_[positionHistoryCount_ - 1];
+  int count = 1;  // current position counts as 1
+
+  // Scan backwards, skipping every other entry (only same side-to-move
+  // can match). Backwards scan finds recent repetitions faster.
+  for (int i = positionHistoryCount_ - 3; i >= 0; i -= 2) {
+    if (positionHistory_[i] == current) {
+      count++;
+      if (count >= 3) return true;
+    }
+  }
+  return false;
 }
 
 void ChessBoard::invalidateCache() {
   fenDirty_ = true;
   evalDirty_ = true;
-}
-
-// ---------------------------------------------------------------------------
-// Batching
-// ---------------------------------------------------------------------------
-
-void ChessBoard::beginBatch() {
-  ++batchDepth_;
-}
-
-void ChessBoard::endBatch() {
-  if (batchDepth_ > 0) --batchDepth_;
-  if (batchDepth_ == 0 && batchDirty_) {
-    batchDirty_ = false;
-    if (stateCallback_) stateCallback_();
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -340,7 +296,6 @@ void ChessBoard::advanceTurn() {
   if (currentTurn_ == 'b')
     state_.fullmoveClock++;
   currentTurn_ = ChessUtils::opponentColor(currentTurn_);
-  recordPosition();
 }
 
 // ---------------------------------------------------------------------------
@@ -410,32 +365,20 @@ GameResult ChessBoard::detectGameEnd(char& winner) {
     winner = 'd';
     return GameResult::DRAW_50;
   }
-  if (history_.isThreefoldRepetition()) {
-    winner = 'd';
-    return GameResult::DRAW_3FOLD;
-  }
   if (hasInsufficientMaterialInternal()) {
     winner = 'd';
     return GameResult::DRAW_INSUFFICIENT;
+  }
+  if (isThreefoldRepetition()) {
+    winner = 'd';
+    return GameResult::DRAW_3FOLD;
   }
   winner = ' ';
   return GameResult::IN_PROGRESS;
 }
 
 // ---------------------------------------------------------------------------
-// Internal: callback dispatch
-// ---------------------------------------------------------------------------
-
-void ChessBoard::fireCallback() {
-  if (batchDepth_ > 0) {
-    batchDirty_ = true;
-    return;
-  }
-  if (stateCallback_) stateCallback_();
-}
-
-// ---------------------------------------------------------------------------
-// Internal: position history (Zobrist hash-based threefold repetition)
+// Internal: Zobrist hashing (for threefold repetition detection)
 // ---------------------------------------------------------------------------
 
 uint64_t ChessBoard::computeZobristHash() const {
@@ -451,15 +394,10 @@ uint64_t ChessBoard::computeZobristHash() const {
       }
     }
 
-  // https://lichess.org/forum/general-chess-discussion/3-fold-repetition-and-castling-rights-sarana-martinez
-  // Hash castling rights (unlike en-passant, castling rights always matter
-  // for repetition and are only lost AFTER a rook or king moves)
+  // Hash castling rights
   hash ^= ZOBRIST_CASTLING[state_.castlingRights];
 
-  // Hash en passant file only if a legal en passant capture exists.
-  // Per FIDE rules, the en passant square only matters for repetition if an
-  // opposing pawn can actually make the capture (including not leaving the
-  // king in check).
+  // Hash en passant file only if a legal en passant capture exists
   if (ChessRules::hasLegalEnPassantCapture(board_, currentTurn_, state_)) {
     hash ^= ZOBRIST_EN_PASSANT[state_.epCol];
   }
@@ -472,12 +410,10 @@ uint64_t ChessBoard::computeZobristHash() const {
 }
 
 void ChessBoard::recordPosition() {
-  // Clear history on irreversible moves (pawn move or capture reset
-  // halfmoveClock to 0). Positions from before an irreversible move can
-  // never recur, so this is safe and keeps memory usage bounded by the
-  // 50-move rule (~100 entries max).
-  if (state_.halfmoveClock == 0)
-    history_.resetPositionHistory();
+  if (state_.halfmoveClock == 0 && positionHistoryCount_ > 0)
+    positionHistoryCount_ = 0;
 
-  history_.recordPosition(computeZobristHash());
+  if (positionHistoryCount_ < MAX_POSITION_HISTORY) {
+    positionHistory_[positionHistoryCount_++] = computeZobristHash();
+  }
 }

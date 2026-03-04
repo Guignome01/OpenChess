@@ -1,13 +1,12 @@
 #include "stockfish_mode.h"
-#include "codec.h"
-#include "game_controller.h"
+#include "chess_game.h"
 #include "led_colors.h"
 #include "stockfish_api.h"
 #include "utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-StockfishMode::StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, char playerClr, StockfishSettings cfg)
+StockfishMode::StockfishMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, char playerClr, StockfishSettings cfg)
     : BotMode(bd, wm, gc, playerClr), settings_(cfg), currentEvaluation_(0.0f) {}
 
 void StockfishMode::begin() {
@@ -101,7 +100,7 @@ void StockfishMode::requestEngineMove() {
 
     int fromRow, fromCol, toRow, toCol;
     char promotion;
-    if (ChessCodec::parseUCIMove(std::string(bestMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
+    if (ChessGame::parseUCIMove(std::string(bestMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
       Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
       Serial.println("============================");
       // Verify the move is from the correct color piece

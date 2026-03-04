@@ -37,7 +37,7 @@ class LichessMode : public BotMode {
   void onResignConfirmed(char resignColor) override;
 
  public:
-  LichessMode(BoardDriver* bd, WiFiManagerESP32* wm, GameController* gc, LichessConfig cfg);
+  LichessMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, LichessConfig cfg);
   void begin() override;
 };
 
