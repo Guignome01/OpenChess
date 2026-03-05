@@ -3,6 +3,7 @@
 #include "../test_helpers.h"
 #include <chess_codec.h>
 #include <chess_board.h>
+#include <chess_history.h>
 #include <types.h>
 
 // Shared globals from test_core.cpp
@@ -1002,6 +1003,161 @@ void test_board_position_history_reset_on_pawn_move(void) {
 }
 
 // ---------------------------------------------------------------------------
+// reverseMove / applyMoveEntry
+// ---------------------------------------------------------------------------
+
+// Helper: build a MoveEntry from scratch
+static MoveEntry makeBoardEntry(int fr, int fc, int tr, int tc, char piece,
+                                char captured, const PositionState& prev,
+                                char promo = ' ', bool ep = false,
+                                int epRow = -1, bool castle = false,
+                                bool check = false) {
+  MoveEntry e = {};
+  e.fromRow = fr; e.fromCol = fc; e.toRow = tr; e.toCol = tc;
+  e.piece = piece; e.captured = captured; e.promotion = promo;
+  e.isCapture = (captured != ' ');
+  e.isEnPassant = ep; e.epCapturedRow = epRow;
+  e.isCastling = castle;
+  e.isPromotion = (promo != ' ');
+  e.isCheck = check;
+  e.prevState = prev;
+  return e;
+}
+
+void test_board_reverse_move_simple(void) {
+  setUpManager();
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(6, 4, 4, 4);  // e2-e4
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_EQUAL_CHAR('b', gm.currentTurn());
+
+  MoveEntry e = makeBoardEntry(6, 4, 4, 4, 'P', ' ', before);
+  gm.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_CHAR('P', gm.getSquare(6, 4));  // pawn back on e2
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(4, 4));  // e4 empty
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+}
+
+void test_board_reverse_move_capture(void) {
+  setUpManager();
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 3, 3, 3);  // d5
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(4, 4, 3, 3);  // exd5 capture
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isCapture);
+
+  MoveEntry e = makeBoardEntry(4, 4, 3, 3, 'P', 'p', before);
+  gm.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_CHAR('P', gm.getSquare(4, 4));  // pawn back on e5
+  TEST_ASSERT_EQUAL_CHAR('p', gm.getSquare(3, 3));  // black pawn restored on d5
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+}
+
+void test_board_reverse_move_en_passant(void) {
+  setUpManager();
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 0, 2, 0);  // a6
+  gm.makeMove(4, 4, 3, 4);  // e5
+  gm.makeMove(1, 3, 3, 3);  // d5
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(3, 4, 2, 3);  // exd6 en passant
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isEnPassant);
+
+  MoveEntry e = makeBoardEntry(3, 4, 2, 3, 'P', 'p', before, ' ', true, 3);
+  gm.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_CHAR('P', gm.getSquare(3, 4));  // pawn back on e5
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(2, 3));  // d6 empty
+  TEST_ASSERT_EQUAL_CHAR('p', gm.getSquare(3, 3));  // black pawn restored on d5
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+}
+
+void test_board_reverse_move_castling(void) {
+  setUpManager();
+  gm.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(7, 4, 7, 6);  // O-O white kingside
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isCastling);
+
+  MoveEntry e = makeBoardEntry(7, 4, 7, 6, 'K', ' ', before, ' ', false, -1, true);
+  gm.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_CHAR('K', gm.getSquare(7, 4));  // king back on e1
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(7, 6));  // g1 empty
+  TEST_ASSERT_EQUAL_CHAR('R', gm.getSquare(7, 7));  // rook back on h1
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(7, 5));  // f1 empty
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+  // Castling rights should be restored
+  TEST_ASSERT_EQUAL(0x0F, gm.positionState().castlingRights);
+}
+
+void test_board_reverse_move_promotion(void) {
+  setUpManager();
+  gm.loadFEN("8/P4k2/8/8/8/8/5K2/8 w - - 0 1");
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(1, 0, 0, 0, 'q');  // a7-a8=Q
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isPromotion);
+  TEST_ASSERT_EQUAL_CHAR('Q', gm.getSquare(0, 0));
+
+  MoveEntry e = makeBoardEntry(1, 0, 0, 0, 'P', ' ', before, 'Q');
+  gm.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_CHAR('P', gm.getSquare(1, 0));  // pawn back on a7
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(0, 0));  // a8 empty
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+}
+
+void test_board_reverse_move_clears_game_over(void) {
+  setUpManager();
+  // Scholar's mate
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 4, 3, 4);  // e5
+  gm.makeMove(7, 5, 4, 2);  // Bc4
+  gm.makeMove(1, 0, 2, 0);  // a6
+  gm.makeMove(7, 3, 3, 7);  // Qh5
+  gm.makeMove(1, 1, 2, 1);  // b6
+  PositionState before = gm.positionState();
+  MoveResult r = gm.makeMove(3, 7, 1, 5);  // Qxf7#
+  TEST_ASSERT_TRUE(gm.isGameOver());
+
+  MoveEntry e = makeBoardEntry(3, 7, 1, 5, 'Q', 'p', before, ' ', false, -1, false, true);
+  gm.reverseMove(e);
+
+  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
+}
+
+void test_board_apply_move_entry(void) {
+  setUpManager();
+  PositionState before = gm.positionState();
+  MoveEntry e = makeBoardEntry(6, 4, 4, 4, 'P', ' ', before);
+
+  MoveResult r = gm.applyMoveEntry(e);
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_EQUAL_CHAR('P', gm.getSquare(4, 4));
+  TEST_ASSERT_EQUAL_CHAR(' ', gm.getSquare(6, 4));
+  TEST_ASSERT_EQUAL_CHAR('b', gm.currentTurn());
+}
+
+void test_board_apply_move_entry_promotion(void) {
+  setUpManager();
+  gm.loadFEN("8/P4k2/8/8/8/8/5K2/8 w - - 0 1");
+  PositionState before = gm.positionState();
+  MoveEntry e = makeBoardEntry(1, 0, 0, 0, 'P', ' ', before, 'Q');
+
+  MoveResult r = gm.applyMoveEntry(e);
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isPromotion);
+  TEST_ASSERT_EQUAL_CHAR('Q', gm.getSquare(0, 0));
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -1156,4 +1312,14 @@ void register_chess_board_tests() {
   RUN_TEST(test_board_threefold_query);
   RUN_TEST(test_board_threefold_with_rook_moves);
   RUN_TEST(test_board_position_history_reset_on_pawn_move);
+
+  // reverseMove / applyMoveEntry
+  RUN_TEST(test_board_reverse_move_simple);
+  RUN_TEST(test_board_reverse_move_capture);
+  RUN_TEST(test_board_reverse_move_en_passant);
+  RUN_TEST(test_board_reverse_move_castling);
+  RUN_TEST(test_board_reverse_move_promotion);
+  RUN_TEST(test_board_reverse_move_clears_game_over);
+  RUN_TEST(test_board_apply_move_entry);
+  RUN_TEST(test_board_apply_move_entry_promotion);
 }

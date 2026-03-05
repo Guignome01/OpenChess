@@ -10,6 +10,8 @@
 #include "chess_utils.h"
 #include "zobrist_keys.h"
 
+struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
+
 // Board representation and position-level chess logic.
 // Owns the 8x8 board array, current turn, position state (castling, en passant,
 // clocks), game-over state, and Zobrist position history for threefold repetition.
@@ -50,6 +52,14 @@ class ChessBoard {
   // Validate and execute a move.  Returns full MoveResult.
   // Promotion char: 'q','r','b','n' or ' ' for auto-queen.
   MoveResult makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
+
+  // Reverse a previously applied move using its MoveEntry.
+  // Restores board, turn, position state, Zobrist history, and clears game-over.
+  void reverseMove(const MoveEntry& entry);
+
+  // Re-apply a move from a MoveEntry (for redo).  Returns the MoveResult.
+  // Internally calls makeMove with the stored coordinates and promotion.
+  MoveResult applyMoveEntry(const MoveEntry& entry);
 
   // --- Queries ---
 

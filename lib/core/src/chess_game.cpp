@@ -21,27 +21,31 @@ void ChessGame::newGame() {
 
 void ChessGame::startNewGame(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
   newGame();
-  startRecording(mode, playerColor, botDepth);
-}
 
-void ChessGame::startRecording(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
-  history_.startRecording(mode, playerColor, botDepth);
-  if (history_.isRecording())
-    history_.recordFen(board_.getFen());
+  // Build header and start recording
+  GameHeader header;
+  memset(&header, 0, sizeof(header));
+  header.version = FORMAT_VERSION;
+  header.mode = mode;
+  header.result = GameResult::IN_PROGRESS;
+  header.winnerColor = '?';
+  header.playerColor = playerColor;
+  header.botDepth = botDepth;
+  history_.setHeader(header);  // creates live file, no-op if no storage
+  history_.snapshotPosition(board_.getFen());  // record initial FEN
 }
 
 void ChessGame::endGame(GameResult result, char winnerColor) {
   if (board_.isGameOver()) return;  // Guard against double-call
 
-  if (history_.isRecording())
-    history_.finishRecording(result, winnerColor);
+  history_.save(result, winnerColor);  // no-op if not recording
   board_.endGame(result, winnerColor);
   fireCallback();
   notifyObserver();
 }
 
 void ChessGame::discardRecording() {
-  history_.discardRecording();
+  history_.discard();
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +65,8 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   MoveResult result = board_.makeMove(fromRow, fromCol, toRow, toCol, promotion);
   if (!result.valid) return result;
 
-  // Record move in history
+  // Build MoveEntry and record in history (addMove handles both in-memory log
+  // and persistent recording automatically)
   char captured = ' ';
   if (result.isEnPassant) {
     captured = ChessUtils::isWhitePiece(piece) ? 'p' : 'P';
@@ -86,14 +91,9 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   entry.prevState = prevState;
   history_.addMove(entry);
 
-  // Record with persistent storage
-  if (history_.isRecording())
-    history_.recordMove(fromRow, fromCol, toRow, toCol,
-                        result.isPromotion ? result.promotedTo : promotion);
-
-  // Auto-finish recording on game end
-  if (result.gameResult != GameResult::IN_PROGRESS && history_.isRecording())
-    history_.finishRecording(result.gameResult, result.winnerColor);
+  // Auto-save recording on game end
+  if (result.gameResult != GameResult::IN_PROGRESS)
+    history_.save(result.gameResult, result.winnerColor);
 
   fireCallback();
   notifyObserver();
@@ -113,10 +113,30 @@ bool ChessGame::loadFEN(const std::string& fen) {
     return false;
 
   history_.clear();
+  history_.snapshotPosition(fen);  // no-op if not recording
 
-  if (history_.isRecording())
-    history_.recordFen(fen);
+  fireCallback();
+  notifyObserver();
+  return true;
+}
 
+// ---------------------------------------------------------------------------
+// Undo / Redo
+// ---------------------------------------------------------------------------
+
+bool ChessGame::undoMove() {
+  const MoveEntry* entry = history_.undoMove();
+  if (!entry) return false;
+  board_.reverseMove(*entry);
+  fireCallback();
+  notifyObserver();
+  return true;
+}
+
+bool ChessGame::redoMove() {
+  const MoveEntry* entry = history_.redoMove();
+  if (!entry) return false;
+  board_.applyMoveEntry(*entry);
   fireCallback();
   notifyObserver();
   return true;
@@ -141,11 +161,6 @@ bool ChessGame::parseUCIMove(const std::string& move, int& fromRow, int& fromCol
 bool ChessGame::resumeGame() {
   beginBatch();
   bool ok = history_.replayInto(board_);
-  if (ok) {
-    // Clear in-memory move log — only the storage has the full history.
-    // Board already tracks position history from replay moves.
-    history_.clear();
-  }
   endBatch();
   if (ok) notifyObserver();
   return ok;

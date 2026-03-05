@@ -17,6 +17,7 @@ class LittleFSStorage : public IGameStorage {
   void initialize() override;
   void beginGame(const GameHeader& header) override;
   void appendMoveData(const uint8_t* data, size_t length) override;
+  void truncateMoveData(size_t byteOffset) override;
   void updateHeader(const GameHeader& header) override;
   size_t appendFenEntry(const std::string& fen) override;
   void finalizeGame(const GameHeader& header) override;

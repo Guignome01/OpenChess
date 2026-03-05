@@ -24,6 +24,10 @@ class IGameStorage {
   // Append raw encoded bytes to the live move stream.
   virtual void appendMoveData(const uint8_t* data, size_t length) = 0;
 
+  // Truncate the live move stream to exactly byteOffset bytes after the header.
+  // Used when undo + branch discards future moves from the recording.
+  virtual void truncateMoveData(size_t byteOffset) = 0;
+
   // Rewrite the header at offset 0 of the live move file.
   virtual void updateHeader(const GameHeader& header) = 0;
 

@@ -11,7 +11,8 @@
 class ChessBoard;  // forward declaration for replayInto()
 
 // A single move record in the game history.
-// Stores enough information to query the move log and support future undo.
+// Stores enough information to query the move log, support undo/redo,
+// and reconstruct board state.
 struct MoveEntry {
   int fromRow, fromCol;
   int toRow, toCol;
@@ -29,12 +30,17 @@ struct MoveEntry {
 
 // In-memory game history with optional persistent recording.
 //
-// Two concerns:
-//   1. Move log: ordered list of all moves played in the game
+// Two concerns, unified under a single API:
+//   1. Move log: ordered list of all moves with cursor-based undo/redo
 //   2. Recording: persistent game storage (when IGameStorage is provided)
 //
-// Position tracking (Zobrist hashes for threefold repetition) lives in
-// ChessBoard, which detects all end conditions uniformly.
+// Recording is automatic: if an IGameStorage* is provided and a header has
+// been set (via setHeader), addMove() persists encoded moves transparently.
+// No explicit startRecording/recordMove calls needed from the caller.
+//
+// Undo/redo: a cursor (currentIndex_) tracks the "current" position in the
+// move log.  undoMove() steps back, redoMove() steps forward.  addMove()
+// wipes any moves after the cursor (branch point) before appending.
 //
 // Nullable storage: pass nullptr to disable recording (e.g. Lichess mode,
 // stand-alone ChessGame without persistence).
@@ -42,19 +48,39 @@ class ChessHistory {
  public:
   ChessHistory(IGameStorage* storage = nullptr, ILogger* logger = nullptr);
 
-  // Reset in-memory history (move log only).
-  // Does NOT affect recording state — use discardRecording() for that.
+  // Reset in-memory history (move log + cursor).
+  // Does NOT start or affect recording state.
   void clear();
 
-  // --- Move log ---
+  // --- Move log with undo/redo ---
 
-  // Append a move entry to the log.
+  // Append a move entry to the log.  If the cursor is not at the end
+  // (after undo), wipes all moves after the cursor before appending
+  // (branch point).  Also persists to storage if recording is active.
   void addMove(const MoveEntry& entry);
 
-  // Remove and return the last move (for undo). Returns false if empty.
-  bool popMove(MoveEntry& entry);
+  // Step back one move.  Returns pointer to the undone MoveEntry
+  // (caller uses it to reverse the move on ChessBoard).
+  // Returns nullptr if at the beginning (canUndo() is false).
+  const MoveEntry* undoMove();
 
-  // Number of half-moves recorded.
+  // Step forward one move.  Returns pointer to the MoveEntry to re-apply
+  // (caller uses it to re-apply the move on ChessBoard).
+  // Returns nullptr if at the end (canRedo() is false).
+  const MoveEntry* redoMove();
+
+  // Can undo (cursor > start)?
+  bool canUndo() const { return currentIndex_ >= 0; }
+
+  // Can redo (moves exist after cursor)?
+  bool canRedo() const { return currentIndex_ < moveCount_ - 1; }
+
+  // Current cursor position (-1 = before any move, 0 = after first move, etc.)
+  int currentMoveIndex() const { return currentIndex_; }
+
+  // --- Move log queries ---
+
+  // Total number of moves in the log.
   int moveCount() const { return moveCount_; }
 
   // True when no moves have been recorded.
@@ -64,28 +90,32 @@ class ChessHistory {
   // Caller must ensure 0 <= index < moveCount().
   const MoveEntry& getMove(int index) const;
 
-  // Access the most recent move.
-  // Caller must ensure !empty().
+  // Access the move at the current cursor position.
+  // Caller must ensure !empty() && currentIndex_ >= 0.
   const MoveEntry& lastMove() const;
 
-  // --- Recording lifecycle (persistent storage) ---
+  // --- Recording (persistent storage) ---
 
-  // Begin recording a new game.  Discards any leftover live game first.
-  void startRecording(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
-
-  // Encode and persist a move to storage.
-  void recordMove(int fromRow, int fromCol, int toRow, int toCol, char promotion);
+  // Set game header metadata and begin recording.
+  // Creates the live file in storage.  No-op if storage is nullptr.
+  // If called again while already recording, discards the previous
+  // recording and starts fresh.
+  void setHeader(const GameHeader& header);
 
   // Persist a FEN snapshot to storage (e.g. initial position, mid-game load).
-  void recordFen(const std::string& fen);
+  // No-op if not recording.
+  void snapshotPosition(const std::string& fen);
 
   // Finalize recording — set result/winner, close storage files.
-  void finishRecording(GameResult result, char winnerColor);
+  // No-op if not recording.
+  void save(GameResult result, char winnerColor);
 
   // Discard current recording without finalizing.
-  void discardRecording();
+  // No-op if not recording.
+  void discard();
 
-  bool isRecording() const { return recording_; }
+  // Is a recording session currently active?
+  bool isRecording() const { return recordingActive_; }
 
   // --- State queries (persistent storage) ---
 
@@ -95,7 +125,8 @@ class ChessHistory {
   // --- Replay ---
 
   // Restore a saved game into a ChessBoard: loads the last FEN snapshot,
-  // then replays all moves after it.  Returns true on success.
+  // then replays all moves after it.  Populates the in-memory move log
+  // with cursor at the end.  Returns true on success.
   bool replayInto(ChessBoard& board);
 
   // --- Constants ---
@@ -106,13 +137,18 @@ class ChessHistory {
   // In-memory move log
   MoveEntry moves_[MAX_MOVES];
   int moveCount_;
+  int currentIndex_;  // cursor: -1 = before any move
 
   // Recording (persistent storage)
   IGameStorage* storage_;
   ILogger* logger_;
   GameHeader header_;
-  bool recording_;
+  bool recordingActive_;
+  bool headerInitialized_;   // true after first setHeader in this session
   uint8_t movesSinceFlush_;
+
+  // Encode and persist a single move to storage.
+  void persistMove(const MoveEntry& entry);
 };
 
 #endif  // CORE_CHESS_HISTORY_H

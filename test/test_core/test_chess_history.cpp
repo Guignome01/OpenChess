@@ -1,142 +1,18 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <chess_board.h>
-#include <chess_codec.h>
-#include <chess_game.h>
 #include <chess_history.h>
-#include <game_observer.h>
-#include <game_storage.h>
-#include <logger.h>
 #include <types.h>
-
-#include <cstring>
-#include <string>
-#include <vector>
 
 // Shared globals from test_core.cpp
 extern char board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
-// MockLogger — captures log messages for verification
-// ---------------------------------------------------------------------------
-
-class MockLogger : public ILogger {
- public:
-  std::vector<std::string> infos;
-  std::vector<std::string> errors;
-  void info(const char* msg) override { infos.push_back(msg); }
-  void error(const char* msg) override { errors.push_back(msg); }
-};
-
-// ---------------------------------------------------------------------------
-// MockGameStorage — in-memory storage for testing
-// ---------------------------------------------------------------------------
-
-class MockGameStorage : public IGameStorage {
- public:
-  bool initialized = false;
-  bool gameActive = false;
-  bool gameFinalized = false;
-  bool gameDiscarded = false;
-  GameHeader storedHeader;
-  std::vector<uint8_t> moveData;
-  std::vector<std::pair<size_t, std::string>> fenEntries;  // (offset, fen)
-  int headerUpdateCount = 0;
-  int deleteCount = 0;
-
-  void initialize() override {
-    initialized = true;
-  }
-  void beginGame(const GameHeader& header) override {
-    storedHeader = header;
-    gameActive = true;
-    gameFinalized = false;
-    gameDiscarded = false;
-    moveData.clear();
-    fenEntries.clear();
-    headerUpdateCount = 0;
-  }
-  void appendMoveData(const uint8_t* data, size_t len) override {
-    for (size_t i = 0; i < len; i++)
-      moveData.push_back(data[i]);
-  }
-  void updateHeader(const GameHeader& header) override {
-    storedHeader = header;
-    headerUpdateCount++;
-  }
-  size_t appendFenEntry(const std::string& fen) override {
-    size_t offset = moveData.size();
-    fenEntries.push_back({offset, fen});
-    return offset;
-  }
-  void finalizeGame(const GameHeader& header) override {
-    storedHeader = header;
-    gameFinalized = true;
-    gameActive = false;
-  }
-  void discardGame() override {
-    gameDiscarded = true;
-    gameActive = false;
-  }
-  bool hasActiveGame() override { return gameActive; }
-  bool readHeader(GameHeader& header) override {
-    if (!gameActive && !gameFinalized) return false;
-    header = storedHeader;
-    return true;
-  }
-  bool readMoveData(std::vector<uint8_t>& out) override {
-    out = moveData;
-    return true;
-  }
-  bool readFenAt(size_t offset, std::string& fen) override {
-    for (auto& entry : fenEntries) {
-      if (entry.first == offset) {
-        fen = entry.second;
-        return true;
-      }
-    }
-    return false;
-  }
-  bool deleteGame(int id) override {
-    deleteCount++;
-    return true;
-  }
-  void enforceStorageLimits() override {}
-};
-
-// ---------------------------------------------------------------------------
-// MockGameObserver — captures notifications
-// ---------------------------------------------------------------------------
-
-class MockGameObserver : public IGameObserver {
- public:
-  int callCount = 0;
-  std::string lastFen;
-  float lastEval = 0.0f;
-
-  void onBoardStateChanged(const std::string& fen, float evaluation) override {
-    callCount++;
-    lastFen = fen;
-    lastEval = evaluation;
-  }
-};
-
-// ---------------------------------------------------------------------------
 // Shared state
 // ---------------------------------------------------------------------------
 
-static MockLogger logger;
-static MockGameStorage storage;
 static ChessHistory hist;
-static ChessHistory history(&storage, &logger);
-
-static void setupRecorder() {
-  logger = MockLogger();
-  storage = MockGameStorage();
-  history = ChessHistory(&storage, &logger);
-}
 
 // ---------------------------------------------------------------------------
 // Standalone ChessHistory (move log) tests
@@ -146,29 +22,25 @@ void test_history_initial_empty(void) {
   ChessHistory h;
   TEST_ASSERT_EQUAL(0, h.moveCount());
   TEST_ASSERT_TRUE(h.empty());
+  TEST_ASSERT_FALSE(h.canUndo());
+  TEST_ASSERT_FALSE(h.canRedo());
+  TEST_ASSERT_EQUAL(-1, h.currentMoveIndex());
 }
 
 void test_history_clear(void) {
   hist = ChessHistory();
-  MoveEntry e = {};
-  e.fromRow = 6; e.fromCol = 4; e.toRow = 4; e.toCol = 4;
-  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
-  hist.addMove(e);
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
   TEST_ASSERT_EQUAL(1, hist.moveCount());
 
   hist.clear();
   TEST_ASSERT_EQUAL(0, hist.moveCount());
   TEST_ASSERT_TRUE(hist.empty());
+  TEST_ASSERT_EQUAL(-1, hist.currentMoveIndex());
 }
 
 void test_history_add_and_get_move(void) {
   hist = ChessHistory();
-  MoveEntry e = {};
-  e.fromRow = 6; e.fromCol = 4; e.toRow = 4; e.toCol = 4;
-  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
-  e.isCapture = false; e.isEnPassant = false; e.isCastling = false;
-  e.isPromotion = false; e.isCheck = false; e.epCapturedRow = -1;
-  hist.addMove(e);
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
 
   TEST_ASSERT_EQUAL(1, hist.moveCount());
   TEST_ASSERT_FALSE(hist.empty());
@@ -183,15 +55,8 @@ void test_history_add_and_get_move(void) {
 
 void test_history_last_move(void) {
   hist = ChessHistory();
-  MoveEntry e1 = {};
-  e1.fromRow = 6; e1.fromCol = 4; e1.toRow = 4; e1.toCol = 4;
-  e1.piece = 'P'; e1.captured = ' '; e1.promotion = ' ';
-  hist.addMove(e1);
-
-  MoveEntry e2 = {};
-  e2.fromRow = 1; e2.fromCol = 4; e2.toRow = 3; e2.toCol = 4;
-  e2.piece = 'p'; e2.captured = ' '; e2.promotion = ' ';
-  hist.addMove(e2);
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));
 
   TEST_ASSERT_EQUAL(2, hist.moveCount());
   const MoveEntry& last = hist.lastMove();
@@ -199,540 +64,90 @@ void test_history_last_move(void) {
   TEST_ASSERT_EQUAL('p', last.piece);
 }
 
-void test_history_pop_move(void) {
+void test_history_undo_move(void) {
   hist = ChessHistory();
-  MoveEntry e = {};
-  e.fromRow = 6; e.fromCol = 0; e.toRow = 4; e.toCol = 0;
-  e.piece = 'P'; e.captured = ' '; e.promotion = ' ';
-  hist.addMove(e);
+  hist.addMove(makeEntry(6, 0, 4, 0, 'P'));
 
-  MoveEntry popped = {};
-  TEST_ASSERT_TRUE(hist.popMove(popped));
-  TEST_ASSERT_EQUAL(6, popped.fromRow);
-  TEST_ASSERT_EQUAL('P', popped.piece);
-  TEST_ASSERT_EQUAL(0, hist.moveCount());
-  TEST_ASSERT_TRUE(hist.empty());
+  TEST_ASSERT_TRUE(hist.canUndo());
+  const MoveEntry* undone = hist.undoMove();
+  TEST_ASSERT_NOT_NULL(undone);
+  TEST_ASSERT_EQUAL(6, undone->fromRow);
+  TEST_ASSERT_EQUAL('P', undone->piece);
+  TEST_ASSERT_EQUAL(-1, hist.currentMoveIndex());
+  TEST_ASSERT_FALSE(hist.canUndo());
+  // Move is still in the log, cursor stepped back
+  TEST_ASSERT_EQUAL(1, hist.moveCount());
 }
 
-void test_history_pop_empty(void) {
+void test_history_undo_empty(void) {
   hist = ChessHistory();
-  MoveEntry popped = {};
-  TEST_ASSERT_FALSE(hist.popMove(popped));
+  const MoveEntry* result = hist.undoMove();
+  TEST_ASSERT_NULL(result);
+}
+
+void test_history_redo_after_undo(void) {
+  hist = ChessHistory();
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.undoMove();
+
+  TEST_ASSERT_TRUE(hist.canRedo());
+  const MoveEntry* redone = hist.redoMove();
+  TEST_ASSERT_NOT_NULL(redone);
+  TEST_ASSERT_EQUAL(6, redone->fromRow);
+  TEST_ASSERT_EQUAL('P', redone->piece);
+  TEST_ASSERT_EQUAL(0, hist.currentMoveIndex());
+  TEST_ASSERT_FALSE(hist.canRedo());
+}
+
+void test_history_redo_at_end(void) {
+  hist = ChessHistory();
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  // No undo — already at end
+  const MoveEntry* result = hist.redoMove();
+  TEST_ASSERT_NULL(result);
+}
+
+void test_history_undo_redo_sequence(void) {
+  hist = ChessHistory();
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));   // move 0
+  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));   // move 1
+  hist.addMove(makeEntry(6, 3, 4, 3, 'P'));   // move 2
+
+  TEST_ASSERT_EQUAL(2, hist.currentMoveIndex());
+
+  // Undo twice
+  hist.undoMove();  // cursor → 1
+  TEST_ASSERT_EQUAL(1, hist.currentMoveIndex());
+  hist.undoMove();  // cursor → 0
+  TEST_ASSERT_EQUAL(0, hist.currentMoveIndex());
+
+  // Redo once
+  hist.redoMove();  // cursor → 1
+  TEST_ASSERT_EQUAL(1, hist.currentMoveIndex());
+  TEST_ASSERT_EQUAL('p', hist.lastMove().piece);
+}
+
+void test_history_branch_wipes_future(void) {
+  hist = ChessHistory();
+  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));   // move 0
+  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));   // move 1
+
+  hist.undoMove();  // cursor → 0
+  // Add a different move — should wipe move 1
+  hist.addMove(makeEntry(1, 3, 3, 3, 'p'));   // new move 1
+  TEST_ASSERT_EQUAL(2, hist.moveCount());
+  TEST_ASSERT_EQUAL(3, hist.getMove(1).toCol);  // d5, not e5
+  TEST_ASSERT_FALSE(hist.canRedo());
 }
 
 void test_history_multiple_moves(void) {
   hist = ChessHistory();
   for (int i = 0; i < 10; i++) {
-    MoveEntry e = {};
-    e.fromRow = i % 8;
-    e.fromCol = i % 8;
-    e.toRow = (i + 1) % 8;
-    e.toCol = (i + 1) % 8;
-    e.piece = 'N';
-    e.captured = ' ';
-    e.promotion = ' ';
-    hist.addMove(e);
+    hist.addMove(makeEntry(i % 8, i % 8, (i + 1) % 8, (i + 1) % 8, 'N'));
   }
   TEST_ASSERT_EQUAL(10, hist.moveCount());
   TEST_ASSERT_EQUAL(0, hist.getMove(0).fromRow);
   TEST_ASSERT_EQUAL(1, hist.getMove(9).fromRow);  // 9 % 8 = 1
-}
-
-// ---------------------------------------------------------------------------
-// ChessHistory recording tests
-// ---------------------------------------------------------------------------
-
-void test_recorder_start_recording(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  TEST_ASSERT_TRUE(history.isRecording());
-  TEST_ASSERT_TRUE(storage.gameActive);
-  TEST_ASSERT_ENUM_EQ(GameModeId::CHESS_MOVES, storage.storedHeader.mode);
-}
-
-void test_recorder_record_move(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  history.recordMove(6, 4, 4, 4, ' ');  // e2e4
-  TEST_ASSERT_EQUAL(2, (int)storage.moveData.size());  // 2-byte encoded move
-  // Header not flushed yet (turn-based: every 2 half-moves)
-  TEST_ASSERT_EQUAL(0, storage.headerUpdateCount);
-}
-
-void test_recorder_record_fen(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  history.recordFen(fen);
-  TEST_ASSERT_EQUAL(1, (int)storage.fenEntries.size());
-  TEST_ASSERT_EQUAL_STRING(fen.c_str(), storage.fenEntries[0].second.c_str());
-  TEST_ASSERT_EQUAL_UINT8(1, storage.storedHeader.fenEntryCnt);
-}
-
-void test_recorder_finish_recording(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  history.recordMove(6, 4, 4, 4, ' ');
-  history.finishRecording(GameResult::CHECKMATE, 'w');
-  TEST_ASSERT_FALSE(history.isRecording());
-  TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, storage.storedHeader.result);
-  TEST_ASSERT_EQUAL_CHAR('w', storage.storedHeader.winnerColor);
-}
-
-void test_recorder_discard_recording(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  history.discardRecording();
-  TEST_ASSERT_FALSE(history.isRecording());
-  TEST_ASSERT_TRUE(storage.gameDiscarded);
-}
-
-void test_recorder_not_recording_noop(void) {
-  setupRecorder();
-  // recordMove and recordFen should be no-ops when not recording
-  history.recordMove(6, 4, 4, 4, ' ');
-  history.recordFen("some fen");
-  TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
-  TEST_ASSERT_EQUAL(0, (int)storage.fenEntries.size());
-}
-
-void test_recorder_has_active_game(void) {
-  setupRecorder();
-  TEST_ASSERT_FALSE(history.hasActiveGame());
-  history.startRecording(GameModeId::BOT, 'w', 5);
-  TEST_ASSERT_TRUE(history.hasActiveGame());
-}
-
-void test_recorder_get_active_game_info(void) {
-  setupRecorder();
-  storage.gameActive = true;
-  storage.storedHeader.version = FORMAT_VERSION;
-  storage.storedHeader.mode = GameModeId::BOT;
-  storage.storedHeader.playerColor = 'b';
-  storage.storedHeader.botDepth = 3;
-
-  ChessHistory histWithLive(&storage, &logger);
-  GameModeId mode;
-  uint8_t color, depth;
-  TEST_ASSERT_TRUE(histWithLive.getActiveGameInfo(mode, color, depth));
-  TEST_ASSERT_ENUM_EQ(GameModeId::BOT, mode);
-  TEST_ASSERT_EQUAL_CHAR('b', (char)color);
-  TEST_ASSERT_EQUAL_UINT8(3, depth);
-}
-
-void test_recorder_replay_into_board(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record initial FEN
-  std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-  history.recordFen(initialFen);
-  // Record e2e4
-  history.recordMove(6, 4, 4, 4, ' ');
-  // Record d7d5
-  history.recordMove(1, 3, 3, 3, ' ');
-
-  // Now replay into a fresh ChessBoard
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_TRUE(ok);
-
-  // Board should have e4 and d5 played
-  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));
-  TEST_ASSERT_EQUAL_CHAR('p', board.getSquare(3, 3));
-  TEST_ASSERT_EQUAL_CHAR('w', board.currentTurn());
-}
-
-void test_recorder_turn_based_header_flush(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  int initial = storage.headerUpdateCount;
-
-  history.recordMove(6, 4, 4, 4, ' ');  // e2e4 (1st half-move)
-  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);  // Not flushed
-
-  history.recordMove(1, 4, 3, 4, ' ');  // e7e5 (2nd half-move)
-  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // Flushed!
-  TEST_ASSERT_EQUAL_UINT16(2, storage.storedHeader.moveCount);
-}
-
-void test_recorder_fen_always_flushes_header(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  int initial = storage.headerUpdateCount;
-
-  history.recordMove(6, 4, 4, 4, ' ');  // 1 move, no flush
-  TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);
-
-  history.recordFen("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-  TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // FEN always flushes
-}
-
-void test_recorder_replay_rejects_invalid_move(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record initial FEN
-  std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-  history.recordFen(initialFen);
-
-  // Record valid e2e4
-  history.recordMove(6, 4, 4, 4, ' ');
-
-  // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
-  uint16_t illegal = ChessCodec::encodeMove(6, 3, 4, 3, ' ');
-  storage.moveData.push_back(illegal & 0xFF);
-  storage.moveData.push_back((illegal >> 8) & 0xFF);
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);  // Replay should fail on the illegal move
-}
-
-void test_recorder_start_recording_lichess_mode(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::LICHESS, 'w', 0);
-  TEST_ASSERT_TRUE(history.isRecording());
-  TEST_ASSERT_ENUM_EQ(GameModeId::LICHESS, storage.storedHeader.mode);
-}
-
-void test_recorder_start_recording_while_active(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-  history.recordMove(6, 4, 4, 4, ' ');  // record a move
-  TEST_ASSERT_TRUE(history.isRecording());
-
-  // Start again — previous game should be discarded
-  history.startRecording(GameModeId::BOT, 'w', 5);
-  TEST_ASSERT_TRUE(history.isRecording());
-  TEST_ASSERT_ENUM_EQ(GameModeId::BOT, storage.storedHeader.mode);
-  TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
-  // Move data should be cleared (new game)
-  TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
-}
-
-void test_recorder_finish_not_recording(void) {
-  setupRecorder();
-  // finishRecording when not recording should be a safe no-op
-  history.finishRecording(GameResult::CHECKMATE, 'w');
-  TEST_ASSERT_FALSE(history.isRecording());
-  TEST_ASSERT_FALSE(storage.gameFinalized);
-}
-
-void test_recorder_discard_not_recording(void) {
-  setupRecorder();
-  // discardRecording when not recording should not crash
-  history.discardRecording();
-  TEST_ASSERT_FALSE(history.isRecording());
-}
-
-void test_recorder_replay_wrong_version(void) {
-  setupRecorder();
-  // Manually set up storage with a bad version header
-  storage.gameActive = true;
-  storage.storedHeader.version = 99;
-  storage.storedHeader.fenEntryCnt = 1;
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_no_fen_entry(void) {
-  setupRecorder();
-  // Header has version=1 but fenEntryCnt=0
-  storage.gameActive = true;
-  storage.storedHeader.version = FORMAT_VERSION;
-  storage.storedHeader.fenEntryCnt = 0;
-
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_null_storage(void) {
-  // ChessHistory with null storage — replayInto should return false
-  ChessHistory nullHist(nullptr, &logger);
-  ChessBoard board;
-  board.newGame();
-  bool ok = nullHist.replayInto(board);
-  TEST_ASSERT_FALSE(ok);
-}
-
-void test_recorder_replay_empty_after_fen(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record only an initial FEN and no moves
-  std::string initialFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  history.recordFen(initialFen);
-
-  // Replay — should load FEN with no moves to replay
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', board.currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));  // e4 has white pawn
-}
-
-void test_recorder_replay_with_promotion(void) {
-  setupRecorder();
-  history.startRecording(GameModeId::CHESS_MOVES, '?', 0);
-
-  // Record a position where white can promote
-  std::string fen = "8/4P3/8/8/8/8/8/4K2k w - - 0 1";
-  history.recordFen(fen);
-  history.recordMove(1, 4, 0, 4, 'q');  // e7-e8=Q
-
-  // Replay and verify promotion
-  ChessBoard board;
-  board.newGame();
-  bool ok = history.replayInto(board);
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('Q', board.getSquare(0, 4));  // Queen on e8
-}
-
-// ---------------------------------------------------------------------------
-// ChessGame recording integration tests
-// ---------------------------------------------------------------------------
-
-static MockGameObserver observer;
-static ChessGame* ctrl = nullptr;
-
-static void setupController() {
-  logger = MockLogger();
-  storage = MockGameStorage();
-  observer = MockGameObserver();
-  delete ctrl;
-  ctrl = new ChessGame(&storage, &observer, &logger);
-}
-
-static void teardownController() {
-  delete ctrl;
-  ctrl = nullptr;
-}
-
-void test_controller_new_game(void) {
-  setupController();
-  ctrl->newGame();
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
-  // Observer should have been notified
-  TEST_ASSERT_TRUE(observer.callCount > 0);
-  teardownController();
-}
-
-void test_controller_make_move(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-  observer.callCount = 0;
-
-  MoveResult r = ctrl->makeMove(6, 4, 4, 4);  // e2e4
-  // startRecording auto-records initial FEN (2-byte marker) + move (2 bytes) = 4
-  TEST_ASSERT_EQUAL(4, (int)storage.moveData.size());
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->currentTurn());
-
-  // Observer notified
-  TEST_ASSERT_TRUE(observer.callCount > 0);
-
-  // FEN marker flushed the header (moveCount=1), but the single move hasn't
-  // triggered a turn-based flush yet (flushes every 2 half-moves)
-  TEST_ASSERT_EQUAL_UINT16(1, storage.storedHeader.moveCount);
-  teardownController();
-}
-
-void test_controller_make_move_auto_finish(void) {
-  setupController();
-  // Set up a scholars mate position
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-
-  // Scholar's mate sequence
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
-  ctrl->makeMove(7, 5, 4, 2);  // Bf1-c4
-  ctrl->makeMove(1, 0, 2, 0);  // a7-a6
-  ctrl->makeMove(7, 3, 3, 7);  // Qd1-h5
-  ctrl->makeMove(1, 1, 2, 1);  // b7-b6
-  MoveResult r = ctrl->makeMove(3, 7, 1, 5);  // Qh5xf7 checkmate
-
-  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
-
-  // Recording should have been auto-finalized
-  TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, storage.storedHeader.result);
-  teardownController();
-}
-
-void test_controller_end_game(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-
-  ctrl->endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
-
-  // Recording finalized
-  TEST_ASSERT_TRUE(storage.gameFinalized);
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, storage.storedHeader.result);
-  TEST_ASSERT_EQUAL_CHAR('b', storage.storedHeader.winnerColor);
-  teardownController();
-}
-
-void test_controller_load_fen(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-  observer.callCount = 0;
-
-  std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  bool ok = ctrl->loadFEN(fen);
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->currentTurn());
-
-  // Observer notified
-  TEST_ASSERT_TRUE(observer.callCount > 0);
-
-  // FEN recorded (1 from startRecording + 1 from loadFEN)
-  TEST_ASSERT_EQUAL(2, (int)storage.fenEntries.size());
-  teardownController();
-}
-
-void test_controller_no_recorder(void) {
-  // ChessGame with nullptr storage — mutations still work, no recording
-  observer = MockGameObserver();
-  ChessGame noRec(nullptr, &observer);
-  noRec.newGame();
-  MoveResult r = noRec.makeMove(6, 4, 4, 4);
-  TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_TRUE(observer.callCount > 0);
-}
-
-void test_controller_no_observer(void) {
-  // ChessGame with nullptr observer — mutations still work, no notification
-  logger = MockLogger();
-  storage = MockGameStorage();
-  ChessGame noObs(&storage, nullptr, &logger);
-  noObs.newGame();
-  noObs.startRecording(GameModeId::CHESS_MOVES);
-  MoveResult r = noObs.makeMove(6, 4, 4, 4);
-  TEST_ASSERT_TRUE(r.valid);
-  // startRecording FEN marker (2 bytes) + move (2 bytes) = 4
-  TEST_ASSERT_EQUAL(4, (int)storage.moveData.size());
-}
-
-void test_controller_discard_recording(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-  ctrl->makeMove(6, 4, 4, 4);
-
-  ctrl->discardRecording();
-  TEST_ASSERT_TRUE(storage.gameDiscarded);
-  teardownController();
-}
-
-void test_controller_pass_throughs(void) {
-  setupController();
-  ctrl->newGame();
-
-  // Verify pass-through methods return correct values
-  TEST_ASSERT_EQUAL_CHAR('R', ctrl->getSquare(7, 0));
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, ctrl->gameResult());
-
-  std::string fen = ctrl->getFen();
-  TEST_ASSERT_EQUAL_STRING(
-      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      fen.c_str());
-  teardownController();
-}
-
-void test_controller_end_game_idempotent(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-
-  ctrl->endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
-
-  observer.callCount = 0;
-
-  // Second endGame should be a no-op (guard prevents overwrite)
-  ctrl->endGame(GameResult::TIMEOUT, 'w');
-  TEST_ASSERT_EQUAL(0, observer.callCount);
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, ctrl->gameResult());
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->winnerColor());
-  teardownController();
-}
-
-void test_controller_start_new_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::BOT, 'w', 5);
-
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
-
-  // Should have both started recording and initialized board
-  TEST_ASSERT_TRUE(storage.gameActive);
-  TEST_ASSERT_ENUM_EQ(GameModeId::BOT, storage.storedHeader.mode);
-  TEST_ASSERT_EQUAL_CHAR('w', storage.storedHeader.playerColor);
-  TEST_ASSERT_EQUAL_UINT8(5, storage.storedHeader.botDepth);
-
-  // Initial FEN should have been recorded
-  TEST_ASSERT_EQUAL(1, (int)storage.fenEntries.size());
-  teardownController();
-}
-
-void test_controller_resume_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
-
-  // Now create a new controller and resume from storage
-  observer = MockGameObserver();
-  ChessGame* ctrl2 = new ChessGame(&storage, &observer, &logger);
-  bool ok = ctrl2->resumeGame();
-  TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl2->currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', ctrl2->getSquare(4, 4));  // e4
-  TEST_ASSERT_EQUAL_CHAR('p', ctrl2->getSquare(3, 4));  // e5
-  TEST_ASSERT_TRUE(observer.callCount > 0);  // Observer notified
-  delete ctrl2;
-  teardownController();
-}
-
-void test_controller_make_move_records_promotion(void) {
-  setupController();
-  ctrl->newGame();
-  ctrl->startRecording(GameModeId::CHESS_MOVES);
-  ctrl->loadFEN("8/4P3/8/8/8/8/8/4K2k w - - 0 1");
-
-  MoveResult r = ctrl->makeMove(1, 4, 0, 4);  // e7-e8=Q (auto-queen)
-  TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
-
-  // Verify the correct promotion type was recorded (compact encoding stores lowercase)
-  // moveData: FEN_MARKER(2) + FEN_MARKER(2, from loadFEN) + move(2) = 6 bytes
-  TEST_ASSERT_TRUE(storage.moveData.size() >= 6);
-  uint16_t lastEntry;
-  memcpy(&lastEntry, &storage.moveData[storage.moveData.size() - 2], 2);
-  int fr, fc, tr, tc;
-  char promo;
-  ChessCodec::decodeMove(lastEntry, fr, fc, tr, tc, promo);
-  TEST_ASSERT_EQUAL_CHAR('q', promo);  // compact encoding normalizes to lowercase
-  teardownController();
 }
 
 // ---------------------------------------------------------------------------
@@ -742,50 +157,16 @@ void test_controller_make_move_records_promotion(void) {
 void register_chess_history_tests() {
   needsDefaultKings = false;
 
-  // Standalone ChessHistory (move log)
+  // Standalone ChessHistory (move log + undo/redo)
   RUN_TEST(test_history_initial_empty);
   RUN_TEST(test_history_clear);
   RUN_TEST(test_history_add_and_get_move);
   RUN_TEST(test_history_last_move);
-  RUN_TEST(test_history_pop_move);
-  RUN_TEST(test_history_pop_empty);
+  RUN_TEST(test_history_undo_move);
+  RUN_TEST(test_history_undo_empty);
+  RUN_TEST(test_history_redo_after_undo);
+  RUN_TEST(test_history_redo_at_end);
+  RUN_TEST(test_history_undo_redo_sequence);
+  RUN_TEST(test_history_branch_wipes_future);
   RUN_TEST(test_history_multiple_moves);
-
-  // ChessHistory recording
-  RUN_TEST(test_recorder_start_recording);
-  RUN_TEST(test_recorder_record_move);
-  RUN_TEST(test_recorder_record_fen);
-  RUN_TEST(test_recorder_finish_recording);
-  RUN_TEST(test_recorder_discard_recording);
-  RUN_TEST(test_recorder_not_recording_noop);
-  RUN_TEST(test_recorder_has_active_game);
-  RUN_TEST(test_recorder_get_active_game_info);
-  RUN_TEST(test_recorder_replay_into_board);
-  RUN_TEST(test_recorder_turn_based_header_flush);
-  RUN_TEST(test_recorder_fen_always_flushes_header);
-  RUN_TEST(test_recorder_replay_rejects_invalid_move);
-  RUN_TEST(test_recorder_start_recording_lichess_mode);
-  RUN_TEST(test_recorder_start_recording_while_active);
-  RUN_TEST(test_recorder_finish_not_recording);
-  RUN_TEST(test_recorder_discard_not_recording);
-  RUN_TEST(test_recorder_replay_wrong_version);
-  RUN_TEST(test_recorder_replay_no_fen_entry);
-  RUN_TEST(test_recorder_replay_null_storage);
-  RUN_TEST(test_recorder_replay_empty_after_fen);
-  RUN_TEST(test_recorder_replay_with_promotion);
-
-  // ChessGame recording integration
-  RUN_TEST(test_controller_new_game);
-  RUN_TEST(test_controller_make_move);
-  RUN_TEST(test_controller_make_move_auto_finish);
-  RUN_TEST(test_controller_end_game);
-  RUN_TEST(test_controller_load_fen);
-  RUN_TEST(test_controller_no_recorder);
-  RUN_TEST(test_controller_no_observer);
-  RUN_TEST(test_controller_discard_recording);
-  RUN_TEST(test_controller_pass_throughs);
-  RUN_TEST(test_controller_end_game_idempotent);
-  RUN_TEST(test_controller_start_new_game);
-  RUN_TEST(test_controller_resume_game);
-  RUN_TEST(test_controller_make_move_records_promotion);
 }

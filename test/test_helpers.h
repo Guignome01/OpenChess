@@ -55,6 +55,19 @@ inline void sq(const char* s, int& row, int& col) {
   row = 8 - (s[1] - '0');
 }
 
+/// Build a MoveEntry for common test moves.
+inline MoveEntry makeEntry(int fr, int fc, int tr, int tc, char piece,
+                           char captured = ' ', char promo = ' ') {
+  MoveEntry e = {};
+  e.fromRow = fr; e.fromCol = fc; e.toRow = tr; e.toCol = tc;
+  e.piece = piece; e.captured = captured; e.promotion = promo;
+  e.isCapture = (captured != ' ');
+  e.isEnPassant = false; e.epCapturedRow = -1;
+  e.isCastling = false; e.isPromotion = (promo != ' ');
+  e.isCheck = false;
+  return e;
+}
+
 /// Compare two enum class values via their underlying integer representation.
 /// Provides clear failure messages with numeric values (e.g., "Expected 1 Was 0").
 #define TEST_ASSERT_ENUM_EQ(expected, actual) \

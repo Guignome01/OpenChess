@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "chess_history.h"
 #include "chess_rules.h"
 
 const char ChessBoard::INITIAL_BOARD[8][8] = {
@@ -148,6 +149,60 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
 
   invalidateCache();
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Undo / Redo
+// ---------------------------------------------------------------------------
+
+void ChessBoard::reverseMove(const MoveEntry& entry) {
+  // Restore the piece to its original square (before promotion)
+  board_[entry.fromRow][entry.fromCol] = entry.piece;
+
+  // Clear destination
+  board_[entry.toRow][entry.toCol] = ' ';
+
+  // Restore captured piece
+  if (entry.isEnPassant) {
+    // En passant: captured pawn was on epCapturedRow, same col as destination
+    board_[entry.epCapturedRow][entry.toCol] = entry.captured;
+  } else if (entry.isCapture) {
+    board_[entry.toRow][entry.toCol] = entry.captured;
+  }
+
+  // Reverse castling rook move
+  if (entry.isCastling) {
+    auto castle = ChessUtils::checkCastling(entry.fromRow, entry.fromCol,
+                                             entry.toRow, entry.toCol, entry.piece);
+    if (castle.isCastling) {
+      // Move rook back: it's currently at rookToCol, restore to rookFromCol
+      char rook = board_[entry.toRow][castle.rookToCol];
+      board_[entry.toRow][castle.rookFromCol] = rook;
+      board_[entry.toRow][castle.rookToCol] = ' ';
+    }
+  }
+
+  // Restore position state from before the move
+  state_ = entry.prevState;
+
+  // Switch turn back
+  currentTurn_ = ChessUtils::getPieceColor(entry.piece);
+
+  // Pop last Zobrist position
+  if (positionHistoryCount_ > 0)
+    positionHistoryCount_--;
+
+  // Clear game-over state (undoing means game is back in play)
+  gameOver_ = false;
+  gameResult_ = GameResult::IN_PROGRESS;
+  winnerColor_ = ' ';
+
+  invalidateCache();
+}
+
+MoveResult ChessBoard::applyMoveEntry(const MoveEntry& entry) {
+  return makeMove(entry.fromRow, entry.fromCol, entry.toRow, entry.toCol,
+                  entry.isPromotion ? entry.promotion : ' ');
 }
 
 // ---------------------------------------------------------------------------

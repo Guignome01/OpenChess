@@ -27,6 +27,7 @@ void register_chess_utils_tests();
 void register_chess_codec_tests();
 void register_chess_board_tests();
 void register_chess_history_tests();
+void register_chess_history_recording_tests();
 void register_chess_game_tests();
 
 int main(int argc, char** argv) {
@@ -38,6 +39,7 @@ int main(int argc, char** argv) {
   register_chess_codec_tests();
   register_chess_board_tests();
   register_chess_history_tests();
+  register_chess_history_recording_tests();
   register_chess_game_tests();
   return UNITY_END();
 }

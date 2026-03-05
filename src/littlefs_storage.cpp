@@ -44,6 +44,29 @@ void LittleFSStorage::appendMoveData(const uint8_t* data, size_t length) {
   }
 }
 
+void LittleFSStorage::truncateMoveData(size_t byteOffset) {
+  File f = LittleFS.open(LIVE_MOVES_PATH, "r");
+  if (!f || f.size() < sizeof(GameHeader)) return;
+
+  size_t keepSize = sizeof(GameHeader) + byteOffset;
+  if (keepSize >= f.size()) {
+    f.close();
+    return;  // Nothing to truncate
+  }
+
+  // Read the portion we want to keep
+  std::vector<uint8_t> buf(keepSize);
+  f.read(buf.data(), keepSize);
+  f.close();
+
+  // Rewrite the file with only the kept portion
+  File fw = LittleFS.open(LIVE_MOVES_PATH, "w");
+  if (fw) {
+    fw.write(buf.data(), keepSize);
+    fw.close();
+  }
+}
+
 void LittleFSStorage::updateHeader(const GameHeader& header) {
   File f = LittleFS.open(LIVE_MOVES_PATH, "r+");
   if (f) {

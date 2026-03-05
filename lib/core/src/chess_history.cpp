@@ -9,31 +9,57 @@
 
 ChessHistory::ChessHistory(IGameStorage* storage, ILogger* logger)
     : moveCount_(0),
+      currentIndex_(-1),
       storage_(storage),
       logger_(logger),
-      recording_(false),
+      recordingActive_(false),
+      headerInitialized_(false),
       movesSinceFlush_(0) {
   memset(&header_, 0, sizeof(header_));
 }
 
 void ChessHistory::clear() {
   moveCount_ = 0;
+  currentIndex_ = -1;
 }
 
 // ---------------------------------------------------------------------------
-// Move log
+// Move log with undo/redo
 // ---------------------------------------------------------------------------
 
 void ChessHistory::addMove(const MoveEntry& entry) {
-  if (moveCount_ < MAX_MOVES) {
-    moves_[moveCount_++] = entry;
+  if (currentIndex_ + 1 >= MAX_MOVES) return;
+
+  // Branch point: if cursor is not at the end, wipe future moves
+  if (currentIndex_ < moveCount_ - 1) {
+    int newCount = currentIndex_ + 1;
+    // Truncate recording to match
+    if (recordingActive_ && storage_) {
+      storage_->truncateMoveData(newCount * 2);
+      header_.moveCount = static_cast<uint16_t>(newCount);
+      storage_->updateHeader(header_);
+      movesSinceFlush_ = 0;
+    }
+    moveCount_ = newCount;
   }
+
+  moves_[moveCount_] = entry;
+  moveCount_++;
+  currentIndex_ = moveCount_ - 1;
+
+  // Persist to storage if recording is active
+  if (recordingActive_ && storage_)
+    persistMove(entry);
 }
 
-bool ChessHistory::popMove(MoveEntry& entry) {
-  if (moveCount_ <= 0) return false;
-  entry = moves_[--moveCount_];
-  return true;
+const MoveEntry* ChessHistory::undoMove() {
+  if (currentIndex_ < 0) return nullptr;
+  return &moves_[currentIndex_--];
+}
+
+const MoveEntry* ChessHistory::redoMove() {
+  if (currentIndex_ >= moveCount_ - 1) return nullptr;
+  return &moves_[++currentIndex_];
 }
 
 const MoveEntry& ChessHistory::getMove(int index) const {
@@ -41,52 +67,31 @@ const MoveEntry& ChessHistory::getMove(int index) const {
 }
 
 const MoveEntry& ChessHistory::lastMove() const {
-  return moves_[moveCount_ - 1];
+  return moves_[currentIndex_];
 }
 
 // ---------------------------------------------------------------------------
-// Recording lifecycle (persistent storage)
+// Recording (persistent storage)
 // ---------------------------------------------------------------------------
 
-void ChessHistory::startRecording(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
+void ChessHistory::setHeader(const GameHeader& header) {
   if (!storage_) return;
 
-  // Discard any leftover live game
-  discardRecording();
+  // If already recording, discard previous game
+  if (recordingActive_)
+    storage_->discardGame();
 
-  memset(&header_, 0, sizeof(header_));
-  header_.version = FORMAT_VERSION;
-  header_.mode = mode;
-  header_.result = GameResult::IN_PROGRESS;
-  header_.winnerColor = '?';
-  header_.playerColor = playerColor;
-  header_.botDepth = botDepth;
-  // Timestamp is set by the storage layer (firmware has NTP access)
-
+  header_ = header;
   storage_->beginGame(header_);
-  recording_ = true;
+  recordingActive_ = true;
+  headerInitialized_ = true;
   movesSinceFlush_ = 0;
 
   if (logger_) logger_->info("ChessHistory: new recording started");
 }
 
-void ChessHistory::recordMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  if (!storage_ || !recording_) return;
-
-  uint16_t encoded = ChessCodec::encodeMove(fromRow, fromCol, toRow, toCol, promotion);
-  storage_->appendMoveData(reinterpret_cast<const uint8_t*>(&encoded), 2);
-  header_.moveCount++;
-  movesSinceFlush_++;
-
-  // Flush header every full turn (2 half-moves) to reduce flash wear
-  if (movesSinceFlush_ >= 2) {
-    storage_->updateHeader(header_);
-    movesSinceFlush_ = 0;
-  }
-}
-
-void ChessHistory::recordFen(const std::string& fen) {
-  if (!storage_ || !recording_) return;
+void ChessHistory::snapshotPosition(const std::string& fen) {
+  if (!storage_ || !recordingActive_) return;
 
   // Write FEN_MARKER to the move stream
   uint16_t marker = FEN_MARKER;
@@ -101,10 +106,11 @@ void ChessHistory::recordFen(const std::string& fen) {
   movesSinceFlush_ = 0;
 }
 
-void ChessHistory::finishRecording(GameResult result, char winnerColor) {
-  if (!storage_ || !recording_) return;
+void ChessHistory::save(GameResult result, char winnerColor) {
+  if (!storage_ || !recordingActive_) return;
 
-  recording_ = false;
+  recordingActive_ = false;
+  headerInitialized_ = false;
   header_.result = result;
   header_.winnerColor = winnerColor;
 
@@ -112,11 +118,12 @@ void ChessHistory::finishRecording(GameResult result, char winnerColor) {
   storage_->enforceStorageLimits();
 
   if (logger_)
-    logger_->infof("ChessHistory: recording finished (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
+    logger_->infof("ChessHistory: recording saved (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
 }
 
-void ChessHistory::discardRecording() {
-  recording_ = false;
+void ChessHistory::discard() {
+  recordingActive_ = false;
+  headerInitialized_ = false;
   if (storage_) storage_->discardGame();
 }
 
@@ -197,26 +204,85 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     return false;
   }
 
+  // Clear and repopulate in-memory move log during replay
+  clear();
+
   int replayed = 0;
   for (int i = lastFenIdx + 1; i < static_cast<int>(entryCount); i++) {
     if (moves[i] == FEN_MARKER) continue;  // skip intermediate FEN markers
     int fromRow, fromCol, toRow, toCol;
     char promotion;
     ChessCodec::decodeMove(moves[i], fromRow, fromCol, toRow, toCol, promotion);
+
+    // Capture pre-move state for the MoveEntry
+    char piece = board.getSquare(fromRow, fromCol);
+    char targetPiece = board.getSquare(toRow, toCol);
+    PositionState prevState = board.positionState();
+
     MoveResult moveResult = board.makeMove(fromRow, fromCol, toRow, toCol, promotion);
     if (!moveResult.valid) {
       if (logger_) logger_->errorf("ChessHistory: invalid move at entry %d during replay", i);
       return false;
     }
+
+    // Build MoveEntry and add to in-memory log (but don't persist — it's already on disk)
+    char captured = ' ';
+    if (moveResult.isEnPassant)
+      captured = (piece >= 'A' && piece <= 'Z') ? 'p' : 'P';
+    else if (moveResult.isCapture)
+      captured = targetPiece;
+
+    MoveEntry entry;
+    entry.fromRow = fromRow;
+    entry.fromCol = fromCol;
+    entry.toRow = toRow;
+    entry.toCol = toCol;
+    entry.piece = piece;
+    entry.captured = captured;
+    entry.promotion = moveResult.isPromotion ? moveResult.promotedTo : ' ';
+    entry.isCapture = moveResult.isCapture;
+    entry.isEnPassant = moveResult.isEnPassant;
+    entry.epCapturedRow = moveResult.epCapturedRow;
+    entry.isCastling = moveResult.isCastling;
+    entry.isPromotion = moveResult.isPromotion;
+    entry.isCheck = moveResult.isCheck;
+    entry.prevState = prevState;
+
+    // Add to in-memory log only (bypass persistMove by direct insertion)
+    if (moveCount_ < MAX_MOVES) {
+      moves_[moveCount_++] = entry;
+      currentIndex_ = moveCount_ - 1;
+    }
+
     replayed++;
   }
 
   // Restore header for continued recording
   header_ = hdr;
-  recording_ = true;
+  recordingActive_ = true;
+  headerInitialized_ = true;
 
   if (logger_)
     logger_->infof("ChessHistory: replayed %d moves from last FEN marker, game resumed", replayed);
 
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Internal: persist a single move to storage
+// ---------------------------------------------------------------------------
+
+void ChessHistory::persistMove(const MoveEntry& entry) {
+  char promo = entry.isPromotion ? entry.promotion : ' ';
+  uint16_t encoded = ChessCodec::encodeMove(entry.fromRow, entry.fromCol,
+                                             entry.toRow, entry.toCol, promo);
+  storage_->appendMoveData(reinterpret_cast<const uint8_t*>(&encoded), 2);
+  header_.moveCount++;
+  movesSinceFlush_++;
+
+  // Flush header every full turn (2 half-moves) to reduce flash wear
+  if (movesSinceFlush_ >= 2) {
+    storage_->updateHeader(header_);
+    movesSinceFlush_ = 0;
+  }
 }

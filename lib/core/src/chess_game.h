@@ -19,6 +19,10 @@
 // All end-condition detection (including threefold repetition) is handled
 // uniformly inside ChessBoard::detectGameEnd().
 //
+// Recording is automatic: if IGameStorage is provided, ChessGame calls
+// history_.setHeader() / history_.save() at game lifecycle boundaries,
+// and history_.addMove() transparently persists each move.
+//
 // Usage:
 //   ChessGame game;
 //   game.newGame();
@@ -42,13 +46,11 @@ class ChessGame {
 
   void newGame();
 
-  // Start a new game and begin recording.  Resets the board, then starts recording.
+  // Start a new game and begin recording.  Resets the board, sets up recording
+  // header, and snapshots the initial position.
   void startNewGame(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
 
-  // Start recording (delegates to ChessHistory + auto-snapshots initial FEN).
-  void startRecording(GameModeId mode, uint8_t playerColor = '?', uint8_t botDepth = 0);
-
-  // End the game — finishes recording (if active) and sets board game-over state.
+  // End the game — saves recording (if active) and sets board game-over state.
   void endGame(GameResult result, char winnerColor);
 
   // Discard current recording without finalizing.
@@ -57,16 +59,29 @@ class ChessGame {
   // --- Mutations ---
 
   // Validate and execute a move.  Atomically: applies to board (which detects all
-  // end conditions including threefold repetition), records in history,
-  // auto-finishes recording on game-end, fires callback, and notifies observer.
+  // end conditions including threefold repetition), records in history (persists
+  // automatically if recording), auto-saves on game-end, fires callback, and
+  // notifies observer.
   MoveResult makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
   // Parse a UCI move string (e.g. "e2e4", "e7e8q") and execute it.
   // Returns invalid MoveResult if the UCI string cannot be parsed.
   MoveResult makeMove(const std::string& uci);
 
-  // Load arbitrary position from FEN.  Records FEN if recording, notifies observer.
+  // Load arbitrary position from FEN.  Snapshots FEN if recording, notifies observer.
   bool loadFEN(const std::string& fen);
+
+  // --- Undo / Redo ---
+
+  // Undo the last move.  Returns true if successful, false if nothing to undo.
+  bool undoMove();
+
+  // Redo a previously undone move.  Returns true if successful, false if nothing to redo.
+  bool redoMove();
+
+  // Can undo / redo?
+  bool canUndo() const { return history_.canUndo(); }
+  bool canRedo() const { return history_.canRedo(); }
 
   // --- UCI helpers ---
 
