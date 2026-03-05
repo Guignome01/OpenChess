@@ -10,7 +10,6 @@
 namespace ChessUtils {
 
 // Inline helper functions for chess logic.
-// No Arduino dependencies — safe for native compilation.
 
 inline char getPieceColor(char piece) {
   if (piece >= 'a' && piece <= 'z') return 'b';
@@ -172,20 +171,6 @@ inline uint8_t updateCastlingRights(uint8_t rights, int fromRow, int fromCol, in
 
   return rights;
 }
-
-// Convert board state to FEN notation
-// board: 8x8 array representing the chess board
-// currentTurn: 'w' for White's turn, 'b' for Black's turn
-// state: PositionState pointer to get castling rights, en passant, and clocks
-// Returns: FEN string representation
-std::string boardToFEN(const char board[8][8], char currentTurn, const PositionState* state = nullptr);
-
-// Parse FEN notation and update board state
-// fen: FEN string to parse
-// board: 8x8 array to update with parsed position
-// currentTurn: output parameter for whose turn it is - 'w' or 'b' (optional)
-// state: PositionState pointer to set castling rights, en passant, and clocks
-void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, PositionState* state = nullptr);
 
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)

@@ -76,7 +76,7 @@ void test_back_rank_mate(void) {
 void test_scholars_mate(void) {
   // Scholar's mate position: White queen on f7 delivers checkmate
   PositionState state;
-  ChessUtils::fenToBoard("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR", board, *(new char('b')), &state);
+  ChessFEN::fenToBoard("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR", board, *(new char('b')), &state);
   TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', state));
 }
 

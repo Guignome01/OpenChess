@@ -2,6 +2,7 @@
 #define TEST_HELPERS_H
 
 #include <chess_utils.h>
+#include <chess_fen.h>
 #include <chess_rules.h>
 #include <chess_notation.h>
 #include <chess_board.h>

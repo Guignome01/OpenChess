@@ -114,7 +114,7 @@ Notation convenience methods: `makeMove(const std::string& move)` parses a coord
 
 ### ChessUtils & SystemUtils
 
-`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing helper functions for chess logic: FEN ↔ board conversion, piece color detection, material evaluation, and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`, `opponentColor`, `squareName`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
+`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing helper functions for chess logic: piece color detection, material evaluation, and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`, `opponentColor`, `squareName`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessFEN` (in `lib/core/`, `chess_fen.h/cpp`) centralizes all FEN string handling: `boardToFEN()` (board array → FEN string), `fenToBoard()` (FEN string → board array + state), and `validateFEN()` (format validation). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
 
 `SystemUtils` (in `src/`) contains the Arduino/ESP32-dependent functions that were separated from the core library: `colorLed()` (piece char → LED color), `printBoard()` (Serial debug output), and `ensureNvsInitialized()` (Arduino Preferences guard). These are not available in native tests.
 
@@ -544,7 +544,6 @@ The `data/` directory is committed to git so users without npm tools can still b
 ## Utilities
 
 **`ChessUtils`** (`chess_utils.h/cpp`) — namespace with helper functions:
-- `boardToFEN(board, turn, state)` / `fenToBoard(fen, board, turn, state)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks) via `PositionState*`
 - `getPieceColor(piece)` — returns `'w'` or `'b'`
 - `isWhitePiece()`, `isBlackPiece()` — piece color checks
 - `isEnPassantMove()`, `getEnPassantCapturedPawnRow()`, `isCastlingMove()` — special move detection
@@ -553,5 +552,10 @@ The `data/` directory is committed to git so users without npm tools can still b
 - `colorName()` — `'w'`→`"White"`, `'b'`→`"Black"`
 - `opponentColor()` — `'w'`→`'b'`, `'b'`→`'w'`
 - `squareName(row, col)` — returns algebraic notation string (e.g. `"e4"`)
+- `fileChar()`, `rankChar()`, `fileIndex()`, `rankIndex()` — coordinate helpers
+
+**`ChessFEN`** (`chess_fen.h/cpp`) — namespace with FEN string handling:
+- `boardToFEN(board, turn, state)` / `fenToBoard(fen, board, turn, state)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks) via `PositionState*`
+- `validateFEN(fen)` — format validation: rank structure, piece chars, turn, castling, en passant, clocks
 
 **`grid_scan_test.cpp`** — standalone hardware debugging utility at the repo root (not compiled in normal builds). Tests shift register column scanning and row GPIO reads. Useful for verifying sensor wiring before running the full firmware.

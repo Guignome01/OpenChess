@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "chess_fen.h"
 #include "chess_history.h"
 #include "chess_rules.h"
 
@@ -47,45 +48,9 @@ void ChessBoard::newGame() {
 }
 
 bool ChessBoard::loadFEN(const std::string& fen) {
-  // --- Basic FEN validation ---
-  if (fen.empty()) return false;
+  if (!ChessFEN::validateFEN(fen)) return false;
 
-  // Extract board part (before first space)
-  size_t spacePos = fen.find(' ');
-  std::string boardPart = (spacePos != std::string::npos) ? fen.substr(0, spacePos) : fen;
-
-  // Must have exactly 7 '/' separators (8 ranks)
-  int slashCount = 0;
-  for (char c : boardPart) {
-    if (c == '/') slashCount++;
-  }
-  if (slashCount != 7) return false;
-
-  // Validate each rank sums to 8 and contains only valid characters
-  int col = 0;
-  for (char c : boardPart) {
-    if (c == '/') {
-      if (col != 8) return false;  // rank didn't sum to 8
-      col = 0;
-    } else if (c >= '1' && c <= '8') {
-      col += c - '0';
-    } else if (std::strchr("rnbqkpRNBQKP", c)) {
-      col++;
-    } else {
-      return false;  // invalid character
-    }
-  }
-  if (col != 8) return false;  // last rank didn't sum to 8
-
-  // Validate turn field if present
-  if (spacePos != std::string::npos && spacePos + 1 < fen.size()) {
-    size_t turnEnd = fen.find(' ', spacePos + 1);
-    std::string turnField = fen.substr(spacePos + 1, turnEnd - spacePos - 1);
-    if (turnField != "w" && turnField != "b") return false;
-  }
-
-  // --- Validated: apply FEN ---
-  ChessUtils::fenToBoard(fen, board_, currentTurn_, &state_);
+  ChessFEN::fenToBoard(fen, board_, currentTurn_, &state_);
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
@@ -211,7 +176,7 @@ MoveResult ChessBoard::applyMoveEntry(const MoveEntry& entry) {
 
 std::string ChessBoard::getFen() const {
   if (fenDirty_) {
-    cachedFen_ = ChessUtils::boardToFEN(board_, currentTurn_, &state_);
+    cachedFen_ = ChessFEN::boardToFEN(board_, currentTurn_, &state_);
     fenDirty_ = false;
   }
   return cachedFen_;
