@@ -2,7 +2,6 @@
 
 #include "../test_helpers.h"
 #include <chess_board.h>
-#include <chess_codec.h>
 #include <chess_game.h>
 #include <chess_history.h>
 #include <game_observer.h>
@@ -307,7 +306,7 @@ void test_recorder_replay_rejects_invalid_move(void) {
   history.addMove(makeEntry(6, 4, 4, 4, 'P'));
 
   // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
-  uint16_t illegal = ChessCodec::encodeMove(6, 3, 4, 3, ' ');
+  uint16_t illegal = ChessHistory::encodeMove(6, 3, 4, 3, ' ');
   storage.moveData.push_back(illegal & 0xFF);
   storage.moveData.push_back((illegal >> 8) & 0xFF);
 
@@ -678,7 +677,7 @@ void test_controller_make_move_records_promotion(void) {
   memcpy(&lastEntry, &storage.moveData[storage.moveData.size() - 2], 2);
   int fr, fc, tr, tc;
   char promo;
-  ChessCodec::decodeMove(lastEntry, fr, fc, tr, tc, promo);
+  ChessHistory::decodeMove(lastEntry, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_CHAR('q', promo);  // compact encoding normalizes to lowercase
   teardownController();
 }
@@ -721,6 +720,68 @@ void test_controller_undo_at_start(void) {
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Compact move encoding (relocated from test_chess_codec)
+// ---------------------------------------------------------------------------
+
+void test_encodeMove_rook_promotion(void) {
+  uint16_t encoded = ChessHistory::encodeMove(1, 4, 0, 4, 'r');
+  int fr, fc, tr, tc;
+  char promo;
+  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
+  TEST_ASSERT_EQUAL_INT(1, fr);
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(0, tr);
+  TEST_ASSERT_EQUAL_INT(4, tc);
+  TEST_ASSERT_EQUAL_CHAR('r', promo);
+}
+
+void test_encodeMove_bishop_promotion(void) {
+  uint16_t encoded = ChessHistory::encodeMove(1, 4, 0, 4, 'b');
+  int fr, fc, tr, tc;
+  char promo;
+  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
+  TEST_ASSERT_EQUAL_INT(1, fr);
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(0, tr);
+  TEST_ASSERT_EQUAL_INT(4, tc);
+  TEST_ASSERT_EQUAL_CHAR('b', promo);
+}
+
+// ---------------------------------------------------------------------------
+// On-disk format stability (relocated from test_chess_codec)
+// ---------------------------------------------------------------------------
+
+void test_game_result_pinned_values(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(GameResult::IN_PROGRESS));
+  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(GameResult::CHECKMATE));
+  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(GameResult::STALEMATE));
+  TEST_ASSERT_EQUAL_UINT8(3, static_cast<uint8_t>(GameResult::DRAW_50));
+  TEST_ASSERT_EQUAL_UINT8(4, static_cast<uint8_t>(GameResult::DRAW_3FOLD));
+  TEST_ASSERT_EQUAL_UINT8(5, static_cast<uint8_t>(GameResult::RESIGNATION));
+  TEST_ASSERT_EQUAL_UINT8(6, static_cast<uint8_t>(GameResult::DRAW_INSUFFICIENT));
+  TEST_ASSERT_EQUAL_UINT8(7, static_cast<uint8_t>(GameResult::DRAW_AGREEMENT));
+  TEST_ASSERT_EQUAL_UINT8(8, static_cast<uint8_t>(GameResult::TIMEOUT));
+  TEST_ASSERT_EQUAL_UINT8(9, static_cast<uint8_t>(GameResult::ABORTED));
+}
+
+void test_game_mode_pinned_values(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(GameModeId::NONE));
+  TEST_ASSERT_EQUAL_UINT8(1, static_cast<uint8_t>(GameModeId::CHESS_MOVES));
+  TEST_ASSERT_EQUAL_UINT8(2, static_cast<uint8_t>(GameModeId::BOT));
+  TEST_ASSERT_EQUAL_UINT8(3, static_cast<uint8_t>(GameModeId::LICHESS));
+}
+
+void test_fen_marker_no_collision(void) {
+  TEST_ASSERT_EQUAL_UINT16(0xFFFF, FEN_MARKER);
+  uint16_t maxEncoded = ChessHistory::encodeMove(7, 7, 7, 7, 'n');
+  TEST_ASSERT_TRUE(maxEncoded < FEN_MARKER);
+}
+
+void test_game_header_size(void) {
+  TEST_ASSERT_EQUAL(16, (int)sizeof(GameHeader));
+}
 
 void register_chess_history_recording_tests() {
   needsDefaultKings = false;
@@ -766,4 +827,14 @@ void register_chess_history_recording_tests() {
   RUN_TEST(test_controller_make_move_records_promotion);
   RUN_TEST(test_controller_undo_redo);
   RUN_TEST(test_controller_undo_at_start);
+
+  // Compact move encoding
+  RUN_TEST(test_encodeMove_rook_promotion);
+  RUN_TEST(test_encodeMove_bishop_promotion);
+
+  // On-disk format stability
+  RUN_TEST(test_game_result_pinned_values);
+  RUN_TEST(test_game_mode_pinned_values);
+  RUN_TEST(test_fen_marker_no_collision);
+  RUN_TEST(test_game_header_size);
 }

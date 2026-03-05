@@ -384,6 +384,40 @@ void test_positionState_initial(void) {
   TEST_ASSERT_EQUAL_INT(1, st.fullmoveClock);
 }
 
+// ---------------------------------------------------------------------------
+// Castling rights string conversion
+// ---------------------------------------------------------------------------
+
+void test_castling_rights_to_string_all(void) {
+  TEST_ASSERT_EQUAL_STRING("KQkq", ChessUtils::castlingRightsToString(0x0F).c_str());
+}
+
+void test_castling_rights_to_string_none(void) {
+  TEST_ASSERT_EQUAL_STRING("-", ChessUtils::castlingRightsToString(0x00).c_str());
+}
+
+void test_castling_rights_to_string_partial(void) {
+  TEST_ASSERT_EQUAL_STRING("Kk", ChessUtils::castlingRightsToString(0x05).c_str());
+}
+
+void test_castling_rights_from_string(void) {
+  TEST_ASSERT_EQUAL_UINT8(0x0F, ChessUtils::castlingRightsFromString("KQkq"));
+  TEST_ASSERT_EQUAL_UINT8(0x00, ChessUtils::castlingRightsFromString("-"));
+  TEST_ASSERT_EQUAL_UINT8(0x01, ChessUtils::castlingRightsFromString("K"));
+}
+
+void test_castling_rights_roundtrip_all_16(void) {
+  for (uint8_t i = 0; i <= 0x0F; i++) {
+    std::string str = ChessUtils::castlingRightsToString(i);
+    uint8_t parsed = ChessUtils::castlingRightsFromString(str);
+    TEST_ASSERT_EQUAL_UINT8(i, parsed);
+  }
+}
+
+void test_castling_rights_from_string_invalid(void) {
+  TEST_ASSERT_EQUAL_UINT8(0x00, ChessUtils::castlingRightsFromString("XYZ"));
+}
+
 void register_chess_utils_tests() {
   needsDefaultKings = false;
 
@@ -456,4 +490,12 @@ void register_chess_utils_tests() {
 
   // PositionState::initial
   RUN_TEST(test_positionState_initial);
+
+  // Castling rights strings
+  RUN_TEST(test_castling_rights_to_string_all);
+  RUN_TEST(test_castling_rights_to_string_none);
+  RUN_TEST(test_castling_rights_to_string_partial);
+  RUN_TEST(test_castling_rights_from_string);
+  RUN_TEST(test_castling_rights_roundtrip_all_16);
+  RUN_TEST(test_castling_rights_from_string_invalid);
 }

@@ -1,11 +1,53 @@
 #include "chess_history.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <vector>
 
 #include "chess_board.h"
-#include "chess_codec.h"
+
+// --- Compact 2-byte move encoding ---
+
+static uint8_t promoCharToCode(char p) {
+  switch (tolower(p)) {
+    case 'q': return 1;
+    case 'r': return 2;
+    case 'b': return 3;
+    case 'n': return 4;
+    default:  return 0;
+  }
+}
+
+static char promoCodeToChar(uint8_t code) {
+  switch (code) {
+    case 1: return 'q';
+    case 2: return 'r';
+    case 3: return 'b';
+    case 4: return 'n';
+    default: return ' ';
+  }
+}
+
+uint16_t ChessHistory::encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+  uint8_t from = (uint8_t)(fromRow * 8 + fromCol);
+  uint8_t to = (uint8_t)(toRow * 8 + toCol);
+  uint8_t promo = promoCharToCode(promotion);
+  return (uint16_t)((from << 10) | (to << 4) | promo);
+}
+
+void ChessHistory::decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
+  uint8_t from = (encoded >> 10) & 0x3F;
+  uint8_t to = (encoded >> 4) & 0x3F;
+  uint8_t promo = encoded & 0x0F;
+  fromRow = from / 8;
+  fromCol = from % 8;
+  toRow = to / 8;
+  toCol = to % 8;
+  promotion = promoCodeToChar(promo);
+}
+
+// ---------------------------------------------------------------------------
 
 ChessHistory::ChessHistory(IGameStorage* storage, ILogger* logger)
     : moveCount_(0),
@@ -212,7 +254,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     if (moves[i] == FEN_MARKER) continue;  // skip intermediate FEN markers
     int fromRow, fromCol, toRow, toCol;
     char promotion;
-    ChessCodec::decodeMove(moves[i], fromRow, fromCol, toRow, toCol, promotion);
+    decodeMove(moves[i], fromRow, fromCol, toRow, toCol, promotion);
 
     // Capture pre-move state for the MoveEntry
     char piece = board.getSquare(fromRow, fromCol);
@@ -274,8 +316,8 @@ bool ChessHistory::replayInto(ChessBoard& board) {
 
 void ChessHistory::persistMove(const MoveEntry& entry) {
   char promo = entry.isPromotion ? entry.promotion : ' ';
-  uint16_t encoded = ChessCodec::encodeMove(entry.fromRow, entry.fromCol,
-                                             entry.toRow, entry.toCol, promo);
+  uint16_t encoded = encodeMove(entry.fromRow, entry.fromCol,
+                                entry.toRow, entry.toCol, promo);
   storage_->appendMoveData(reinterpret_cast<const uint8_t*>(&encoded), 2);
   header_.moveCount++;
   movesSinceFlush_++;

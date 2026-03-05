@@ -3,7 +3,7 @@
 
 #include <chess_utils.h>
 #include <chess_rules.h>
-#include <chess_codec.h>
+#include <chess_notation.h>
 #include <chess_board.h>
 #include <chess_game.h>
 

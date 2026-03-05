@@ -100,8 +100,8 @@ void StockfishMode::requestEngineMove() {
 
     int fromRow, fromCol, toRow, toCol;
     char promotion;
-    if (ChessGame::parseUCIMove(std::string(bestMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
-      Serial.printf("Stockfish UCI move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
+    if (ChessGame::parseCoordinate(std::string(bestMove.c_str()), fromRow, fromCol, toRow, toCol, promotion)) {
+      Serial.printf("Stockfish move: %s = (%d,%d) -> (%d,%d)%s%c\n", bestMove.c_str(), fromRow, fromCol, toRow, toCol, promotion == ' ' ? "" : " Promotion to: ", promotion);
       Serial.println("============================");
       // Verify the move is from the correct color piece
       char piece = controller_->getSquare(fromRow, fromCol);
@@ -117,7 +117,7 @@ void StockfishMode::requestEngineMove() {
       }
       applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
     } else {
-      Serial.println("Failed to parse Stockfish UCI move: " + bestMove);
+      Serial.println("Failed to parse Stockfish move: " + bestMove);
     }
   }
 }

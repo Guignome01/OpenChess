@@ -94,10 +94,11 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
                          : result.isEnPassant ? "en passant"
                          : result.isCapture   ? "capture"
                                               : "move";
-  Serial.printf("%s %s: %c %c%d -> %c%d\n",
+  Serial.printf("%s %s: %c %s -> %s\n",
                 isRemoteMove ? "Remote" : "Player", moveType,
-                piece, (char)('a' + fromCol), 8 - fromRow,
-                (char)('a' + toCol), 8 - toRow);
+                piece,
+                ChessUtils::squareName(fromRow, fromCol).c_str(),
+                ChessUtils::squareName(toRow, toCol).c_str());
 
   // --- Hardware feedback ---
 
@@ -150,11 +151,11 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
   return result;
 }
 
-MoveResult GameMode::applyUCIMove(const std::string& uci) {
+MoveResult GameMode::applyMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
-  if (!ChessGame::parseUCIMove(uci, fromRow, fromCol, toRow, toCol, promotion)) {
-    Serial.printf("Failed to parse UCI move: %s\n", uci.c_str());
+  if (!ChessGame::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion)) {
+    Serial.printf("Failed to parse move: %s\n", move.c_str());
     return invalidMoveResult();
   }
   return applyMove(fromRow, fromCol, toRow, toCol, promotion, true);

@@ -93,4 +93,11 @@ static constexpr float MAX_USAGE_PERCENT = 0.80f;
 // Queen on open board: 7+7+7+7 = 28 (4 diagonals + 4 straights, max 7 each).
 static constexpr int MAX_MOVES_PER_PIECE = 28;
 
+// Move notation format identifiers — used by ChessGame::getHistory().
+enum class MoveFormat : uint8_t {
+  COORDINATE = 0,  // "e2e4", "e7e8q"  (UCI protocol notation)
+  SAN = 1,         // "e4", "Nxf3", "O-O", "e8=Q+"  (Standard Algebraic)
+  LAN = 2          // "e2-e4", "Ng1xf3", "O-O", "e7-e8=Q+"  (Long Algebraic)
+};
+
 #endif  // CORE_TYPES_H

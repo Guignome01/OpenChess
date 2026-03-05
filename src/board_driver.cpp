@@ -1,4 +1,5 @@
 #include "board_driver.h"
+#include "chess_utils.h"
 #include "system_utils.h"
 #include "led_colors.h"
 #include <Arduino.h>
@@ -360,9 +361,9 @@ bool BoardDriver::calibrateAxis(Axis axis, uint8_t* axisPinsOrder, size_t NUM_PI
     char square[3];
     if (axis == Axis::ROWS) {
       square[0] = 'a';
-      square[1] = (char)('8' - i);
+      square[1] = ChessUtils::rankChar(i);
     } else {
-      square[0] = (char)('a' + i);
+      square[0] = ChessUtils::fileChar(i);
       square[1] = '1';
     }
     square[2] = '\0';
@@ -432,9 +433,9 @@ bool BoardDriver::calibrateAxis(Axis axis, uint8_t* axisPinsOrder, size_t NUM_PI
       int assignedIndex = axisPinsOrder[pin];
       char assignedRankFile[8];
       if (axis == Axis::ROWS)
-        snprintf(assignedRankFile, sizeof(assignedRankFile), "rank %d", 8 - assignedIndex);
+        snprintf(assignedRankFile, sizeof(assignedRankFile), "rank %c", ChessUtils::rankChar(assignedIndex));
       else
-        snprintf(assignedRankFile, sizeof(assignedRankFile), "file %c", 'a' + assignedIndex);
+        snprintf(assignedRankFile, sizeof(assignedRankFile), "file %c", ChessUtils::fileChar(assignedIndex));
       if (detectedAxis == Axis::ROWS)
         Serial.printf("[ERROR] Row %d (GPIO %d) already has %s assigned. Retry %s.\n", pin, rowPins[pin], assignedRankFile, square);
       else

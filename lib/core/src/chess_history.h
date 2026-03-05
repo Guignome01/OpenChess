@@ -129,6 +129,12 @@ class ChessHistory {
   // with cursor at the end.  Returns true on success.
   bool replayInto(ChessBoard& board);
 
+  // --- Compact 2-byte move encoding (binary storage format) ---
+  // Layout: bits 15..10 = from (row*8+col), bits 9..4 = to (row*8+col), bits 3..0 = promo code.
+
+  static uint16_t encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion);
+  static void decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion);
+
   // --- Constants ---
 
   static constexpr int MAX_MOVES = 300;

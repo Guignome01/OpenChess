@@ -46,8 +46,42 @@ inline char opponentColor(char color) {
   return (color == 'w') ? 'b' : 'w';
 }
 
+// --- Castling rights bitmask ↔ FEN string ---
+// Bitmask: 0x01 = K, 0x02 = Q, 0x04 = k, 0x08 = q.
+
+inline std::string castlingRightsToString(uint8_t rights) {
+  std::string s;
+  if (rights & 0x01) s += 'K';
+  if (rights & 0x02) s += 'Q';
+  if (rights & 0x04) s += 'k';
+  if (rights & 0x08) s += 'q';
+  if (s.empty()) s = "-";
+  return s;
+}
+
+inline uint8_t castlingRightsFromString(const std::string& rightsStr) {
+  uint8_t rights = 0;
+  for (size_t i = 0; i < rightsStr.length(); i++) {
+    switch (rightsStr[i]) {
+      case 'K': rights |= 0x01; break;
+      case 'Q': rights |= 0x02; break;
+      case 'k': rights |= 0x04; break;
+      case 'q': rights |= 0x08; break;
+      default: break;
+    }
+  }
+  return rights;
+}
+
+// Coordinate helpers — single source of truth for the row/col ↔ rank/file mapping.
+// Board convention: row 0 = rank 8 (black back rank), col 0 = file 'a'.
+inline constexpr char fileChar(int col) { return 'a' + col; }
+inline constexpr char rankChar(int row) { return '1' + (7 - row); }
+inline constexpr int fileIndex(char file) { return file - 'a'; }
+inline constexpr int rankIndex(char rank) { return 8 - (rank - '0'); }
+
 inline std::string squareName(int row, int col) {
-  return {static_cast<char>('a' + col), static_cast<char>('1' + (7 - row))};
+  return {fileChar(col), rankChar(row)};
 }
 
 // ---------------------------------------------------------------------------

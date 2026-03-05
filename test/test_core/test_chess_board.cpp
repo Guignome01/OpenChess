@@ -1,7 +1,6 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <chess_codec.h>
 #include <chess_board.h>
 #include <chess_history.h>
 #include <types.h>
@@ -601,14 +600,14 @@ void test_manager_end_game_double_call(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Compact move encoding (ChessCodec)
+// Compact move encoding
 // ---------------------------------------------------------------------------
 
-void test_codec_encode_decode_roundtrip(void) {
-  uint16_t encoded = ChessCodec::encodeMove(6, 4, 4, 4, ' '); // e2e4
+void test_encodeMove_roundtrip(void) {
+  uint16_t encoded = ChessHistory::encodeMove(6, 4, 4, 4, ' '); // e2e4
   int fr, fc, tr, tc;
   char promo;
-  ChessCodec::decodeMove(encoded, fr, fc, tr, tc, promo);
+  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_INT(6, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(4, tr);
@@ -616,11 +615,11 @@ void test_codec_encode_decode_roundtrip(void) {
   TEST_ASSERT_EQUAL_CHAR(' ', promo);
 }
 
-void test_codec_encode_decode_with_promotion(void) {
-  uint16_t encoded = ChessCodec::encodeMove(1, 4, 0, 4, 'q'); // e7e8q
+void test_encodeMove_with_promotion(void) {
+  uint16_t encoded = ChessHistory::encodeMove(1, 4, 0, 4, 'q'); // e7e8q
   int fr, fc, tr, tc;
   char promo;
-  ChessCodec::decodeMove(encoded, fr, fc, tr, tc, promo);
+  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_INT(1, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(0, tr);
@@ -628,12 +627,12 @@ void test_codec_encode_decode_with_promotion(void) {
   TEST_ASSERT_EQUAL_CHAR('q', promo);
 }
 
-void test_codec_encode_decode_corner_squares(void) {
+void test_encodeMove_corner_squares(void) {
   // a8 (0,0) -> h1 (7,7) with knight promotion
-  uint16_t encoded = ChessCodec::encodeMove(0, 0, 7, 7, 'n');
+  uint16_t encoded = ChessHistory::encodeMove(0, 0, 7, 7, 'n');
   int fr, fc, tr, tc;
   char promo;
-  ChessCodec::decodeMove(encoded, fr, fc, tr, tc, promo);
+  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_INT(0, fr);
   TEST_ASSERT_EQUAL_INT(0, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);
@@ -1251,10 +1250,10 @@ void register_chess_board_tests() {
   RUN_TEST(test_manager_end_game_draw_agreement);
   RUN_TEST(test_manager_end_game_double_call);
 
-  // Codec
-  RUN_TEST(test_codec_encode_decode_roundtrip);
-  RUN_TEST(test_codec_encode_decode_with_promotion);
-  RUN_TEST(test_codec_encode_decode_corner_squares);
+  // Compact move encoding
+  RUN_TEST(test_encodeMove_roundtrip);
+  RUN_TEST(test_encodeMove_with_promotion);
+  RUN_TEST(test_encodeMove_corner_squares);
 
   // FEN/eval cache
   RUN_TEST(test_manager_fen_cache_consistent);

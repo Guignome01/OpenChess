@@ -369,7 +369,7 @@ void test_game_batch_first_last_single_observer(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Navigation facade: currentMoveIndex, moveCount, getMoveListUCI
+// Navigation facade: currentMoveIndex, moveCount, getHistory
 // ---------------------------------------------------------------------------
 
 void test_game_move_count_empty(void) {
@@ -408,63 +408,91 @@ void test_game_current_move_index_after_undo(void) {
   TEST_ASSERT_EQUAL(0, gm.currentMoveIndex());
 }
 
-void test_game_get_move_list_uci_empty(void) {
+void test_game_get_history_empty(void) {
   setUpGame();
   std::string moves[10];
-  int count = gm.getMoveListUCI(moves, 10);
+  int count = gm.getHistory(moves, 10);
   TEST_ASSERT_EQUAL(0, count);
 }
 
-void test_game_get_move_list_uci_basic(void) {
+void test_game_get_history_basic(void) {
   setUpGame();
   gm.makeMove(6, 4, 4, 4);  // 1. e4
   gm.makeMove(1, 4, 3, 4);  // 1... e5
   gm.makeMove(7, 6, 5, 5);  // 2. Nf3
 
   std::string moves[10];
-  int count = gm.getMoveListUCI(moves, 10);
+  int count = gm.getHistory(moves, 10);
   TEST_ASSERT_EQUAL(3, count);
   TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
   TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
   TEST_ASSERT_EQUAL_STRING("g1f3", moves[2].c_str());
 }
 
-void test_game_get_move_list_uci_with_promotion(void) {
+void test_game_get_history_with_promotion(void) {
   setUpGame();
   // Set up a position where white can promote
   gm.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
   gm.makeMove(1, 4, 0, 4, 'Q');  // e7e8q
 
   std::string moves[10];
-  int count = gm.getMoveListUCI(moves, 10);
+  int count = gm.getHistory(moves, 10);
   TEST_ASSERT_EQUAL(1, count);
   TEST_ASSERT_EQUAL_STRING("e7e8q", moves[0].c_str());
 }
 
-void test_game_get_move_list_uci_includes_all_after_undo(void) {
+void test_game_get_history_includes_all_after_undo(void) {
   setUpGame();
   gm.makeMove(6, 4, 4, 4);  // 1. e4
   gm.makeMove(1, 4, 3, 4);  // 1... e5
   gm.undoMove();              // cursor at move 1, but log still has 2 moves
 
   std::string moves[10];
-  int count = gm.getMoveListUCI(moves, 10);
+  int count = gm.getHistory(moves, 10);
   TEST_ASSERT_EQUAL(2, count);
   TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
   TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
 }
 
-void test_game_get_move_list_uci_max_limit(void) {
+void test_game_get_history_max_limit(void) {
   setUpGame();
   gm.makeMove(6, 4, 4, 4);  // 1. e4
   gm.makeMove(1, 4, 3, 4);  // 1... e5
   gm.makeMove(7, 6, 5, 5);  // 2. Nf3
 
   std::string moves[2];
-  int count = gm.getMoveListUCI(moves, 2);
+  int count = gm.getHistory(moves, 2);
   TEST_ASSERT_EQUAL(2, count);
   TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
   TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
+}
+
+void test_game_get_history_san_format(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.makeMove(7, 6, 5, 5);  // 2. Nf3
+
+  std::string moves[10];
+  int count = gm.getHistory(moves, 10, MoveFormat::SAN);
+  TEST_ASSERT_EQUAL(3, count);
+  TEST_ASSERT_EQUAL_STRING("e4", moves[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("e5", moves[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("Nf3", moves[2].c_str());
+}
+
+void test_game_get_history_lan_format(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.makeMove(7, 6, 5, 5);  // 2. Nf3
+
+  std::string moves[10];
+  int count = gm.getHistory(moves, 10, MoveFormat::LAN);
+  TEST_ASSERT_EQUAL(3, count);
+  TEST_ASSERT_EQUAL_STRING("e2-e4", moves[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("e7-e5", moves[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("Ng1-f3", moves[2].c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -517,9 +545,11 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_current_move_index_start);
   RUN_TEST(test_game_current_move_index_after_moves);
   RUN_TEST(test_game_current_move_index_after_undo);
-  RUN_TEST(test_game_get_move_list_uci_empty);
-  RUN_TEST(test_game_get_move_list_uci_basic);
-  RUN_TEST(test_game_get_move_list_uci_with_promotion);
-  RUN_TEST(test_game_get_move_list_uci_includes_all_after_undo);
-  RUN_TEST(test_game_get_move_list_uci_max_limit);
+  RUN_TEST(test_game_get_history_empty);
+  RUN_TEST(test_game_get_history_basic);
+  RUN_TEST(test_game_get_history_with_promotion);
+  RUN_TEST(test_game_get_history_includes_all_after_undo);
+  RUN_TEST(test_game_get_history_max_limit);
+  RUN_TEST(test_game_get_history_san_format);
+  RUN_TEST(test_game_get_history_lan_format);
 }

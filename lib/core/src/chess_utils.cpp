@@ -1,7 +1,5 @@
 #include "chess_utils.h"
 
-#include "chess_codec.h"
-
 #include <cctype>
 #include <string>
 
@@ -46,17 +44,15 @@ std::string boardToFEN(const char board[8][8], char currentTurn, const PositionS
 
   // Castling availability
   if (state != nullptr)
-    fen += " " + ChessCodec::castlingRightsToString(state->castlingRights);
+    fen += " " + castlingRightsToString(state->castlingRights);
   else
     fen += " KQkq";
 
   // En passant target square
   if (state != nullptr && state->epRow >= 0 && state->epCol >= 0) {
-    char file = 'a' + state->epCol;
-    int rank = 8 - state->epRow;
     fen += ' ';
-    fen += file;
-    fen += std::to_string(rank);
+    fen += fileChar(state->epCol);
+    fen += rankChar(state->epRow);
   } else {
     fen += " -";
   }
@@ -119,7 +115,7 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
   // Parse castling rights
   std::string castlingStr = nextToken(remaining);
   if (!castlingStr.empty() && state != nullptr)
-    state->castlingRights = ChessCodec::castlingRightsFromString(castlingStr);
+    state->castlingRights = castlingRightsFromString(castlingStr);
 
   // Parse en passant target square
   std::string enPassantSquare = nextToken(remaining);
@@ -128,9 +124,8 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
     char rankChar = enPassantSquare[1];
 
     if (file >= 'a' && file <= 'h' && rankChar >= '1' && rankChar <= '8') {
-      int epCol = file - 'a';
-      int rank = rankChar - '0';
-      int epRow = 8 - rank;
+      int epCol = fileIndex(file);
+      int epRow = rankIndex(rankChar);
       if (state != nullptr) {
         state->epRow = epRow;
         state->epCol = epCol;

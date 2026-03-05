@@ -2,11 +2,14 @@
 
 #include <cstring>
 
-#include "chess_codec.h"
+#include "chess_notation.h"
 #include "chess_rules.h"
 
 ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
     : history_(storage, logger), observer_(observer), batchDepth_(0), batchDirty_(false) {}
+
+static const char* STANDARD_START_FEN =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
 // ---------------------------------------------------------------------------
 // Lifecycle
@@ -15,6 +18,7 @@ ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* lo
 void ChessGame::newGame() {
   board_.newGame();
   history_.clear();
+  startFen_ = STANDARD_START_FEN;
   fireCallback();
   notifyObserver();
 }
@@ -100,10 +104,10 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   return result;
 }
 
-MoveResult ChessGame::makeMove(const std::string& uci) {
+MoveResult ChessGame::makeMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
-  if (!ChessCodec::parseUCIMove(uci, fromRow, fromCol, toRow, toCol, promotion))
+  if (!ChessNotation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion))
     return invalidMoveResult();
   return makeMove(fromRow, fromCol, toRow, toCol, promotion);
 }
@@ -113,6 +117,7 @@ bool ChessGame::loadFEN(const std::string& fen) {
     return false;
 
   history_.clear();
+  startFen_ = fen;
   history_.snapshotPosition(fen);  // no-op if not recording
 
   fireCallback();
@@ -143,30 +148,71 @@ bool ChessGame::redoMove() {
 }
 
 // ---------------------------------------------------------------------------
-// Navigation queries
+// History queries
 // ---------------------------------------------------------------------------
 
-int ChessGame::getMoveListUCI(std::string out[], int maxMoves) const {
+int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
   int count = history_.moveCount();
   if (count > maxMoves) count = maxMoves;
+
+  if (format == MoveFormat::COORDINATE) {
+    // Fast path — no board replay needed
+    for (int i = 0; i < count; ++i) {
+      const MoveEntry& m = history_.getMove(i);
+      char promo = m.isPromotion ? m.promotion : ' ';
+      out[i] = ChessNotation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
+    }
+    return count;
+  }
+
+  // SAN / LAN — replay moves through a temporary board for context
+  ChessBoard tempBoard;
+  if (!startFen_.empty()) {
+    tempBoard.loadFEN(startFen_);
+  } else {
+    tempBoard.newGame();
+  }
+
   for (int i = 0; i < count; ++i) {
     const MoveEntry& m = history_.getMove(i);
-    char promo = m.isPromotion ? m.promotion : ' ';
-    out[i] = ChessCodec::toUCIMove(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
+
+    // Generate notation before applying the move
+    if (format == MoveFormat::SAN) {
+      out[i] = ChessNotation::toSAN(tempBoard.getBoard(), tempBoard.positionState(), m);
+    } else {
+      out[i] = ChessNotation::toLAN(m);
+    }
+
+    // Apply the move to advance the temp board
+    tempBoard.applyMoveEntry(m);
+
+    // Append check/checkmate suffix
+    if (m.isCheck) {
+      out[i] += tempBoard.isCheckmate() ? '#' : '+';
+    }
   }
+
   return count;
 }
 
 // ---------------------------------------------------------------------------
-// UCI helpers
+// Notation helpers
 // ---------------------------------------------------------------------------
 
-std::string ChessGame::toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  return ChessCodec::toUCIMove(fromRow, fromCol, toRow, toCol, promotion);
+std::string ChessGame::toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+  return ChessNotation::toCoordinate(fromRow, fromCol, toRow, toCol, promotion);
 }
 
-bool ChessGame::parseUCIMove(const std::string& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
-  return ChessCodec::parseUCIMove(move, fromRow, fromCol, toRow, toCol, promotion);
+bool ChessGame::parseCoordinate(const std::string& move, int& fromRow, int& fromCol,
+                                int& toRow, int& toCol, char& promotion) {
+  return ChessNotation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion);
+}
+
+bool ChessGame::parseMove(const std::string& move, int& fromRow, int& fromCol,
+                          int& toRow, int& toCol, char& promotion) const {
+  return ChessNotation::parseMove(board_.getBoard(), board_.positionState(),
+                                  board_.currentTurn(),
+                                  move, fromRow, fromCol, toRow, toCol, promotion);
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +222,27 @@ bool ChessGame::parseUCIMove(const std::string& move, int& fromRow, int& fromCol
 bool ChessGame::resumeGame() {
   bool ok = history_.replayInto(board_);
   if (ok) {
+    startFen_ = board_.getFen();
+    // Walk back to find the real start FEN: if history has moves,
+    // the board is at the end of replay; startFen_ should be the
+    // position before any moves.  replayInto loads from the last
+    // FEN snapshot, so approximate with what the board looked like
+    // before replay.  For accuracy, undo all moves to find the start.
+    // Actually, replayInto loads the FEN first then replays — the
+    // startFen_ is the FEN that replayInto loaded.  We can get it
+    // by undoing all moves temporarily.
+    // Simpler: just record the FEN from the board state before moves,
+    // but replayInto already consumed moves.  We can reconstruct by
+    // undoing all moves in a temp copy.  However, the replay FEN is
+    // already the initial FEN of the segment.  Let's get it properly:
+    if (history_.moveCount() > 0) {
+      // The start FEN is the position before the first move.
+      // Reverse the first move to retrieve it.
+      ChessBoard temp = board_;
+      for (int i = history_.moveCount() - 1; i >= 0; --i)
+        temp.reverseMove(history_.getMove(i));
+      startFen_ = temp.getFen();
+    }
     fireCallback();
     notifyObserver();
   }

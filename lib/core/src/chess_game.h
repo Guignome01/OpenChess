@@ -5,6 +5,7 @@
 #include <string>
 
 #include "chess_board.h"
+#include "chess_notation.h"
 #include "game_observer.h"
 #include "chess_history.h"
 #include "types.h"
@@ -64,9 +65,10 @@ class ChessGame {
   // notifies observer.
   MoveResult makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
-  // Parse a UCI move string (e.g. "e2e4", "e7e8q") and execute it.
-  // Returns invalid MoveResult if the UCI string cannot be parsed.
-  MoveResult makeMove(const std::string& uci);
+  // Parse a move in coordinate notation (e.g. "e2e4", "e7e8q") and execute it.
+  // This is the notation used by the UCI protocol for move communication.
+  // Returns invalid MoveResult if the string cannot be parsed.
+  MoveResult makeMove(const std::string& move);
 
   // Load arbitrary position from FEN.  Snapshots FEN if recording, notifies observer.
   bool loadFEN(const std::string& fen);
@@ -90,19 +92,29 @@ class ChessGame {
   // Total number of moves in the history log.
   int moveCount() const { return history_.moveCount(); }
 
-  // Return all moves in the history as UCI strings (e.g. "e2e4", "e7e8q").
+  // Return all moves in the history formatted as strings.
   // Populates `out` with up to `maxMoves` entries, returns actual count written.
   // Includes all moves in the log (not just up to cursor).
-  int getMoveListUCI(std::string out[], int maxMoves) const;
+  //   COORDINATE (default): "e2e4", "e7e8q" — fast, iterates MoveEntry array.
+  //   SAN: "e4", "Nxf3+", "O-O", "e8=Q#" — replays through a temp board.
+  //   LAN: "e2-e4", "Ng1xf3+", "O-O" — replays through a temp board.
+  int getHistory(std::string out[], int maxMoves,
+                 MoveFormat format = MoveFormat::COORDINATE) const;
 
-  // --- UCI helpers ---
+  // --- Notation helpers ---
 
-  // Convert array coordinates to a UCI move string (e.g. "e2e4", "e7e8q").
-  static std::string toUCIMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
+  // Convert array coordinates to coordinate notation (e.g. "e2e4", "e7e8q").
+  static std::string toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
-  // Parse a UCI move string into array coordinates.
+  // Parse coordinate notation into array coordinates.
   // Returns true if valid; fills promotion with the promotion char (or ' ').
-  static bool parseUCIMove(const std::string& move, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion);
+  static bool parseCoordinate(const std::string& move, int& fromRow, int& fromCol,
+                              int& toRow, int& toCol, char& promotion);
+
+  // Parse a move in any supported notation format (coordinate, LAN, SAN).
+  // Requires board context for SAN disambiguation.
+  bool parseMove(const std::string& move, int& fromRow, int& fromCol,
+                 int& toRow, int& toCol, char& promotion) const;
 
   // --- Replay ---
 
@@ -198,6 +210,7 @@ class ChessGame {
   StateCallback stateCallback_;
   int batchDepth_;
   bool batchDirty_;
+  std::string startFen_;  // initial FEN for SAN/LAN replay in getHistory()
 
   void fireCallback();
   void notifyObserver();

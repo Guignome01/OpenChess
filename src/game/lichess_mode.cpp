@@ -172,7 +172,7 @@ void LichessMode::requestEngineMove() {
     } else {
       Serial.println("Lichess move received: " + state.lastMove);
       stopThinking();
-      applyUCIMove(std::string(state.lastMove.c_str()));
+      applyMove(std::string(state.lastMove.c_str()));
     }
   }
 
@@ -197,18 +197,18 @@ void LichessMode::onPlayerMoveApplied(const MoveResult& result, int fromRow, int
 // --- Lichess communication ---
 
 void LichessMode::sendMoveToLichess(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  String uciMove = String(ChessGame::toUCIMove(fromRow, fromCol, toRow, toCol, promotion).c_str());
-  Serial.println("Sending move to Lichess: " + uciMove);
+  String coordMove = String(ChessGame::toCoordinate(fromRow, fromCol, toRow, toCol, promotion).c_str());
+  Serial.println("Sending move to Lichess: " + coordMove);
 
   // Track this move so we don't process it as a remote move when it echoes back
-  lastSentMove_ = uciMove;
+  lastSentMove_ = coordMove;
 
   // Retry up to 3 times if sending fails
   const int maxRetries = 3;
   int attempt = 0;
   bool sent = false;
   while (attempt < maxRetries && !sent) {
-    if (LichessAPI::makeMove(currentGameId_, uciMove)) {
+    if (LichessAPI::makeMove(currentGameId_, coordMove)) {
       sent = true;
       break;
     } else {
