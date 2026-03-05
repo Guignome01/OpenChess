@@ -83,6 +83,18 @@ class ChessGame {
   bool canUndo() const { return history_.canUndo(); }
   bool canRedo() const { return history_.canRedo(); }
 
+  // Current move cursor position (0 = before any move, 1 = after first move, etc.)
+  // Note: offset by +1 from ChessHistory::currentMoveIndex() for a 0-based "start position" semantic.
+  int currentMoveIndex() const { return history_.currentMoveIndex() + 1; }
+
+  // Total number of moves in the history log.
+  int moveCount() const { return history_.moveCount(); }
+
+  // Return all moves in the history as UCI strings (e.g. "e2e4", "e7e8q").
+  // Populates `out` with up to `maxMoves` entries, returns actual count written.
+  // Includes all moves in the log (not just up to cursor).
+  int getMoveListUCI(std::string out[], int maxMoves) const;
+
   // --- UCI helpers ---
 
   // Convert array coordinates to a UCI move string (e.g. "e2e4", "e7e8q").
@@ -168,7 +180,7 @@ class ChessGame {
   // --- Batching (suppress callbacks during replay) ---
 
   void beginBatch();
-  void endBatch();  // fires one callback on exit if changes occurred
+  void endBatch();  // fires one callback + observer notification on exit if changes occurred
 
   // --- Callback ---
 

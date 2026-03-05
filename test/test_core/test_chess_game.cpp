@@ -2,6 +2,7 @@
 
 #include "../test_helpers.h"
 #include <chess_game.h>
+#include <game_observer.h>
 #include <types.h>
 
 // Shared globals from test_core.cpp
@@ -317,6 +318,156 @@ void test_game_history_last_move_after_sequence(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Batch + observer notification
+// ---------------------------------------------------------------------------
+
+// Local mock observer for batch tests
+class TestObserver : public IGameObserver {
+ public:
+  int callCount = 0;
+  void onBoardStateChanged(const std::string&, float) override { callCount++; }
+};
+
+void test_game_batch_suppresses_observer(void) {
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+
+  g.beginBatch();
+  g.makeMove(6, 4, 4, 4);  // e2e4
+  g.makeMove(1, 4, 3, 4);  // e5
+  TEST_ASSERT_EQUAL_INT(0, obs.callCount);
+  g.endBatch();
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);  // single coalesced notification
+}
+
+void test_game_batch_first_last_single_observer(void) {
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  g.makeMove(6, 4, 4, 4);  // e2e4
+  g.makeMove(1, 4, 3, 4);  // e5
+  g.makeMove(7, 6, 5, 5);  // Nf3
+  obs.callCount = 0;
+
+  // "first" pattern: undo all inside a batch → one observer call
+  g.beginBatch();
+  while (g.canUndo()) g.undoMove();
+  g.endBatch();
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);
+  TEST_ASSERT_EQUAL(0, g.currentMoveIndex());
+
+  obs.callCount = 0;
+
+  // "last" pattern: redo all inside a batch → one observer call
+  g.beginBatch();
+  while (g.canRedo()) g.redoMove();
+  g.endBatch();
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);
+  TEST_ASSERT_EQUAL(3, g.currentMoveIndex());
+}
+
+// ---------------------------------------------------------------------------
+// Navigation facade: currentMoveIndex, moveCount, getMoveListUCI
+// ---------------------------------------------------------------------------
+
+void test_game_move_count_empty(void) {
+  setUpGame();
+  TEST_ASSERT_EQUAL(0, gm.moveCount());
+}
+
+void test_game_move_count_after_moves(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  TEST_ASSERT_EQUAL(2, gm.moveCount());
+}
+
+void test_game_current_move_index_start(void) {
+  setUpGame();
+  // Before any moves: index 0 (start position)
+  TEST_ASSERT_EQUAL(0, gm.currentMoveIndex());
+}
+
+void test_game_current_move_index_after_moves(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  TEST_ASSERT_EQUAL(1, gm.currentMoveIndex());
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  TEST_ASSERT_EQUAL(2, gm.currentMoveIndex());
+}
+
+void test_game_current_move_index_after_undo(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.undoMove();
+  TEST_ASSERT_EQUAL(1, gm.currentMoveIndex());
+  gm.undoMove();
+  TEST_ASSERT_EQUAL(0, gm.currentMoveIndex());
+}
+
+void test_game_get_move_list_uci_empty(void) {
+  setUpGame();
+  std::string moves[10];
+  int count = gm.getMoveListUCI(moves, 10);
+  TEST_ASSERT_EQUAL(0, count);
+}
+
+void test_game_get_move_list_uci_basic(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.makeMove(7, 6, 5, 5);  // 2. Nf3
+
+  std::string moves[10];
+  int count = gm.getMoveListUCI(moves, 10);
+  TEST_ASSERT_EQUAL(3, count);
+  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("g1f3", moves[2].c_str());
+}
+
+void test_game_get_move_list_uci_with_promotion(void) {
+  setUpGame();
+  // Set up a position where white can promote
+  gm.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
+  gm.makeMove(1, 4, 0, 4, 'Q');  // e7e8q
+
+  std::string moves[10];
+  int count = gm.getMoveListUCI(moves, 10);
+  TEST_ASSERT_EQUAL(1, count);
+  TEST_ASSERT_EQUAL_STRING("e7e8q", moves[0].c_str());
+}
+
+void test_game_get_move_list_uci_includes_all_after_undo(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.undoMove();              // cursor at move 1, but log still has 2 moves
+
+  std::string moves[10];
+  int count = gm.getMoveListUCI(moves, 10);
+  TEST_ASSERT_EQUAL(2, count);
+  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
+}
+
+void test_game_get_move_list_uci_max_limit(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // 1. e4
+  gm.makeMove(1, 4, 3, 4);  // 1... e5
+  gm.makeMove(7, 6, 5, 5);  // 2. Nf3
+
+  std::string moves[2];
+  int count = gm.getMoveListUCI(moves, 2);
+  TEST_ASSERT_EQUAL(2, count);
+  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
+  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -343,6 +494,8 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_no_callback_when_not_set);
   RUN_TEST(test_game_nested_batch);
   RUN_TEST(test_game_end_batch_without_begin);
+  RUN_TEST(test_game_batch_suppresses_observer);
+  RUN_TEST(test_game_batch_first_last_single_observer);
 
   // History integration
   RUN_TEST(test_game_history_records_moves);
@@ -357,4 +510,16 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_history_prevstate_saved);
   RUN_TEST(test_game_history_invalid_move_not_recorded);
   RUN_TEST(test_game_history_last_move_after_sequence);
+
+  // Navigation facade
+  RUN_TEST(test_game_move_count_empty);
+  RUN_TEST(test_game_move_count_after_moves);
+  RUN_TEST(test_game_current_move_index_start);
+  RUN_TEST(test_game_current_move_index_after_moves);
+  RUN_TEST(test_game_current_move_index_after_undo);
+  RUN_TEST(test_game_get_move_list_uci_empty);
+  RUN_TEST(test_game_get_move_list_uci_basic);
+  RUN_TEST(test_game_get_move_list_uci_with_promotion);
+  RUN_TEST(test_game_get_move_list_uci_includes_all_after_undo);
+  RUN_TEST(test_game_get_move_list_uci_max_limit);
 }

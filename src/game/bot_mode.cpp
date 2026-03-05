@@ -11,6 +11,10 @@ BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, char play
 
 float BotMode::getEngineEvaluation() { return controller_->getEvaluation(); }
 
+bool BotMode::isNavigationAllowed() const {
+  return controller_->isGameOver() || controller_->currentTurn() == playerColor_;
+}
+
 // --- Template Method: game loop skeleton ---
 // Player turn: tryPlayerMove → applyMove → onPlayerMoveApplied hook.
 // Engine turn: requestEngineMove (subclass drives the move).

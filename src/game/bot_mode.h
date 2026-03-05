@@ -52,6 +52,7 @@ class BotMode : public GameMode {
   ~BotMode() override {}
 
   void update() override;
+  bool isNavigationAllowed() const override;
 };
 
 #endif  // GAME_BOT_MODE_H

@@ -87,6 +87,7 @@ class GameMode {
   void setBoardStateFromFEN(const std::string& fen);
   bool isGameOver() const;
   void setResignPending(bool pending) { resignPending_ = pending; }
+  virtual bool isNavigationAllowed() const { return true; }
 };
 
 #endif // GAME_MODE_H

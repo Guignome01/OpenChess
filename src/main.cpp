@@ -75,6 +75,7 @@ void setup() {
     Serial.println("LittleFS mounted successfully");
   storage.initialize();
   boardDriver.begin();
+  wifiManager.setGameRef(&controller);
   wifiManager.begin();
   Serial.println();
 
@@ -225,6 +226,37 @@ void loop() {
     case AppMode::BOT:
     case AppMode::LICHESS:
       if (activeGame != nullptr) {
+        // Update navigation blocked state for web requests
+        wifiManager.setNavigationBlocked(!activeGame->isNavigationAllowed());
+
+        // Process pending navigation from web interface
+        uint8_t navAction = wifiManager.getPendingNavAction();
+        if (navAction != 0) {
+          if (activeGame->isNavigationAllowed()) {
+            switch (static_cast<NavAction>(navAction)) {
+              case NavAction::UNDO:
+                controller.undoMove();
+                break;
+              case NavAction::REDO:
+                controller.redoMove();
+                break;
+              case NavAction::FIRST:
+                controller.beginBatch();
+                while (controller.canUndo()) controller.undoMove();
+                controller.endBatch();
+                break;
+              case NavAction::LAST:
+                controller.beginBatch();
+                while (controller.canRedo()) controller.redoMove();
+                controller.endBatch();
+                break;
+              default:
+                break;
+            }
+          }
+          wifiManager.clearPendingNav();
+        }
+
         // Relay web resign flag to the active game
         if (wifiManager.getPendingResign()) {
           activeGame->setResignPending(true);

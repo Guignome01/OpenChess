@@ -16,6 +16,7 @@
 // Forward declarations
 struct LichessConfig;
 class LittleFSStorage;
+class ChessGame;
 
 // ---------------------------
 // WiFi Configuration
@@ -55,6 +56,9 @@ struct SavedNetwork {
   String password;
 };
 
+// Navigation actions from web interface
+enum class NavAction : uint8_t { NONE = 0, UNDO = 1, REDO = 2, FIRST = 3, LAST = 4 };
+
 // ---------------------------
 // WiFi Manager Class for ESP32
 // ---------------------------
@@ -79,6 +83,16 @@ class WiFiManagerESP32 : public IGameObserver {
 
   // Resign flag (set from web interface)
   bool hasPendingResign = false;
+
+  // Navigation (set from web interface, consumed by main loop)
+  const ChessGame* game_ = nullptr;
+  uint8_t pendingNavAction_ = 0;  // NavAction value
+  bool navigationBlocked_ = false;
+  // Cached navigation state (populated by onBoardStateChanged, read by getBoardUpdateJSON)
+  int cachedMoveIndex_ = 0;
+  int cachedMoveCount_ = 0;
+  bool cachedCanUndo_ = false;
+  bool cachedCanRedo_ = false;
 
   // tracks errors across multi-file OTA uploads
   bool otaHasError = false;
@@ -167,6 +181,11 @@ class WiFiManagerESP32 : public IGameObserver {
   // Web resign
   bool getPendingResign() const { return hasPendingResign; }
   void clearPendingResign() { hasPendingResign = false; }
+  // Move navigation (from web interface)
+  void setGameRef(const ChessGame* game) { game_ = game; }
+  uint8_t getPendingNavAction() const { return pendingNavAction_; }
+  void clearPendingNav() { pendingNavAction_ = 0; }
+  void setNavigationBlocked(bool blocked) { navigationBlocked_ = blocked; }
   // WiFi state
   WiFiState getWiFiState() const { return wifiState; }
   bool isWiFiConnected() const { return wifiState == WiFiState::CONNECTED; }

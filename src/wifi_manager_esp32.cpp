@@ -1,4 +1,5 @@
 #include "wifi_manager_esp32.h"
+#include "chess_game.h"
 #include "game/lichess_mode.h"
 #include "system_utils.h"
 #include "littlefs_storage.h"
@@ -165,6 +166,28 @@ void WiFiManagerESP32::begin() {
   server.on("/games", HTTP_DELETE, [this](AsyncWebServerRequest* request) { this->handleDeleteGame(request); });
   server.on("/resign", HTTP_POST, [this](AsyncWebServerRequest* request) {
     this->hasPendingResign = true;
+    sendJsonOk(request);
+  });
+  server.on("/nav", HTTP_POST, [this](AsyncWebServerRequest* request) {
+    if (this->navigationBlocked_) {
+      sendJsonError(request, 409, "Navigation blocked");
+      return;
+    }
+    if (!request->hasArg("action")) {
+      sendJsonError(request, 400, "Missing action parameter");
+      return;
+    }
+    String action = request->arg("action");
+    uint8_t nav = 0;
+    if (action == "undo") nav = static_cast<uint8_t>(NavAction::UNDO);
+    else if (action == "redo") nav = static_cast<uint8_t>(NavAction::REDO);
+    else if (action == "first") nav = static_cast<uint8_t>(NavAction::FIRST);
+    else if (action == "last") nav = static_cast<uint8_t>(NavAction::LAST);
+    else {
+      sendJsonError(request, 400, "Invalid action");
+      return;
+    }
+    this->pendingNavAction_ = nav;
     sendJsonOk(request);
   });
 
@@ -615,6 +638,10 @@ String WiFiManagerESP32::getBoardUpdateJSON() {
   JsonDocument doc;
   doc["fen"] = currentFen;
   doc["evaluation"] = serialized(String(boardEvaluation, 2));
+  doc["moveIndex"] = cachedMoveIndex_;
+  doc["moveCount"] = cachedMoveCount_;
+  doc["canUndo"] = cachedCanUndo_;
+  doc["canRedo"] = cachedCanRedo_;
   String output;
   serializeJson(doc, output);
   return output;
@@ -843,12 +870,19 @@ LichessConfig WiFiManagerESP32::getLichessConfig() {
   return config;
 }
 
-// TODO: currentFen/boardEvaluation are written here (main loop task) and read by
+// TODO: cached fields are written here (main loop task) and read by
 // getBoardUpdateJSON() (async_tcp task) without synchronization. Add a portMUX_TYPE
 // spinlock around both the write and read sites to eliminate the data race.
 void WiFiManagerESP32::onBoardStateChanged(const std::string& fen, float evaluation) {
   currentFen = fen;
   boardEvaluation = evaluation;
+
+  if (game_) {
+    cachedMoveIndex_ = game_->currentMoveIndex();
+    cachedCanUndo_ = game_->canUndo();
+    cachedCanRedo_ = game_->canRedo();
+    cachedMoveCount_ = game_->moveCount();
+  }
 }
 
 bool WiFiManagerESP32::getPendingBoardEdit(String& fenOut) {

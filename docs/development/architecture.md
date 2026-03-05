@@ -132,7 +132,9 @@ Manages WiFi connectivity, the web server, and all HTTP API endpoints. Key subsy
 
 **Web server** — `AsyncWebServer` on port 80. Serves gzipped static files from LittleFS via `serveStatic`. API endpoints handle JSON requests for board state, game selection, settings, WiFi management, Lichess token, OTA updates, game history, board editing, and resign. All configuration getters and setters are exposed as `public` methods for the main loop to relay state between the web layer and game logic (e.g., `getSelectedGameMode()`, `getPendingBoardEdit()`, `getPendingResign()`).
 
-**Board state relay** — `WiFiManagerESP32` implements `IGameObserver`. `ChessGame` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation. The web UI polls `GET /board/update` which returns the current FEN, evaluation, move list, and game state as JSON.
+**Board state relay** — `WiFiManagerESP32` implements `IGameObserver`. `ChessGame` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation. The observer caches the FEN, evaluation, and navigation state (move index, move count, undo/redo availability, UCI move list). The web UI polls `GET /board-update` which returns all cached state as JSON.
+
+**Move navigation** — `WiFiManagerESP32` holds a `const ChessGame*` reference (set via `setGameRef()`) for read-only navigation queries. `POST /nav` sets a pending action flag; the main loop applies it to `ChessGame`. Navigation is blocked during the engine's turn in bot mode via `GameMode::isNavigationAllowed()`.
 
 **Board editing** — `handleBoardEditSuccess()` stores a pending FEN string from the web UI's board editor. The main loop checks `getPendingBoardEdit()` each cycle and applies it to the active game via `setBoardStateFromFEN()`, then calls `clearPendingEdit()`.
 
@@ -168,7 +170,7 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 **FEN snapshots** — periodic FEN strings are appended to the FEN table file. During replay, the system finds the last FEN snapshot, restores the board to that position, and replays only the moves that follow. This bounds replay time regardless of game length.
 
-**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is flushed every full turn (2 half-moves) rather than every move, reducing flash write cycles by half. On boot, `hasActiveGame()` checks if these files exist. If so, `getActiveGameInfo()` reads the header to determine the mode and configuration, and `ChessHistory::replayInto()` restores the full game state directly into the `ChessBoard`. `ChessGame::resumeGame()` wraps this with batch mode (the board automatically rebuilds its position hash history as moves are replayed). Move data size is derived from the file size (not the header's `moveCount`) for robustness against mid-turn crashes. Each move is validated during replay — corrupted or invalid moves cause the replay to abort.
+**Crash recovery** — during gameplay, moves are appended to `live.bin` and FEN snapshots to `live_fen.bin` in real time. The header is flushed every full turn (2 half-moves) rather than every move, reducing flash write cycles by half. On boot, `hasActiveGame()` checks if these files exist. If so, `getActiveGameInfo()` reads the header to determine the mode and configuration, and `ChessHistory::replayInto()` restores the full game state directly into the `ChessBoard`. `ChessGame::resumeGame()` wraps this and fires a single callback + observer notification after replay completes. Move data size is derived from the file size (not the header's `moveCount`) for robustness against mid-turn crashes. Each move is validated during replay — corrupted or invalid moves cause the replay to abort.
 
 **Storage limits** — `MAX_GAMES` = 50 games, `MAX_USAGE_PERCENT` = 80% of LittleFS capacity. `enforceStorageLimits()` is called after each game finishes and deletes the oldest games (lowest ID) until both limits are satisfied.
 
@@ -218,7 +220,7 @@ Every iteration of `loop()`:
 3. Create the new game object via `new` (the only heap allocation for game modes)
 4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `controller_->startRecording()` to begin recording
 
-For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `ChessHistory::replayInto()` to restore the full game state directly into the `ChessBoard` via batch mode, then continues with normal `update()` calls.
+For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `ChessHistory::replayInto()` to restore the full game state directly into the `ChessBoard`, then continues with normal `update()` calls.
 
 ### Menu Navigation
 
@@ -262,6 +264,19 @@ LED helper functions encapsulate the mutex pattern:
 ### Turn Restriction
 
 Resign is only processed on the current player's turn in all modes, matching real chess conventions.
+
+### Web Navigation
+
+Move history navigation is server-driven: the web UI sends navigation commands via `POST /nav`, the server applies them to `ChessGame`'s undo/redo system, and the frontend reads the updated state from `GET /board-update`.
+
+1. Web UI: nav button → `Api.nav(action)` → `POST /nav` with `action=undo|redo|first|last`
+2. `WiFiManagerESP32`: validates action, sets `pendingNavAction_`. If `navigationBlocked_`, returns `409`.
+3. `main.cpp loop()`: reads `wifiManager.getPendingNavAction()`, checks `activeGame->isNavigationAllowed()`, applies via `controller.undoMove()` / `controller.redoMove()` (loops for first/last), clears flag.
+4. `ChessGame::undoMove()`/`redoMove()` steps the history cursor and updates the board, then notifies the observer.
+5. `WiFiManagerESP32::onBoardStateChanged()` caches `moveIndex`, `moveCount`, `canUndo`, `canRedo`, and the UCI move list as JSON.
+6. Next `GET /board-update` poll returns the navigated position FEN and all cached navigation state.
+
+**Navigation blocking** — `GameMode::isNavigationAllowed()` is a virtual method (default: `true`). `BotMode` overrides it to return `true` only on the player's turn or when the game is over. The main loop updates `wifiManager.setNavigationBlocked()` each tick so the async web handler can reject requests immediately.
 
 ## LED System
 

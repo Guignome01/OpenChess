@@ -143,6 +143,21 @@ bool ChessGame::redoMove() {
 }
 
 // ---------------------------------------------------------------------------
+// Navigation queries
+// ---------------------------------------------------------------------------
+
+int ChessGame::getMoveListUCI(std::string out[], int maxMoves) const {
+  int count = history_.moveCount();
+  if (count > maxMoves) count = maxMoves;
+  for (int i = 0; i < count; ++i) {
+    const MoveEntry& m = history_.getMove(i);
+    char promo = m.isPromotion ? m.promotion : ' ';
+    out[i] = ChessCodec::toUCIMove(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
 // UCI helpers
 // ---------------------------------------------------------------------------
 
@@ -159,10 +174,11 @@ bool ChessGame::parseUCIMove(const std::string& move, int& fromRow, int& fromCol
 // ---------------------------------------------------------------------------
 
 bool ChessGame::resumeGame() {
-  beginBatch();
   bool ok = history_.replayInto(board_);
-  endBatch();
-  if (ok) notifyObserver();
+  if (ok) {
+    fireCallback();
+    notifyObserver();
+  }
   return ok;
 }
 
@@ -206,6 +222,8 @@ void ChessGame::endBatch() {
   if (batchDepth_ == 0 && batchDirty_) {
     batchDirty_ = false;
     if (stateCallback_) stateCallback_();
+    if (observer_)
+      observer_->onBoardStateChanged(board_.getFen(), board_.getEvaluation());
   }
 }
 
@@ -222,6 +240,10 @@ void ChessGame::fireCallback() {
 }
 
 void ChessGame::notifyObserver() {
+  if (batchDepth_ > 0) {
+    batchDirty_ = true;
+    return;
+  }
   if (observer_)
     observer_->onBoardStateChanged(board_.getFen(), board_.getEvaluation());
 }
