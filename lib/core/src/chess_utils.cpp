@@ -5,6 +5,19 @@
 
 namespace ChessUtils {
 
+int findPiece(const char board[8][8], char type, char color, int positions[][2], int maxPositions) {
+  int count = 0;
+  char target = makePiece(type, color);
+  for (int r = 0; r < 8 && count < maxPositions; r++)
+    for (int c = 0; c < 8 && count < maxPositions; c++)
+      if (board[r][c] == target) {
+        positions[count][0] = r;
+        positions[count][1] = c;
+        count++;
+      }
+  return count;
+}
+
 float evaluatePosition(const char board[8][8]) {
   // Simple material evaluation
   // Positive = White advantage, negative = Black advantage

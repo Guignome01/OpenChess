@@ -88,13 +88,13 @@ class ChessBoard {
   }
 
   // Is the given color's king in check?
-  bool isKingInCheck(char kingColor) const {
-    return ChessRules::isKingInCheck(board_, kingColor);
+  bool isCheck(char kingColor) const {
+    return ChessRules::isCheck(board_, kingColor);
   }
 
   // Is the side to move in check?
   bool inCheck() const {
-    return ChessRules::isKingInCheck(board_, currentTurn_);
+    return ChessRules::isCheck(board_, currentTurn_);
   }
 
   // Is the side to move checkmated?
@@ -110,8 +110,19 @@ class ChessBoard {
   // Is the position drawn due to insufficient material?
   bool isInsufficientMaterial() const;
 
+  // Has the 50-move rule been reached (100 half-moves)?
+  bool isFiftyMoveRule() const { return state_.halfmoveClock >= 100; }
+
   // Has the current position occurred three or more times?
   bool isThreefoldRepetition() const;
+
+  // Is the position drawn by any automatic draw rule?
+  // (50-move, insufficient material, threefold, stalemate)
+  bool isDraw() const;
+
+  // Check all game-end conditions. Returns the GameResult and sets winner:
+  // 'w'/'b' for checkmate, 'd' for draws/stalemate, ' ' for IN_PROGRESS.
+  GameResult checkGameEnd(char& winner) const;
 
   // Is the given square attacked by pieces of the specified color?
   // "byColor" is the attacking side: 'w' or 'b'.

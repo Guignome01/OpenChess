@@ -109,7 +109,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
 
   // Check detection (if game is not over)
   result.isCheck = false;
-  if (endResult == GameResult::IN_PROGRESS && ChessRules::isKingInCheck(board_, currentTurn_))
+  if (endResult == GameResult::IN_PROGRESS && ChessRules::isCheck(board_, currentTurn_))
     result.isCheck = true;
 
   invalidateCache();
@@ -191,29 +191,11 @@ float ChessBoard::getEvaluation() const {
 }
 
 int ChessBoard::findPiece(char type, char color, int positions[][2], int maxPositions) const {
-  int count = 0;
-  char target = (color == 'w') ? toupper(type) : tolower(type);
-  for (int r = 0; r < 8 && count < maxPositions; r++) {
-    for (int c = 0; c < 8 && count < maxPositions; c++) {
-      if (board_[r][c] == target) {
-        positions[count][0] = r;
-        positions[count][1] = c;
-        count++;
-      }
-    }
-  }
-  return count;
+  return ChessUtils::findPiece(board_, type, color, positions, maxPositions);
 }
 
 bool ChessBoard::findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
-  int positions[1][2];
-  int count = findPiece('K', kingColor, positions, 1);
-  if (count > 0) {
-    kingRow = positions[0][0];
-    kingCol = positions[0][1];
-    return true;
-  }
-  return false;
+  return ChessUtils::findKingPosition(board_, kingColor, kingRow, kingCol);
 }
 
 bool ChessBoard::isInsufficientMaterial() const {
@@ -236,6 +218,38 @@ bool ChessBoard::isThreefoldRepetition() const {
     }
   }
   return false;
+}
+
+bool ChessBoard::isDraw() const {
+  return isStalemate() || isFiftyMoveRule() || isInsufficientMaterial() || isThreefoldRepetition();
+}
+
+GameResult ChessBoard::checkGameEnd(char& winner) const {
+  // Delegate to the existing internal detection (identical logic).
+  // checkGameEnd is a const public query; detectGameEnd is a private
+  // non-const helper called during makeMove that also sets member state.
+  if (ChessRules::isCheckmate(board_, currentTurn_, state_)) {
+    winner = ChessUtils::opponentColor(currentTurn_);
+    return GameResult::CHECKMATE;
+  }
+  if (ChessRules::isStalemate(board_, currentTurn_, state_)) {
+    winner = 'd';
+    return GameResult::STALEMATE;
+  }
+  if (isFiftyMoveRule()) {
+    winner = 'd';
+    return GameResult::DRAW_50;
+  }
+  if (hasInsufficientMaterialInternal()) {
+    winner = 'd';
+    return GameResult::DRAW_INSUFFICIENT;
+  }
+  if (isThreefoldRepetition()) {
+    winner = 'd';
+    return GameResult::DRAW_3FOLD;
+  }
+  winner = ' ';
+  return GameResult::IN_PROGRESS;
 }
 
 void ChessBoard::invalidateCache() {
@@ -284,7 +298,7 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
 
   // Apply castling rook move
   if (castle.isCastling) {
-    char rookPiece = ChessUtils::isBlackPiece(piece) ? 'r' : 'R';
+    char rookPiece = ChessUtils::makePiece('R', ChessUtils::getPieceColor(piece));
     board_[toRow][castle.rookToCol] = rookPiece;
     board_[toRow][castle.rookFromCol] = ' ';
   }
@@ -297,10 +311,10 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
   if (ChessRules::isPawnPromotion(piece, toRow)) {
     result.isPromotion = true;
     if (promotion != ' ' && promotion != '\0') {
-      result.promotedTo = ChessUtils::isWhitePiece(piece) ? toupper(promotion) : tolower(promotion);
+      result.promotedTo = ChessUtils::makePiece(promotion, ChessUtils::getPieceColor(piece));
     } else {
       // Auto-queen
-      result.promotedTo = ChessUtils::isWhitePiece(piece) ? 'Q' : 'q';
+      result.promotedTo = ChessUtils::makePiece('Q', ChessUtils::getPieceColor(piece));
     }
     board_[toRow][toCol] = result.promotedTo;
   }

@@ -6,56 +6,56 @@ extern char board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
-// isKingInCheck
+// isCheck
 // ---------------------------------------------------------------------------
 
 void test_king_not_in_check_initial(void) {
   setupInitialBoard(board);
-  TEST_ASSERT_FALSE(ChessRules::isKingInCheck(board, 'w'));
-  TEST_ASSERT_FALSE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'w'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
 }
 
 void test_king_in_check_by_rook(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'r', "e8"); // rook on same file
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_king_in_check_by_bishop(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'b', "h4"); // bishop on diagonal
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_king_in_check_by_knight(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'n', "f3"); // knight checks
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_king_in_check_by_pawn(void) {
   placePiece(board, 'K', "e4");
   placePiece(board, 'p', "d5"); // black pawn attacks e4 from d5
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_king_in_check_by_queen(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'q', "e8"); // queen on same file
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_king_not_in_check_blocked(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'r', "e8");
   placePiece(board, 'P', "e2"); // own pawn blocks rook
-  TEST_ASSERT_FALSE(ChessRules::isKingInCheck(board, 'w'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'w'));
 }
 
 void test_black_king_in_check(void) {
   placePiece(board, 'k', "e8");
   placePiece(board, 'R', "e1"); // white rook attacks
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ void test_stalemate_king_only(void) {
   placePiece(board, 'K', "c6");
   PositionState flags{0x00, -1, -1};
   // Black to move — king has no legal moves, not in check
-  TEST_ASSERT_FALSE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
 }
 
@@ -177,7 +177,7 @@ void test_pinned_piece_can_move_along_pin(void) {
 void test_find_king_position_white(void) {
   setupInitialBoard(board);
   int row, col;
-  TEST_ASSERT_TRUE(ChessRules::findKingPosition(board, 'w', row, col));
+  TEST_ASSERT_TRUE(ChessUtils::findKingPosition(board, 'w', row, col));
   TEST_ASSERT_EQUAL_INT(7, row); // rank 1 = row 7
   TEST_ASSERT_EQUAL_INT(4, col); // e-file = col 4
 }
@@ -185,7 +185,7 @@ void test_find_king_position_white(void) {
 void test_find_king_position_black(void) {
   setupInitialBoard(board);
   int row, col;
-  TEST_ASSERT_TRUE(ChessRules::findKingPosition(board, 'b', row, col));
+  TEST_ASSERT_TRUE(ChessUtils::findKingPosition(board, 'b', row, col));
   TEST_ASSERT_EQUAL_INT(0, row); // rank 8 = row 0
   TEST_ASSERT_EQUAL_INT(4, col); // e-file = col 4
 }
@@ -193,8 +193,8 @@ void test_find_king_position_black(void) {
 void test_find_king_position_no_king(void) {
   // Empty board — no king of either color
   int row, col;
-  TEST_ASSERT_FALSE(ChessRules::findKingPosition(board, 'w', row, col));
-  TEST_ASSERT_FALSE(ChessRules::findKingPosition(board, 'b', row, col));
+  TEST_ASSERT_FALSE(ChessUtils::findKingPosition(board, 'w', row, col));
+  TEST_ASSERT_FALSE(ChessUtils::findKingPosition(board, 'b', row, col));
 }
 
 // ---------------------------------------------------------------------------
@@ -286,7 +286,7 @@ void test_double_check_only_king_can_move(void) {
 
   PositionState flags{0x00, -1, -1};
   // King is in check
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
   // Knight on d6 cannot resolve double check (even though it attacks both e4 and b5)
   int moveCount = 0;
   int moves[28][2];
@@ -305,7 +305,7 @@ void test_smothered_mate(void) {
   placePiece(board, 'K', "a1");
   placePiece(board, 'N', "f7"); // knight checks h8, blocks via g8/g7/h7
   PositionState flags{0x00, -1, -1};
-  TEST_ASSERT_TRUE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', flags));
 }
 
@@ -318,7 +318,7 @@ void test_stalemate_with_blocked_pawns(void) {
   placePiece(board, 'P', "a6"); // blocks the pawn
   placePiece(board, 'K', "c7"); // controls b8, b7, c8, d8, d7
   PositionState flags{0x00, -1, -1};
-  TEST_ASSERT_FALSE(ChessRules::isKingInCheck(board, 'b'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
 }
 

@@ -29,7 +29,7 @@ class ChessRules {
 
   // Check detection helpers
   static void getPseudoLegalMoves(const char board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling = true);
-  static bool wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags);
+  static bool leavesInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags);
   static void applyMove(char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags, char& capturedPiece);
 
  public:
@@ -46,8 +46,7 @@ class ChessRules {
   static bool isValidMove(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags);
 
   // Game state checks
-  static bool findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol);
-  static bool isKingInCheck(const char board[8][8], char kingColor);
+  static bool isCheck(const char board[8][8], char kingColor);
   static bool isPawnPromotion(char piece, int targetRow);
   static bool hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags);
   static bool isCheckmate(const char board[8][8], char kingColor, const PositionState& flags);

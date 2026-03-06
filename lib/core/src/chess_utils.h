@@ -172,6 +172,43 @@ inline uint8_t updateCastlingRights(uint8_t rights, int fromRow, int fromCol, in
   return rights;
 }
 
+// --- General-purpose board queries ---
+
+// Is (row, col) within the 8×8 board?
+inline constexpr bool isValidSquare(int row, int col) {
+  return row >= 0 && row < 8 && col >= 0 && col < 8;
+}
+
+// Construct a piece char from an uppercase type letter and a color.
+// makePiece('R', 'w') → 'R';  makePiece('R', 'b') → 'r'.
+inline char makePiece(char type, char color) {
+  return (color == 'w') ? static_cast<char>(toupper(type))
+                        : static_cast<char>(tolower(type));
+}
+
+// Is char a valid promotion piece letter? (case-insensitive: q, r, b, n)
+inline bool isValidPromotionChar(char c) {
+  char lower = static_cast<char>(tolower(c));
+  return lower == 'q' || lower == 'r' || lower == 'b' || lower == 'n';
+}
+
+// Find all pieces of the given type and color on a board.
+// type: uppercase piece letter ('P','N','B','R','Q','K').
+// color: 'w' or 'b'.
+// Returns count; fills positions[][2] with [row, col] pairs.
+int findPiece(const char board[8][8], char type, char color, int positions[][2], int maxPositions);
+
+// Locate the king of the given color. Returns false if not found.
+inline bool findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol) {
+  int positions[1][2];
+  if (findPiece(board, 'K', kingColor, positions, 1) > 0) {
+    kingRow = positions[0][0];
+    kingCol = positions[0][1];
+    return true;
+  }
+  return false;
+}
+
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)
 // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9

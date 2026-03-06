@@ -11,9 +11,9 @@ bool ChessRules::hasLegalEnPassantCapture(const char board[8][8], char sideToMov
   if (flags.epRow < 0 || flags.epCol < 0) return false;
   int capturerRow = (sideToMove == 'w') ? flags.epRow + 1 : flags.epRow - 1;
   char capturerPawn = (sideToMove == 'w') ? 'P' : 'p';
-  if (flags.epCol > 0 && board[capturerRow][flags.epCol - 1] == capturerPawn && !wouldMoveLeaveKingInCheck(board, capturerRow, flags.epCol - 1, flags.epRow, flags.epCol, flags))
+  if (flags.epCol > 0 && board[capturerRow][flags.epCol - 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol - 1, flags.epRow, flags.epCol, flags))
     return true;
-  if (flags.epCol < 7 && board[capturerRow][flags.epCol + 1] == capturerPawn && !wouldMoveLeaveKingInCheck(board, capturerRow, flags.epCol + 1, flags.epRow, flags.epCol, flags))
+  if (flags.epCol < 7 && board[capturerRow][flags.epCol + 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol + 1, flags.epRow, flags.epCol, flags))
     return true;
   return false;
 }
@@ -62,7 +62,7 @@ void ChessRules::getPossibleMoves(const char board[8][8], int row, int col, cons
     int toRow = pseudoMoves[i][0];
     int toCol = pseudoMoves[i][1];
 
-    if (!wouldMoveLeaveKingInCheck(board, row, col, toRow, toCol, flags)) {
+    if (!leavesInCheck(board, row, col, toRow, toCol, flags)) {
       moves[moveCount][0] = toRow;
       moves[moveCount][1] = toCol;
       moveCount++;
@@ -251,7 +251,7 @@ bool ChessRules::isSquareEmpty(const char board[8][8], int row, int col) {
 }
 
 bool ChessRules::isValidSquare(int row, int col) {
-  return row >= 0 && row < 8 && col >= 0 && col < 8;
+  return ChessUtils::isValidSquare(row, col);
 }
 
 // Move validation
@@ -282,19 +282,6 @@ bool ChessRules::isPawnPromotion(char piece, int targetRow) {
 // ---------------------------
 // Check Detection Functions
 // ---------------------------
-
-bool ChessRules::findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol) {
-  char kingPiece = (kingColor == 'w') ? 'K' : 'k';
-
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++)
-      if (board[row][col] == kingPiece) {
-        kingRow = row;
-        kingCol = col;
-        return true;
-      }
-  return false;
-}
 
 bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, char defendingColor) {
   char attackingColor = ChessUtils::opponentColor(defendingColor);
@@ -347,7 +334,7 @@ void ChessRules::applyMove(char board[8][8], int fromRow, int fromCol, int toRow
   // Handle castling as a compound move (move rook too)
   auto ci = ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol, movingPiece);
   if (ci.isCastling) {
-    char rookPiece = ChessUtils::isBlackPiece(movingPiece) ? 'r' : 'R';
+    char rookPiece = ChessUtils::makePiece('R', ChessUtils::getPieceColor(movingPiece));
     if (board[toRow][ci.rookFromCol] == rookPiece) {
       board[toRow][ci.rookToCol] = rookPiece;
       board[toRow][ci.rookFromCol] = ' ';
@@ -362,7 +349,7 @@ void ChessRules::applyMove(char board[8][8], int fromRow, int fromCol, int toRow
   }
 }
 
-bool ChessRules::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
+bool ChessRules::leavesInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
   char testBoard[8][8];
   memcpy(testBoard, board, sizeof(testBoard));
 
@@ -373,7 +360,7 @@ bool ChessRules::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, 
   applyMove(testBoard, fromRow, fromCol, toRow, toCol, flags, capturedPiece);
 
   int kingRow, kingCol;
-  bool kingFound = findKingPosition(testBoard, movingColor, kingRow, kingCol);
+  bool kingFound = ChessUtils::findKingPosition(testBoard, movingColor, kingRow, kingCol);
 
   if (!kingFound)
     return true;
@@ -381,10 +368,10 @@ bool ChessRules::wouldMoveLeaveKingInCheck(const char board[8][8], int fromRow, 
   return isSquareUnderAttack(testBoard, kingRow, kingCol, movingColor);
 }
 
-bool ChessRules::isKingInCheck(const char board[8][8], char kingColor) {
+bool ChessRules::isCheck(const char board[8][8], char kingColor) {
   int kingRow, kingCol;
 
-  if (!findKingPosition(board, kingColor, kingRow, kingCol))
+  if (!ChessUtils::findKingPosition(board, kingColor, kingRow, kingCol))
     return false;
 
   return isSquareUnderAttack(board, kingRow, kingCol, kingColor);
@@ -409,9 +396,9 @@ bool ChessRules::hasAnyLegalMove(const char board[8][8], char color, const Posit
 }
 
 bool ChessRules::isCheckmate(const char board[8][8], char kingColor, const PositionState& flags) {
-  return isKingInCheck(board, kingColor) && !hasAnyLegalMove(board, kingColor, flags);
+  return isCheck(board, kingColor) && !hasAnyLegalMove(board, kingColor, flags);
 }
 
 bool ChessRules::isStalemate(const char board[8][8], char colorToMove, const PositionState& flags) {
-  return !isKingInCheck(board, colorToMove) && !hasAnyLegalMove(board, colorToMove, flags);
+  return !isCheck(board, colorToMove) && !hasAnyLegalMove(board, colorToMove, flags);
 }

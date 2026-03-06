@@ -9,6 +9,12 @@
 
 namespace ChessNotation {
 
+// Strip trailing '+' and '#' check/checkmate suffixes in place.
+static void stripCheckSuffix(std::string& s) {
+  while (!s.empty() && (s.back() == '+' || s.back() == '#'))
+    s.pop_back();
+}
+
 // ---------------------------------------------------------------------------
 // Output — Coordinate notation
 // ---------------------------------------------------------------------------
@@ -172,7 +178,7 @@ bool parseCoordinate(const std::string& move,
   promotion = ' ';
   if (len == 5) {
     char promo = tolower(move[4]);
-    if (promo != 'q' && promo != 'r' && promo != 'b' && promo != 'n') return false;
+    if (!ChessUtils::isValidPromotionChar(promo)) return false;
     promotion = move[4];
   }
 
@@ -205,15 +211,13 @@ bool parseLAN(const std::string& move,
 
   // Strip check/checkmate suffixes
   std::string cleaned = move;
-  while (!cleaned.empty() && (cleaned.back() == '+' || cleaned.back() == '#')) {
-    cleaned.pop_back();
-  }
+  stripCheckSuffix(cleaned);
 
   // Strip promotion marker (=Q, =q, etc.)
   promotion = ' ';
   if (cleaned.size() >= 2 && cleaned[cleaned.size() - 2] == '=') {
     char promo = tolower(cleaned.back());
-    if (promo == 'q' || promo == 'r' || promo == 'b' || promo == 'n') {
+    if (ChessUtils::isValidPromotionChar(promo)) {
       promotion = cleaned.back();
       cleaned.erase(cleaned.size() - 2, 2);
     }
@@ -267,8 +271,7 @@ bool parseSAN(const char board[8][8], const PositionState& state,
   for (char c : san) upper += static_cast<char>(toupper(c));
   // Strip check suffixes for castling comparison
   std::string castleStr = upper;
-  while (!castleStr.empty() && (castleStr.back() == '+' || castleStr.back() == '#'))
-    castleStr.pop_back();
+  stripCheckSuffix(castleStr);
 
   if (castleStr == "O-O" || castleStr == "0-0") {
     // Kingside castle: find the king of the side to move
@@ -317,17 +320,14 @@ bool parseSAN(const char board[8][8], const PositionState& state,
 
   // Strip check/checkmate suffixes
   std::string s = san;
-  while (!s.empty() && (s.back() == '+' || s.back() == '#')) {
-    s.pop_back();
-  }
+  stripCheckSuffix(s);
   if (s.empty()) return false;
 
   // Extract promotion (=Q or just Q at end for pawns reaching last rank)
   promotion = ' ';
   if (s.size() >= 2 && s[s.size() - 2] == '=') {
     char promo = s.back();
-    if (toupper(promo) == 'Q' || toupper(promo) == 'R' ||
-        toupper(promo) == 'B' || toupper(promo) == 'N') {
+    if (ChessUtils::isValidPromotionChar(promo)) {
       promotion = tolower(promo);
       s.erase(s.size() - 2, 2);
     }

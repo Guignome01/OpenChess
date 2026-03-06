@@ -148,11 +148,14 @@ class ChessGame {
     board_.getPossibleMoves(row, col, moveCount, moves);
   }
 
-  bool isKingInCheck(char kingColor) const { return board_.isKingInCheck(kingColor); }
+  bool isCheck(char kingColor) const { return board_.isCheck(kingColor); }
   bool inCheck() const { return board_.inCheck(); }
   bool isCheckmate() const { return board_.isCheckmate(); }
   bool isStalemate() const { return board_.isStalemate(); }
   bool isInsufficientMaterial() const { return board_.isInsufficientMaterial(); }
+  bool isFiftyMoveRule() const { return board_.isFiftyMoveRule(); }
+
+  GameResult checkGameEnd(char& winner) const { return board_.checkGameEnd(winner); }
 
   bool isAttacked(int row, int col, char byColor) const {
     return board_.isAttacked(row, col, byColor);

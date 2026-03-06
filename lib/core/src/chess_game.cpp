@@ -73,7 +73,7 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   // and persistent recording automatically)
   char captured = ' ';
   if (result.isEnPassant) {
-    captured = ChessUtils::isWhitePiece(piece) ? 'p' : 'P';
+    captured = ChessUtils::makePiece('P', ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
   } else if (result.isCapture) {
     captured = targetPiece;
   }
@@ -266,10 +266,7 @@ bool ChessGame::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_
 // ---------------------------------------------------------------------------
 
 bool ChessGame::isDraw() const {
-  if (board_.positionState().halfmoveClock >= 100) return true;
-  if (board_.isThreefoldRepetition()) return true;
-  if (board_.isInsufficientMaterial()) return true;
-  return false;
+  return board_.isDraw();
 }
 
 bool ChessGame::isThreefoldRepetition() const {
