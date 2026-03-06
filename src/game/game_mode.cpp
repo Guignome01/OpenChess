@@ -141,9 +141,9 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
     // Game continues — check for check
     if (result.isCheck) {
       Serial.printf("%s is in CHECK!\n", ChessUtils::colorName(controller_->currentTurn()));
-      int kingRow, kingCol;
-      if (controller_->findKingPosition(controller_->currentTurn(), kingRow, kingCol))
-        boardDriver_->blinkSquare(kingRow, kingCol, LedColors::Yellow, 3, true, true);
+      int kingPos[1][2];
+      if (controller_->findPiece('K', controller_->currentTurn(), kingPos, 1) > 0)
+        boardDriver_->blinkSquare(kingPos[0][0], kingPos[0][1], LedColors::Yellow, 3, true, true);
     }
     Serial.printf("It's %s's turn !\n", ChessUtils::colorName(controller_->currentTurn()));
   }

@@ -271,7 +271,7 @@ bool ChessRules::isValidMove(const char board[8][8], int fromRow, int fromCol, i
 }
 
 // Check if a pawn move results in promotion
-bool ChessRules::isPawnPromotion(char piece, int targetRow) {
+bool ChessRules::isPromotion(char piece, int targetRow) {
   if (piece == 'P' && targetRow == 0)
     return true;
   if (piece == 'p' && targetRow == 7)

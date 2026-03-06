@@ -126,11 +126,11 @@ class ChessGame {
   bool hasActiveGame();
   bool getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth);
 
-  // --- Game state (delegated to board) ---
+  // --- Game state (owned by ChessGame) ---
 
-  bool isGameOver() const { return board_.isGameOver(); }
-  GameResult gameResult() const { return board_.gameResult(); }
-  char winnerColor() const { return board_.winnerColor(); }
+  bool isGameOver() const { return gameOver_; }
+  GameResult gameResult() const { return gameResult_; }
+  char winnerColor() const { return winnerColor_; }
 
   // --- Board pass-throughs ---
 
@@ -153,9 +153,7 @@ class ChessGame {
   bool isCheckmate() const { return board_.isCheckmate(); }
   bool isStalemate() const { return board_.isStalemate(); }
   bool isInsufficientMaterial() const { return board_.isInsufficientMaterial(); }
-  bool isFiftyMoveRule() const { return board_.isFiftyMoveRule(); }
-
-  GameResult checkGameEnd(char& winner) const { return board_.checkGameEnd(winner); }
+  bool isFiftyMoves() const { return board_.isFiftyMoves(); }
 
   bool isAttacked(int row, int col, char byColor) const {
     return board_.isAttacked(row, col, byColor);
@@ -163,10 +161,6 @@ class ChessGame {
 
   int findPiece(char type, char color, int positions[][2], int maxPositions) const {
     return board_.findPiece(type, color, positions, maxPositions);
-  }
-
-  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
-    return board_.findKingPosition(kingColor, kingRow, kingCol);
   }
 
   int moveNumber() const { return board_.moveNumber(); }
@@ -214,6 +208,9 @@ class ChessGame {
   int batchDepth_;
   bool batchDirty_;
   std::string startFen_;  // initial FEN for SAN/LAN replay in getHistory()
+  bool gameOver_;
+  GameResult gameResult_;
+  char winnerColor_;
 
   void fireCallback();
   void notifyObserver();

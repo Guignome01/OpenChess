@@ -47,7 +47,7 @@ class ChessRules {
 
   // Game state checks
   static bool isCheck(const char board[8][8], char kingColor);
-  static bool isPawnPromotion(char piece, int targetRow);
+  static bool isPromotion(char piece, int targetRow);
   static bool hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags);
   static bool isCheckmate(const char board[8][8], char kingColor, const PositionState& flags);
   static bool isStalemate(const char board[8][8], char colorToMove, const PositionState& flags);

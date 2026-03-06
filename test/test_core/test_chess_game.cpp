@@ -496,6 +496,143 @@ void test_game_get_history_lan_format(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle (gameOver / endGame owned by ChessGame)
+// ---------------------------------------------------------------------------
+
+void test_game_end_game_resignation(void) {
+  setUpGame();
+  gm.endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::RESIGNATION, gm.gameResult());
+  TEST_ASSERT_EQUAL('b', gm.winnerColor());
+}
+
+void test_game_end_game_timeout(void) {
+  setUpGame();
+  gm.endGame(GameResult::TIMEOUT, 'w');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::TIMEOUT, gm.gameResult());
+  TEST_ASSERT_EQUAL('w', gm.winnerColor());
+}
+
+void test_game_end_game_aborted(void) {
+  setUpGame();
+  gm.endGame(GameResult::ABORTED, ' ');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::ABORTED, gm.gameResult());
+  TEST_ASSERT_EQUAL(' ', gm.winnerColor());
+}
+
+void test_game_end_game_draw_agreement(void) {
+  setUpGame();
+  gm.endGame(GameResult::DRAW_AGREEMENT, ' ');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::DRAW_AGREEMENT, gm.gameResult());
+  TEST_ASSERT_EQUAL(' ', gm.winnerColor());
+}
+
+void test_game_end_game_double_call(void) {
+  setUpGame();
+  gm.endGame(GameResult::RESIGNATION, 'w');
+  gm.endGame(GameResult::TIMEOUT, 'b');
+  // First call wins
+  TEST_ASSERT_EQUAL(GameResult::RESIGNATION, gm.gameResult());
+  TEST_ASSERT_EQUAL('w', gm.winnerColor());
+}
+
+void test_game_move_after_game_over_rejected(void) {
+  setUpGame();
+  gm.endGame(GameResult::RESIGNATION, 'b');
+  MoveResult r = gm.makeMove(6, 4, 4, 4);  // e2e4
+  TEST_ASSERT_FALSE(r.valid);
+}
+
+void test_game_end_game_preserves_fen(void) {
+  setUpGame();
+  gm.makeMove(6, 4, 4, 4);  // e2e4
+  std::string fenBefore = gm.getFen();
+  gm.endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), gm.getFen().c_str());
+}
+
+void test_game_load_fen_resets_game_over(void) {
+  setUpGame();
+  gm.endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+void test_game_new_game_resets_game_over(void) {
+  setUpGame();
+  gm.endGame(GameResult::RESIGNATION, 'w');
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  gm.newGame();
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+void test_game_checkmate_sets_game_over(void) {
+  setUpGame();
+  // Scholar's mate
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 4, 3, 4);  // e5
+  gm.makeMove(7, 5, 4, 2);  // Bc4
+  gm.makeMove(1, 0, 2, 0);  // a6
+  gm.makeMove(7, 3, 3, 7);  // Qh5
+  gm.makeMove(1, 1, 2, 1);  // b6
+  MoveResult r = gm.makeMove(3, 7, 1, 5);  // Qxf7#
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, gm.gameResult());
+  TEST_ASSERT_EQUAL('w', gm.winnerColor());
+}
+
+void test_game_stalemate_sets_game_over(void) {
+  setUpGame();
+  gm.loadFEN("k7/8/2K5/8/8/8/8/1Q6 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 1, 2, 1);  // Qb1-b6 stalemates black
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::STALEMATE, gm.gameResult());
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_game_insufficient_material_sets_game_over(void) {
+  setUpGame();
+  gm.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  MoveResult r = gm.makeMove(7, 4, 7, 3);  // Ke1-d1
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::DRAW_INSUFFICIENT, gm.gameResult());
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_game_fifty_move_sets_game_over(void) {
+  setUpGame();
+  gm.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 99 50");
+  MoveResult r = gm.makeMove(7, 0, 7, 1);  // Ra1-b1 (clock hits 100)
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::DRAW_50, gm.gameResult());
+  TEST_ASSERT_TRUE(gm.isDraw());
+}
+
+void test_game_undo_clears_game_over(void) {
+  setUpGame();
+  // Scholar's mate
+  gm.makeMove(6, 4, 4, 4);
+  gm.makeMove(1, 4, 3, 4);
+  gm.makeMove(7, 5, 4, 2);
+  gm.makeMove(1, 0, 2, 0);
+  gm.makeMove(7, 3, 3, 7);
+  gm.makeMove(1, 1, 2, 1);
+  gm.makeMove(3, 7, 1, 5);  // Qxf7#
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  gm.undoMove();
+  TEST_ASSERT_FALSE(gm.isGameOver());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -552,4 +689,20 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_get_history_max_limit);
   RUN_TEST(test_game_get_history_san_format);
   RUN_TEST(test_game_get_history_lan_format);
+
+  // Lifecycle (gameOver / endGame)
+  RUN_TEST(test_game_end_game_resignation);
+  RUN_TEST(test_game_end_game_timeout);
+  RUN_TEST(test_game_end_game_aborted);
+  RUN_TEST(test_game_end_game_draw_agreement);
+  RUN_TEST(test_game_end_game_double_call);
+  RUN_TEST(test_game_move_after_game_over_rejected);
+  RUN_TEST(test_game_end_game_preserves_fen);
+  RUN_TEST(test_game_load_fen_resets_game_over);
+  RUN_TEST(test_game_new_game_resets_game_over);
+  RUN_TEST(test_game_checkmate_sets_game_over);
+  RUN_TEST(test_game_stalemate_sets_game_over);
+  RUN_TEST(test_game_insufficient_material_sets_game_over);
+  RUN_TEST(test_game_fifty_move_sets_game_over);
+  RUN_TEST(test_game_undo_clears_game_over);
 }

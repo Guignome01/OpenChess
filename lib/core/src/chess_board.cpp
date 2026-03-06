@@ -21,9 +21,6 @@ const char ChessBoard::INITIAL_BOARD[8][8] = {
 
 ChessBoard::ChessBoard()
     : currentTurn_('w'),
-      gameOver_(false),
-      gameResult_(GameResult::IN_PROGRESS),
-      winnerColor_(' '),
       positionHistoryCount_(0),
       cachedEval_(0.0f),
       fenDirty_(true),
@@ -38,9 +35,6 @@ ChessBoard::ChessBoard()
 void ChessBoard::newGame() {
   memcpy(board_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
   currentTurn_ = 'w';
-  gameOver_ = false;
-  gameResult_ = GameResult::IN_PROGRESS;
-  winnerColor_ = ' ';
   state_ = PositionState::initial();
   positionHistoryCount_ = 0;
   invalidateCache();
@@ -51,21 +45,10 @@ bool ChessBoard::loadFEN(const std::string& fen) {
   if (!ChessFEN::validateFEN(fen)) return false;
 
   ChessFEN::fenToBoard(fen, board_, currentTurn_, &state_);
-  gameOver_ = false;
-  gameResult_ = GameResult::IN_PROGRESS;
-  winnerColor_ = ' ';
   positionHistoryCount_ = 0;
   invalidateCache();
   recordPosition();
   return true;
-}
-
-void ChessBoard::endGame(GameResult result, char winnerColor) {
-  if (gameOver_) return;  // Guard against double-call
-  gameOver_ = true;
-  gameResult_ = result;
-  winnerColor_ = winnerColor;
-  invalidateCache();
 }
 
 // ---------------------------------------------------------------------------
@@ -73,8 +56,6 @@ void ChessBoard::endGame(GameResult result, char winnerColor) {
 // ---------------------------------------------------------------------------
 
 MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  if (gameOver_) return invalidMoveResult();
-
   // Validate coordinates
   if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7 ||
       toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7)
@@ -101,11 +82,6 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   GameResult endResult = detectGameEnd(winner);
   result.gameResult = endResult;
   result.winnerColor = winner;
-  if (endResult != GameResult::IN_PROGRESS) {
-    gameOver_ = true;
-    gameResult_ = endResult;
-    winnerColor_ = winner;
-  }
 
   // Check detection (if game is not over)
   result.isCheck = false;
@@ -157,11 +133,6 @@ void ChessBoard::reverseMove(const MoveEntry& entry) {
   if (positionHistoryCount_ > 0)
     positionHistoryCount_--;
 
-  // Clear game-over state (undoing means game is back in play)
-  gameOver_ = false;
-  gameResult_ = GameResult::IN_PROGRESS;
-  winnerColor_ = ' ';
-
   invalidateCache();
 }
 
@@ -194,10 +165,6 @@ int ChessBoard::findPiece(char type, char color, int positions[][2], int maxPosi
   return ChessUtils::findPiece(board_, type, color, positions, maxPositions);
 }
 
-bool ChessBoard::findKingPosition(char kingColor, int& kingRow, int& kingCol) const {
-  return ChessUtils::findKingPosition(board_, kingColor, kingRow, kingCol);
-}
-
 bool ChessBoard::isInsufficientMaterial() const {
   return hasInsufficientMaterialInternal();
 }
@@ -221,35 +188,7 @@ bool ChessBoard::isThreefoldRepetition() const {
 }
 
 bool ChessBoard::isDraw() const {
-  return isStalemate() || isFiftyMoveRule() || isInsufficientMaterial() || isThreefoldRepetition();
-}
-
-GameResult ChessBoard::checkGameEnd(char& winner) const {
-  // Delegate to the existing internal detection (identical logic).
-  // checkGameEnd is a const public query; detectGameEnd is a private
-  // non-const helper called during makeMove that also sets member state.
-  if (ChessRules::isCheckmate(board_, currentTurn_, state_)) {
-    winner = ChessUtils::opponentColor(currentTurn_);
-    return GameResult::CHECKMATE;
-  }
-  if (ChessRules::isStalemate(board_, currentTurn_, state_)) {
-    winner = 'd';
-    return GameResult::STALEMATE;
-  }
-  if (isFiftyMoveRule()) {
-    winner = 'd';
-    return GameResult::DRAW_50;
-  }
-  if (hasInsufficientMaterialInternal()) {
-    winner = 'd';
-    return GameResult::DRAW_INSUFFICIENT;
-  }
-  if (isThreefoldRepetition()) {
-    winner = 'd';
-    return GameResult::DRAW_3FOLD;
-  }
-  winner = ' ';
-  return GameResult::IN_PROGRESS;
+  return isStalemate() || isFiftyMoves() || isInsufficientMaterial() || isThreefoldRepetition();
 }
 
 void ChessBoard::invalidateCache() {
@@ -308,7 +247,7 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
       state_.castlingRights, fromRow, fromCol, toRow, toCol, piece, capturedPiece);
 
   // Pawn promotion
-  if (ChessRules::isPawnPromotion(piece, toRow)) {
+  if (ChessRules::isPromotion(piece, toRow)) {
     result.isPromotion = true;
     if (promotion != ' ' && promotion != '\0') {
       result.promotedTo = ChessUtils::makePiece(promotion, ChessUtils::getPieceColor(piece));

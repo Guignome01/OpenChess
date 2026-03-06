@@ -14,13 +14,15 @@ struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 
 // Board representation and position-level chess logic.
 // Owns the 8x8 board array, current turn, position state (castling, en passant,
-// clocks), game-over state, and Zobrist position history for threefold repetition.
+// clocks), and Zobrist position history for threefold repetition.
 // Handles move validation, application, and game-end detection — all end
 // conditions (checkmate, stalemate, 50-move, insufficient material, threefold)
-// are detected uniformly inside detectGameEnd().
+// are detected uniformly inside detectGameEnd() and returned via MoveResult.
+// Pure position container: no lifecycle state (game-over flag, result, winner).
+// Lifecycle authority lives in ChessGame.
 // Pure logic, no hardware dependencies, natively compilable for unit tests.
 //
-// Note: move history, callbacks, and batching live in ChessGame
+// Note: move history, callbacks, batching, and game-over state live in ChessGame
 // (the game-level orchestrator that composes ChessBoard).
 //
 // Usage:
@@ -29,7 +31,6 @@ struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 //   MoveResult r = cb.makeMove(6,4, 4,4);  // e2e4
 //   if (!r.valid) { /* illegal */ }
 //   cb.loadFEN("...");                  // load arbitrary position
-//   cb.endGame(GameResult::RESIGNATION, 'b'); // manual termination
 //
 class ChessBoard {
  public:
@@ -40,12 +41,9 @@ class ChessBoard {
   // Reset to standard initial position.
   void newGame();
 
-  // Load arbitrary position from FEN.  Resets game-over state.
+  // Load arbitrary position from FEN.
   // Returns false (and leaves board unchanged) if the FEN is malformed.
   bool loadFEN(const std::string& fen);
-
-  // Manually end the game (resignation, timeout, abort, etc.).
-  void endGame(GameResult result, char winnerColor);
 
   // --- Moves ---
 
@@ -54,7 +52,7 @@ class ChessBoard {
   MoveResult makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
   // Reverse a previously applied move using its MoveEntry.
-  // Restores board, turn, position state, Zobrist history, and clears game-over.
+  // Restores board, turn, position state, and Zobrist history.
   void reverseMove(const MoveEntry& entry);
 
   // Re-apply a move from a MoveEntry (for redo).  Returns the MoveResult.
@@ -66,9 +64,6 @@ class ChessBoard {
   const char (&getBoard() const)[8][8] { return board_; }
   char getSquare(int row, int col) const { return board_[row][col]; }
   char currentTurn() const { return currentTurn_; }
-  bool isGameOver() const { return gameOver_; }
-  GameResult gameResult() const { return gameResult_; }
-  char winnerColor() const { return winnerColor_; }
 
   // Position state accessors
   uint8_t getCastlingRights() const { return state_.castlingRights; }
@@ -111,7 +106,7 @@ class ChessBoard {
   bool isInsufficientMaterial() const;
 
   // Has the 50-move rule been reached (100 half-moves)?
-  bool isFiftyMoveRule() const { return state_.halfmoveClock >= 100; }
+  bool isFiftyMoves() const { return state_.halfmoveClock >= 100; }
 
   // Has the current position occurred three or more times?
   bool isThreefoldRepetition() const;
@@ -119,10 +114,6 @@ class ChessBoard {
   // Is the position drawn by any automatic draw rule?
   // (50-move, insufficient material, threefold, stalemate)
   bool isDraw() const;
-
-  // Check all game-end conditions. Returns the GameResult and sets winner:
-  // 'w'/'b' for checkmate, 'd' for draws/stalemate, ' ' for IN_PROGRESS.
-  GameResult checkGameEnd(char& winner) const;
 
   // Is the given square attacked by pieces of the specified color?
   // "byColor" is the attacking side: 'w' or 'b'.
@@ -138,9 +129,6 @@ class ChessBoard {
   // color: 'w' or 'b'.
   // Returns count; fills positions[][2] with [row, col] pairs.
   int findPiece(char type, char color, int positions[][2], int maxPositions) const;
-
-  // Locate the king of the given color. Returns false if not found.
-  bool findKingPosition(char kingColor, int& kingRow, int& kingCol) const;
 
   // Current full-move number (starts at 1, increments after black's move).
   int moveNumber() const { return state_.fullmoveClock; }
@@ -167,9 +155,6 @@ class ChessBoard {
  private:
   char board_[8][8];
   char currentTurn_;
-  bool gameOver_;
-  GameResult gameResult_;
-  char winnerColor_;
   PositionState state_;  // castling rights, en passant, clocks
 
   // Zobrist position history (for threefold repetition detection)

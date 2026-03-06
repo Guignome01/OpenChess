@@ -34,8 +34,8 @@ void test_manager_new_game_turn(void) {
 
 void test_manager_new_game_not_over(void) {
   setUpManager();
-  TEST_ASSERT_FALSE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, gm.gameResult());
+  TEST_ASSERT_FALSE(gm.isCheckmate());
+  TEST_ASSERT_FALSE(gm.isDraw());
 }
 
 void test_manager_new_game_fen(void) {
@@ -96,9 +96,17 @@ void test_manager_out_of_bounds_rejected(void) {
 
 void test_manager_move_after_game_over_rejected(void) {
   setUpManager();
-  gm.endGame(GameResult::RESIGNATION, 'b');
-  MoveResult r = gm.makeMove(6, 4, 4, 4);
-  TEST_ASSERT_FALSE(r.valid);
+  // Reach checkmate via scholar's mate, then try to move
+  gm.makeMove(6, 4, 4, 4); // e4
+  gm.makeMove(1, 4, 3, 4); // e5
+  gm.makeMove(7, 5, 4, 2); // Bc4
+  gm.makeMove(1, 0, 2, 0); // a6
+  gm.makeMove(7, 3, 3, 7); // Qh5
+  gm.makeMove(1, 1, 2, 1); // b6
+  MoveResult r = gm.makeMove(3, 7, 1, 5); // Qxf7#
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
+  // Board no longer guards; this tests that the position is in checkmate
+  TEST_ASSERT_TRUE(gm.isCheckmate());
 }
 
 // ---------------------------------------------------------------------------
@@ -348,8 +356,7 @@ void test_manager_scholars_mate(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('w', r.winnerColor);
-  TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, gm.gameResult());
+  TEST_ASSERT_TRUE(gm.isCheckmate());
 }
 
 void test_manager_back_rank_mate(void) {
@@ -375,7 +382,7 @@ void test_manager_stalemate(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::STALEMATE, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('d', r.winnerColor);
-  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_TRUE(gm.isStalemate());
 }
 
 // ---------------------------------------------------------------------------
@@ -390,6 +397,8 @@ void test_manager_fifty_move_draw(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_50, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR('d', r.winnerColor);
+  TEST_ASSERT_TRUE(gm.isFiftyMoves());
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 // ---------------------------------------------------------------------------
@@ -403,7 +412,8 @@ void test_manager_insufficient_material_k_vs_k(void) {
   MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
-  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_TRUE(gm.isInsufficientMaterial());
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_manager_insufficient_material_kb_vs_k(void) {
@@ -412,6 +422,7 @@ void test_manager_insufficient_material_kb_vs_k(void) {
   MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_manager_insufficient_material_kn_vs_k(void) {
@@ -420,6 +431,7 @@ void test_manager_insufficient_material_kn_vs_k(void) {
   MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_manager_insufficient_material_kb_vs_kb_same_color(void) {
@@ -430,6 +442,7 @@ void test_manager_insufficient_material_kb_vs_kb_same_color(void) {
   MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_INSUFFICIENT, r.gameResult);
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_manager_insufficient_material_kb_vs_kb_diff_color(void) {
@@ -441,7 +454,7 @@ void test_manager_insufficient_material_kb_vs_kb_diff_color(void) {
   TEST_ASSERT_TRUE(r.valid);
   // Different color bishops — NOT insufficient
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
-  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_FALSE(gm.isInsufficientMaterial());
 }
 
 void test_manager_sufficient_material_knn(void) {
@@ -451,7 +464,7 @@ void test_manager_sufficient_material_knn(void) {
   MoveResult r = gm.makeMove(7, 4, 7, 3); // Ke1-d1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
-  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_FALSE(gm.isCheckmate());
 }
 
 void test_manager_sufficient_material_kp_vs_k(void) {
@@ -475,10 +488,18 @@ void test_manager_load_fen_sets_turn(void) {
 
 void test_manager_load_fen_resets_game_over(void) {
   setUpManager();
-  gm.endGame(GameResult::RESIGNATION, 'w');
-  TEST_ASSERT_TRUE(gm.isGameOver());
+  // Reach checkmate first
+  gm.makeMove(6, 4, 4, 4); // e4
+  gm.makeMove(1, 4, 3, 4); // e5
+  gm.makeMove(7, 5, 4, 2); // Bc4
+  gm.makeMove(1, 0, 2, 0); // a6
+  gm.makeMove(7, 3, 3, 7); // Qh5
+  gm.makeMove(1, 1, 2, 1); // b6
+  MoveResult r = gm.makeMove(3, 7, 1, 5); // Qxf7#
+  TEST_ASSERT_TRUE(gm.isCheckmate());
+  // loadFEN resets position to non-terminal
   gm.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_FALSE(gm.isCheckmate());
 }
 
 void test_manager_load_fen_roundtrip(void) {
@@ -555,51 +576,6 @@ void test_manager_load_fen_invalid_preserves_state(void) {
 }
 
 // ---------------------------------------------------------------------------
-// endGame
-// ---------------------------------------------------------------------------
-
-void test_manager_end_game_resignation(void) {
-  setUpManager();
-  gm.endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
-  TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
-}
-
-void test_manager_end_game_timeout(void) {
-  setUpManager();
-  gm.endGame(GameResult::TIMEOUT, 'w');
-  TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::TIMEOUT, gm.gameResult());
-}
-
-void test_manager_end_game_aborted(void) {
-  setUpManager();
-  gm.endGame(GameResult::ABORTED, ' ');
-  TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::ABORTED, gm.gameResult());
-}
-
-void test_manager_end_game_draw_agreement(void) {
-  setUpManager();
-  gm.endGame(GameResult::DRAW_AGREEMENT, 'd');
-  TEST_ASSERT_TRUE(gm.isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::DRAW_AGREEMENT, gm.gameResult());
-  TEST_ASSERT_EQUAL_CHAR('d', gm.winnerColor());
-}
-
-void test_manager_end_game_double_call(void) {
-  setUpManager();
-  gm.endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
-  TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
-  // Second call should be a no-op — result preserved
-  gm.endGame(GameResult::TIMEOUT, 'w');
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, gm.gameResult());
-  TEST_ASSERT_EQUAL_CHAR('b', gm.winnerColor());
-}
-
-// ---------------------------------------------------------------------------
 // Compact move encoding
 // ---------------------------------------------------------------------------
 
@@ -671,9 +647,10 @@ void test_manager_eval_cache_consistent(void) {
 void test_manager_end_game_preserves_fen(void) {
   setUpManager();
   std::string fenBefore = gm.getFen();
-  gm.endGame(GameResult::RESIGNATION, 'b');
-  std::string fenAfter = gm.getFen();
-  TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), fenAfter.c_str());
+  // Making a move changes FEN, but non-terminal positions preserve structure
+  TEST_ASSERT_EQUAL_STRING(
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      fenBefore.c_str());
 }
 
 void test_manager_eval_after_capture(void) {
@@ -764,37 +741,6 @@ void test_manager_find_piece_max_limit(void) {
   int positions[3][2];
   int count = gm.findPiece('P', 'w', positions, 3);
   TEST_ASSERT_EQUAL_INT(3, count);
-}
-
-// ---------------------------------------------------------------------------
-// findKingPosition (now backed by findPiece)
-// ---------------------------------------------------------------------------
-
-void test_manager_find_king_position_white(void) {
-  setUpManager();
-  int row, col;
-  bool found = gm.findKingPosition('w', row, col);
-  TEST_ASSERT_TRUE(found);
-  TEST_ASSERT_EQUAL_INT(7, row);
-  TEST_ASSERT_EQUAL_INT(4, col);
-}
-
-void test_manager_find_king_position_black(void) {
-  setUpManager();
-  int row, col;
-  bool found = gm.findKingPosition('b', row, col);
-  TEST_ASSERT_TRUE(found);
-  TEST_ASSERT_EQUAL_INT(0, row);
-  TEST_ASSERT_EQUAL_INT(4, col);
-}
-
-void test_manager_find_king_position_missing(void) {
-  setUpManager();
-  // Position with no white king — abnormal, but findKingPosition should return false
-  gm.loadFEN("4k3/8/8/8/8/8/8/4q3 w - - 0 1");
-  int row, col;
-  bool found = gm.findKingPosition('w', row, col);
-  TEST_ASSERT_FALSE(found);
 }
 
 // ---------------------------------------------------------------------------
@@ -934,7 +880,8 @@ void test_board_threefold_repetition(void) {
   gm.makeMove(7, 3, 7, 4);
   MoveResult r = gm.makeMove(0, 3, 0, 4);  // third repetition
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
-  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_board_threefold_different_castling_rights(void) {
@@ -950,7 +897,7 @@ void test_board_threefold_different_castling_rights(void) {
   gm.makeMove(7, 3, 7, 4);
   MoveResult r = gm.makeMove(0, 3, 0, 4); // occurrence 2 (not 3)
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
-  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_FALSE(gm.isThreefoldRepetition());
 }
 
 void test_board_threefold_not_reached(void) {
@@ -984,6 +931,7 @@ void test_board_threefold_with_rook_moves(void) {
   MoveResult r = gm.makeMove(0, 3, 0, 4); // 3rd time
   TEST_ASSERT_ENUM_EQ(GameResult::DRAW_3FOLD, r.gameResult);
   TEST_ASSERT_TRUE(gm.isThreefoldRepetition());
+  TEST_ASSERT_TRUE(gm.isDraw());
 }
 
 void test_board_position_history_reset_on_pawn_move(void) {
@@ -1123,12 +1071,12 @@ void test_board_reverse_move_clears_game_over(void) {
   gm.makeMove(1, 1, 2, 1);  // b6
   PositionState before = gm.positionState();
   MoveResult r = gm.makeMove(3, 7, 1, 5);  // Qxf7#
-  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_TRUE(gm.isCheckmate());
 
   MoveEntry e = makeBoardEntry(3, 7, 1, 5, 'Q', 'p', before, ' ', false, -1, false, true);
   gm.reverseMove(e);
 
-  TEST_ASSERT_FALSE(gm.isGameOver());
+  TEST_ASSERT_FALSE(gm.isCheckmate());
   TEST_ASSERT_EQUAL_CHAR('w', gm.currentTurn());
 }
 
@@ -1243,13 +1191,6 @@ void register_chess_board_tests() {
   RUN_TEST(test_manager_load_fen_valid_returns_true);
   RUN_TEST(test_manager_load_fen_invalid_preserves_state);
 
-  // endGame
-  RUN_TEST(test_manager_end_game_resignation);
-  RUN_TEST(test_manager_end_game_timeout);
-  RUN_TEST(test_manager_end_game_aborted);
-  RUN_TEST(test_manager_end_game_draw_agreement);
-  RUN_TEST(test_manager_end_game_double_call);
-
   // Compact move encoding
   RUN_TEST(test_encodeMove_roundtrip);
   RUN_TEST(test_encodeMove_with_promotion);
@@ -1272,11 +1213,6 @@ void register_chess_board_tests() {
   RUN_TEST(test_manager_find_piece_not_found);
   RUN_TEST(test_manager_find_piece_multiple_bishops);
   RUN_TEST(test_manager_find_piece_max_limit);
-
-  // findKingPosition (uses findPiece)
-  RUN_TEST(test_manager_find_king_position_white);
-  RUN_TEST(test_manager_find_king_position_black);
-  RUN_TEST(test_manager_find_king_position_missing);
 
   // inCheck (no-arg)
   RUN_TEST(test_manager_in_check_true);

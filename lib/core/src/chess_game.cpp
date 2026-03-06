@@ -6,7 +6,8 @@
 #include "chess_rules.h"
 
 ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
-    : history_(storage, logger), observer_(observer), batchDepth_(0), batchDirty_(false) {}
+    : history_(storage, logger), observer_(observer), batchDepth_(0), batchDirty_(false),
+      gameOver_(false), gameResult_(GameResult::IN_PROGRESS), winnerColor_(' ') {}
 
 static const char* STANDARD_START_FEN =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -19,6 +20,9 @@ void ChessGame::newGame() {
   board_.newGame();
   history_.clear();
   startFen_ = STANDARD_START_FEN;
+  gameOver_ = false;
+  gameResult_ = GameResult::IN_PROGRESS;
+  winnerColor_ = ' ';
   fireCallback();
   notifyObserver();
 }
@@ -40,10 +44,12 @@ void ChessGame::startNewGame(GameModeId mode, uint8_t playerColor, uint8_t botDe
 }
 
 void ChessGame::endGame(GameResult result, char winnerColor) {
-  if (board_.isGameOver()) return;  // Guard against double-call
+  if (gameOver_) return;  // Guard against double-call
 
+  gameOver_ = true;
+  gameResult_ = result;
+  winnerColor_ = winnerColor;
   history_.save(result, winnerColor);  // no-op if not recording
-  board_.endGame(result, winnerColor);
   fireCallback();
   notifyObserver();
 }
@@ -57,7 +63,7 @@ void ChessGame::discardRecording() {
 // ---------------------------------------------------------------------------
 
 MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  if (board_.isGameOver()) return invalidMoveResult();
+  if (gameOver_) return invalidMoveResult();
 
   // Save pre-move state for history
   char piece = board_.getSquare(fromRow, fromCol);
@@ -96,8 +102,12 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   history_.addMove(entry);
 
   // Auto-save recording on game end
-  if (result.gameResult != GameResult::IN_PROGRESS)
+  if (result.gameResult != GameResult::IN_PROGRESS) {
+    gameOver_ = true;
+    gameResult_ = result.gameResult;
+    winnerColor_ = result.winnerColor;
     history_.save(result.gameResult, result.winnerColor);
+  }
 
   fireCallback();
   notifyObserver();
@@ -118,6 +128,9 @@ bool ChessGame::loadFEN(const std::string& fen) {
 
   history_.clear();
   startFen_ = fen;
+  gameOver_ = false;
+  gameResult_ = GameResult::IN_PROGRESS;
+  winnerColor_ = ' ';
   history_.snapshotPosition(fen);  // no-op if not recording
 
   fireCallback();
@@ -133,6 +146,9 @@ bool ChessGame::undoMove() {
   const MoveEntry* entry = history_.undoMove();
   if (!entry) return false;
   board_.reverseMove(*entry);
+  gameOver_ = false;
+  gameResult_ = GameResult::IN_PROGRESS;
+  winnerColor_ = ' ';
   fireCallback();
   notifyObserver();
   return true;
@@ -141,7 +157,12 @@ bool ChessGame::undoMove() {
 bool ChessGame::redoMove() {
   const MoveEntry* entry = history_.redoMove();
   if (!entry) return false;
-  board_.applyMoveEntry(*entry);
+  MoveResult result = board_.applyMoveEntry(*entry);
+  if (result.gameResult != GameResult::IN_PROGRESS) {
+    gameOver_ = true;
+    gameResult_ = result.gameResult;
+    winnerColor_ = result.winnerColor;
+  }
   fireCallback();
   notifyObserver();
   return true;
