@@ -23,7 +23,6 @@ void ChessGame::newGame() {
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
-  fireCallback();
   notifyObserver();
 }
 
@@ -50,7 +49,6 @@ void ChessGame::endGame(GameResult result, char winnerColor) {
   gameResult_ = result;
   winnerColor_ = winnerColor;
   history_.save(result, winnerColor);  // no-op if not recording
-  fireCallback();
   notifyObserver();
 }
 
@@ -109,7 +107,6 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
     history_.save(result.gameResult, result.winnerColor);
   }
 
-  fireCallback();
   notifyObserver();
   return result;
 }
@@ -133,7 +130,6 @@ bool ChessGame::loadFEN(const std::string& fen) {
   winnerColor_ = ' ';
   history_.snapshotPosition(fen);  // no-op if not recording
 
-  fireCallback();
   notifyObserver();
   return true;
 }
@@ -149,7 +145,6 @@ bool ChessGame::undoMove() {
   gameOver_ = false;
   gameResult_ = GameResult::IN_PROGRESS;
   winnerColor_ = ' ';
-  fireCallback();
   notifyObserver();
   return true;
 }
@@ -163,7 +158,6 @@ bool ChessGame::redoMove() {
     gameResult_ = result.gameResult;
     winnerColor_ = result.winnerColor;
   }
-  fireCallback();
   notifyObserver();
   return true;
 }
@@ -264,7 +258,6 @@ bool ChessGame::resumeGame() {
         temp.reverseMove(history_.getMove(i));
       startFen_ = temp.getFen();
     }
-    fireCallback();
     notifyObserver();
   }
   return ok;
@@ -306,23 +299,14 @@ void ChessGame::endBatch() {
   if (batchDepth_ > 0) --batchDepth_;
   if (batchDepth_ == 0 && batchDirty_) {
     batchDirty_ = false;
-    if (stateCallback_) stateCallback_();
     if (observer_)
       observer_->onBoardStateChanged(board_.getFen(), board_.getEvaluation());
   }
 }
 
 // ---------------------------------------------------------------------------
-// Internal: callback dispatch
+// Internal: observer dispatch
 // ---------------------------------------------------------------------------
-
-void ChessGame::fireCallback() {
-  if (batchDepth_ > 0) {
-    batchDirty_ = true;
-    return;
-  }
-  if (stateCallback_) stateCallback_();
-}
 
 void ChessGame::notifyObserver() {
   if (batchDepth_ > 0) {

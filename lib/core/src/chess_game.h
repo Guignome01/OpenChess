@@ -1,7 +1,6 @@
 #ifndef CORE_CHESS_GAME_H
 #define CORE_CHESS_GAME_H
 
-#include <functional>
 #include <string>
 
 #include "chess_board.h"
@@ -16,7 +15,7 @@
 // for UI notification.
 //
 // All chess-state mutations (makeMove, loadFEN, endGame) flow through this class.
-// It handles move history recording, callback dispatch, and batching.
+// It handles move history recording, observer notification, and batching.
 // All end-condition detection (including threefold repetition) is handled
 // uniformly inside ChessBoard::detectGameEnd().
 //
@@ -37,8 +36,6 @@
 //
 class ChessGame {
  public:
-  using StateCallback = std::function<void()>;
-
   ChessGame(IGameStorage* storage = nullptr,
             IGameObserver* observer = nullptr,
             ILogger* logger = nullptr);
@@ -61,8 +58,7 @@ class ChessGame {
 
   // Validate and execute a move.  Atomically: applies to board (which detects all
   // end conditions including threefold repetition), records in history (persists
-  // automatically if recording), auto-saves on game-end, fires callback, and
-  // notifies observer.
+  // automatically if recording), auto-saves on game-end, and notifies observer.
   MoveResult makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ');
 
   // Parse a move in coordinate notation (e.g. "e2e4", "e7e8q") and execute it.
@@ -186,14 +182,10 @@ class ChessGame {
   // Access the in-game move/position history.
   const ChessHistory& history() const { return history_; }
 
-  // --- Batching (suppress callbacks during replay) ---
+  // --- Batching (suppress notifications during replay) ---
 
   void beginBatch();
-  void endBatch();  // fires one callback + observer notification on exit if changes occurred
-
-  // --- Callback ---
-
-  void onStateChanged(StateCallback cb) { stateCallback_ = cb; }
+  void endBatch();  // observer notification on exit if changes occurred
 
   // --- Direct board access (for tests and edge cases) ---
 
@@ -204,7 +196,6 @@ class ChessGame {
   ChessBoard board_;
   ChessHistory history_;
   IGameObserver* observer_;
-  StateCallback stateCallback_;
   int batchDepth_;
   bool batchDirty_;
   std::string startFen_;  // initial FEN for SAN/LAN replay in getHistory()
@@ -212,7 +203,6 @@ class ChessGame {
   GameResult gameResult_;
   char winnerColor_;
 
-  void fireCallback();
   void notifyObserver();
 };
 

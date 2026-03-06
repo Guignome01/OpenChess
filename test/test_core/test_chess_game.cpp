@@ -107,67 +107,78 @@ void test_game_is_threefold_repetition_false(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Callback / batching (callbacks now live in ChessGame, not ChessBoard)
+// ---------------------------------------------------------------------------
+// Observer notification / batching
 // ---------------------------------------------------------------------------
 
-static int callbackCount;
-static void countingCallback() { callbackCount++; }
+// Local mock observer
+class TestObserver : public IGameObserver {
+ public:
+  int callCount = 0;
+  void onBoardStateChanged(const std::string&, float) override { callCount++; }
+};
 
-void test_game_callback_fires_on_move(void) {
-  setUpGame();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.makeMove(6, 4, 4, 4); // e2e4
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+void test_game_observer_fires_on_move(void) {
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+  g.makeMove(6, 4, 4, 4); // e2e4
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);
 }
 
-void test_game_callback_fires_on_new_game(void) {
-  setUpGame();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.newGame();
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+void test_game_observer_fires_on_new_game(void) {
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+  g.newGame();
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);
 }
 
-void test_game_batch_suppresses_callbacks(void) {
-  setUpGame();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.beginBatch();
-  gm.makeMove(6, 4, 4, 4);
-  gm.makeMove(1, 4, 3, 4);
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
-  gm.endBatch();
-  TEST_ASSERT_EQUAL_INT(1, callbackCount); // single coalesced callback
+void test_game_batch_suppresses_observer(void) {
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+
+  g.beginBatch();
+  g.makeMove(6, 4, 4, 4);  // e2e4
+  g.makeMove(1, 4, 3, 4);  // e5
+  TEST_ASSERT_EQUAL_INT(0, obs.callCount);
+  g.endBatch();
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);  // single coalesced notification
 }
 
-void test_game_no_callback_when_not_set(void) {
+void test_game_no_observer_no_crash(void) {
   setUpGame();
-  // Just ensure no crash when no callback is set
+  // No observer set — ensure no crash
   gm.makeMove(6, 4, 4, 4); // should not crash
   TEST_ASSERT_TRUE(true);
 }
 
 void test_game_nested_batch(void) {
-  setUpGame();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  gm.beginBatch();
-  gm.beginBatch();  // depth 2
-  gm.makeMove(6, 4, 4, 4);
-  gm.endBatch();    // depth 1 — callback still suppressed
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
-  gm.endBatch();    // depth 0 — fires coalesced callback
-  TEST_ASSERT_EQUAL_INT(1, callbackCount);
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+  g.beginBatch();
+  g.beginBatch();  // depth 2
+  g.makeMove(6, 4, 4, 4);
+  g.endBatch();    // depth 1 — observer still suppressed
+  TEST_ASSERT_EQUAL_INT(0, obs.callCount);
+  g.endBatch();    // depth 0 — fires coalesced notification
+  TEST_ASSERT_EQUAL_INT(1, obs.callCount);
 }
 
 void test_game_end_batch_without_begin(void) {
-  setUpGame();
-  callbackCount = 0;
-  gm.onStateChanged(countingCallback);
-  // endBatch with no beginBatch should not crash or fire callback
-  gm.endBatch();
-  TEST_ASSERT_EQUAL_INT(0, callbackCount);
+  TestObserver obs;
+  ChessGame g(nullptr, &obs);
+  g.newGame();
+  obs.callCount = 0;
+  // endBatch with no beginBatch should not crash or fire observer
+  g.endBatch();
+  TEST_ASSERT_EQUAL_INT(0, obs.callCount);
 }
 
 // ---------------------------------------------------------------------------
@@ -317,31 +328,6 @@ void test_game_history_last_move_after_sequence(void) {
   TEST_ASSERT_EQUAL(5, last.toCol);
 }
 
-// ---------------------------------------------------------------------------
-// Batch + observer notification
-// ---------------------------------------------------------------------------
-
-// Local mock observer for batch tests
-class TestObserver : public IGameObserver {
- public:
-  int callCount = 0;
-  void onBoardStateChanged(const std::string&, float) override { callCount++; }
-};
-
-void test_game_batch_suppresses_observer(void) {
-  TestObserver obs;
-  ChessGame g(nullptr, &obs);
-  g.newGame();
-  obs.callCount = 0;
-
-  g.beginBatch();
-  g.makeMove(6, 4, 4, 4);  // e2e4
-  g.makeMove(1, 4, 3, 4);  // e5
-  TEST_ASSERT_EQUAL_INT(0, obs.callCount);
-  g.endBatch();
-  TEST_ASSERT_EQUAL_INT(1, obs.callCount);  // single coalesced notification
-}
-
 void test_game_batch_first_last_single_observer(void) {
   TestObserver obs;
   ChessGame g(nullptr, &obs);
@@ -367,6 +353,10 @@ void test_game_batch_first_last_single_observer(void) {
   TEST_ASSERT_EQUAL_INT(1, obs.callCount);
   TEST_ASSERT_EQUAL(3, g.currentMoveIndex());
 }
+
+// ---------------------------------------------------------------------------
+// History integration (ChessGame owns history, records moves via makeMove)
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Navigation facade: currentMoveIndex, moveCount, getHistory
@@ -652,14 +642,13 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_is_threefold_repetition);
   RUN_TEST(test_game_is_threefold_repetition_false);
 
-  // Callbacks / batching
-  RUN_TEST(test_game_callback_fires_on_move);
-  RUN_TEST(test_game_callback_fires_on_new_game);
-  RUN_TEST(test_game_batch_suppresses_callbacks);
-  RUN_TEST(test_game_no_callback_when_not_set);
+  // Observer notification / batching
+  RUN_TEST(test_game_observer_fires_on_move);
+  RUN_TEST(test_game_observer_fires_on_new_game);
+  RUN_TEST(test_game_batch_suppresses_observer);
+  RUN_TEST(test_game_no_observer_no_crash);
   RUN_TEST(test_game_nested_batch);
   RUN_TEST(test_game_end_batch_without_begin);
-  RUN_TEST(test_game_batch_suppresses_observer);
   RUN_TEST(test_game_batch_first_last_single_observer);
 
   // History integration

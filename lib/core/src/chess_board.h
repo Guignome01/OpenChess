@@ -22,7 +22,7 @@ struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 // Lifecycle authority lives in ChessGame.
 // Pure logic, no hardware dependencies, natively compilable for unit tests.
 //
-// Note: move history, callbacks, batching, and game-over state live in ChessGame
+// Note: move history, observer notification, batching, and game-over state live in ChessGame
 // (the game-level orchestrator that composes ChessBoard).
 //
 // Usage:
