@@ -1,9 +1,9 @@
 #include "game_mode.h"
+#include "board_menu.h"
 #include "chess_game.h"
 #include "chess_utils.h"
 #include "system_utils.h"
 #include "wifi_manager_esp32.h"
-#include <string.h>
 
 // ---------------------------
 // Brightness progression for resign gesture (25%, 50%, 75%, 100%)

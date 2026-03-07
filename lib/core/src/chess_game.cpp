@@ -99,15 +99,12 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   entry.prevState = prevState;
   history_.addMove(entry);
 
-  // Auto-save recording on game end
-  if (result.gameResult != GameResult::IN_PROGRESS) {
-    gameOver_ = true;
-    gameResult_ = result.gameResult;
-    winnerColor_ = result.winnerColor;
-    history_.save(result.gameResult, result.winnerColor);
-  }
+  // Auto-end game on checkmate/stalemate/draw
+  if (result.gameResult != GameResult::IN_PROGRESS)
+    endGame(result.gameResult, result.winnerColor);  // calls notifyObserver()
+  else
+    notifyObserver();
 
-  notifyObserver();
   return result;
 }
 
@@ -153,6 +150,11 @@ bool ChessGame::redoMove() {
   const MoveEntry* entry = history_.redoMove();
   if (!entry) return false;
   MoveResult result = board_.applyMoveEntry(*entry);
+  if (!result.valid) {
+    // Shouldn't happen with a valid history, but undo the cursor advance
+    history_.undoMove();
+    return false;
+  }
   if (result.gameResult != GameResult::IN_PROGRESS) {
     gameOver_ = true;
     gameResult_ = result.gameResult;
@@ -237,27 +239,17 @@ bool ChessGame::parseMove(const std::string& move, int& fromRow, int& fromCol,
 bool ChessGame::resumeGame() {
   bool ok = history_.replayInto(board_);
   if (ok) {
-    startFen_ = board_.getFen();
-    // Walk back to find the real start FEN: if history has moves,
-    // the board is at the end of replay; startFen_ should be the
-    // position before any moves.  replayInto loads from the last
-    // FEN snapshot, so approximate with what the board looked like
-    // before replay.  For accuracy, undo all moves to find the start.
-    // Actually, replayInto loads the FEN first then replays — the
-    // startFen_ is the FEN that replayInto loaded.  We can get it
-    // by undoing all moves temporarily.
-    // Simpler: just record the FEN from the board state before moves,
-    // but replayInto already consumed moves.  We can reconstruct by
-    // undoing all moves in a temp copy.  However, the replay FEN is
-    // already the initial FEN of the segment.  Let's get it properly:
-    if (history_.moveCount() > 0) {
-      // The start FEN is the position before the first move.
-      // Reverse the first move to retrieve it.
-      ChessBoard temp = board_;
-      for (int i = history_.moveCount() - 1; i >= 0; --i)
-        temp.reverseMove(history_.getMove(i));
-      startFen_ = temp.getFen();
+    // Use the FEN that replayInto() loaded as the start position
+    startFen_ = history_.replayFen();
+
+    // Restore game-over state from the recording header
+    GameResult hdrResult = history_.headerResult();
+    if (hdrResult != GameResult::IN_PROGRESS) {
+      gameOver_ = true;
+      gameResult_ = hdrResult;
+      winnerColor_ = history_.headerWinnerColor();
     }
+
     notifyObserver();
   }
   return ok;

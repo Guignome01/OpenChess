@@ -24,6 +24,7 @@ class BotMode : public GameMode {
   EngineProvider* provider_;
   char playerColor_ = 'w';
   BotState botState_ = BotState::PLAYER_TURN;
+  int engineRetryCount_ = 0;
   std::atomic<bool>* thinkingAnimation_ = nullptr;
   bool wasThinkingBeforeResign_ = false;
 

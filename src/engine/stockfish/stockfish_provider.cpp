@@ -1,7 +1,6 @@
 #include "stockfish_provider.h"
 #include "engine/stockfish/stockfish_api.h"
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WiFiClientSecure.h>
 
 StockfishProvider::StockfishProvider(const StockfishSettings& settings, char playerColor)

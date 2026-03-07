@@ -54,9 +54,6 @@ class LichessAPI {
   // Returns true if a new game event was found
   static bool pollForGameEvent(LichessEvent& event);
 
-  // Get current game state
-  static bool getGameState(const String& gameId, LichessGameState& state);
-
   // Stream game state (for ongoing game updates)
   // Returns true if there's new state data
   static bool pollGameStream(const String& gameId, LichessGameState& state);

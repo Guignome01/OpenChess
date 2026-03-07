@@ -44,12 +44,17 @@ bool LichessProvider::initialize(EngineInitResult& result) {
   Serial.println("Lichess: logged in as " + username);
   Serial.println("Waiting for a Lichess game...");
 
-  // Poll for a game start event
+  // Poll for a game start event (timeout after 3 minutes)
   LichessEvent event;
   event.type = LichessEventType::UNKNOWN;
+  unsigned long initDeadline = millis() + 180000;
   while (event.type != LichessEventType::GAME_START) {
     if (LichessAPI::pollForGameEvent(event) && event.type == LichessEventType::GAME_START)
       break;
+    if (millis() > initDeadline) {
+      Serial.println("LichessProvider: timed out waiting for game");
+      return false;
+    }
     delay(2000);
   }
 

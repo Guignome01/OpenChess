@@ -1,6 +1,5 @@
 #include "lichess_api.h"
 #include <ArduinoJson.h>
-#include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <atomic>
 
@@ -61,10 +60,17 @@ String LichessAPI::makeHttpRequest(const String& method, const String& path, con
   // Read response
   String response = "";
   bool headersDone = false;
+  int httpStatus = 0;
 
   while (client.available()) {
     String line = client.readStringUntil('\n');
     if (!headersDone) {
+      // Extract HTTP status code from first header line
+      if (httpStatus == 0 && line.startsWith("HTTP/")) {
+        int spaceIdx = line.indexOf(' ');
+        if (spaceIdx != -1)
+          httpStatus = line.substring(spaceIdx + 1).toInt();
+      }
       if (line == "\r" || line.length() == 0) {
         headersDone = true;
       }
@@ -74,6 +80,12 @@ String LichessAPI::makeHttpRequest(const String& method, const String& path, con
   }
 
   client.stop();
+
+  if (httpStatus >= 400) {
+    Serial.printf("Lichess API: HTTP %d on %s\n", httpStatus, path.c_str());
+    return "";
+  }
+
   return response;
 }
 
@@ -125,117 +137,14 @@ bool LichessAPI::pollForGameEvent(LichessEvent& event) {
   return false;
 }
 
-bool LichessAPI::getGameState(const String& gameId, LichessGameState& state) {
-  String response = makeHttpRequest("GET", "/api/board/game/stream/" + gameId);
-  if (response.length() == 0) {
-    return false;
-  }
-
-  // The stream returns multiple JSON objects, we need the first "gameFull" event
-  int newlinePos = response.indexOf('\n');
-  String firstLine = (newlinePos > 0) ? response.substring(0, newlinePos) : response;
-
-  return parseGameFullEvent(firstLine, state);
-}
-
 bool LichessAPI::pollGameStream(const String& gameId, LichessGameState& state) {
   WiFiClientSecure client;
-  client.setInsecure();
+  if (!connectGameStream(client, gameId)) return false;
 
-  if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
-    return false;
-  }
-
-  String request = "GET /api/board/game/stream/" + gameId + " HTTP/1.1\r\n";
-  request += "Host: " LICHESS_API_HOST "\r\n";
-  request += "Authorization: Bearer " + apiToken + "\r\n";
-  request += "Accept: application/x-ndjson\r\n";
-  request += "Connection: close\r\n\r\n";
-
-  client.print(request);
-
-  unsigned long timeout = millis() + 15000;
-  bool headersDone = false;
-  String jsonLine = "";
-  bool foundData = false;
-  bool isChunked = false;
-
-  while (client.connected() || client.available()) {
-    if (millis() > timeout) {
-      break;
-    }
-
-    if (client.available()) {
-      String line = client.readStringUntil('\n');
-
-      // Check for chunked transfer encoding in headers
-      if (!headersDone) {
-        String lowerLine = line;
-        lowerLine.toLowerCase();
-        if (lowerLine.indexOf("transfer-encoding: chunked") >= 0) {
-          isChunked = true;
-        }
-      }
-
-      line.trim();
-
-      if (!headersDone) {
-        if (line.length() == 0) {
-          headersDone = true;
-        }
-        continue;
-      }
-
-      // Skip empty lines (keep-alive)
-      if (line.length() == 0) {
-        continue;
-      }
-
-      // If chunked encoding, skip chunk size lines (hex numbers)
-      if (isChunked) {
-        // Check if this is a chunk size (hex number)
-        bool isChunkSize = true;
-        for (size_t i = 0; i < line.length(); i++) {
-          char c = line[i];
-          if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
-            isChunkSize = false;
-            break;
-          }
-        }
-        if (isChunkSize && line.length() <= 8) {
-          continue; // Skip chunk size line
-        }
-      }
-
-      // Must start with '{' to be valid JSON
-      if (line[0] != '{') {
-        continue;
-      }
-
-      jsonLine = line;
-      foundData = true;
-      break; // Got one event, process it
-    }
-
-    delay(10);
-  }
-
+  std::atomic<bool> cancel{false};
+  bool found = readStreamEvent(client, state, cancel, 15000);
   client.stop();
-
-  if (!foundData || jsonLine.length() == 0) {
-    Serial.println("Lichess: No JSON data received from game stream");
-    return false;
-  }
-
-  Serial.println("Lichess: Game stream JSON: " + jsonLine.substring(0, min((size_t)200, jsonLine.length())));
-
-  // Try to parse as gameFull first, then as gameState
-  if (parseGameFullEvent(jsonLine, state)) {
-    return true;
-  }
-
-  Serial.println("Lichess: parseGameFullEvent failed, trying parseGameStateEvent");
-  return parseGameStateEvent(jsonLine, state);
+  return found;
 }
 
 // Parse a space-separated UCI moves string and update state fields.
@@ -345,7 +254,7 @@ bool LichessAPI::makeMove(const String& gameId, const String& move) {
   DeserializationError error = deserializeJson(doc, response);
   if (error) {
     // Sometimes the response is just "ok" or empty on success
-    return response.indexOf("ok") >= 0 || response.indexOf("true") >= 0;
+    return response.indexOf("\"ok\":true") >= 0;
   }
 
   if (doc.containsKey("ok") && doc["ok"].as<bool>()) {
@@ -360,7 +269,7 @@ bool LichessAPI::makeMove(const String& gameId, const String& move) {
 bool LichessAPI::resignGame(const String& gameId) {
   String path = "/api/board/game/" + gameId + "/resign";
   String response = makeHttpRequest("POST", path);
-  return response.indexOf("ok") >= 0 || response.indexOf("true") >= 0;
+  return response.indexOf("\"ok\":true") >= 0;
 }
 
 // ---------------------------------------------------------------

@@ -1,7 +1,5 @@
 #include "player_mode.h"
 #include "chess_game.h"
-#include "led_colors.h"
-#include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
 PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc) : GameMode(bd, wm, gc) {}

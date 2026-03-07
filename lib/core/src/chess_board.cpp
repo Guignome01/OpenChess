@@ -1,7 +1,6 @@
 #include "chess_board.h"
 
 #include <cctype>
-#include <cmath>
 #include <cstring>
 
 #include "chess_fen.h"
@@ -83,10 +82,14 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   result.gameResult = endResult;
   result.winnerColor = winner;
 
-  // Check detection (if game is not over)
+  // Check detection: checkmate implies check; otherwise test explicitly
   result.isCheck = false;
-  if (endResult == GameResult::IN_PROGRESS && ChessRules::isCheck(board_, currentTurn_))
+  if (endResult == GameResult::CHECKMATE) {
     result.isCheck = true;
+  } else if (endResult == GameResult::IN_PROGRESS &&
+             ChessRules::isCheck(board_, currentTurn_)) {
+    result.isCheck = true;
+  }
 
   invalidateCache();
   return result;

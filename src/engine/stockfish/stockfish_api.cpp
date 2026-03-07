@@ -32,7 +32,7 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
     return false;
   }
 
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<512> doc;
   DeserializationError error = deserializeJson(doc, jsonOnly);
 
   if (error) {
@@ -81,8 +81,9 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
     String bestmoveStr = doc["bestmove"].as<String>();
 
     // Parse the bestmove string
-    // Format: "bestmove b1c3 ponder h7h6"
-    int moveStart = bestmoveStr.indexOf("bestmove ") + 9;
+    // Format: "bestmove b1c3 ponder h7h6" or just "b1c3"
+    int prefixPos = bestmoveStr.indexOf("bestmove ");
+    int moveStart = (prefixPos != -1) ? prefixPos + 9 : 0;
     int moveEnd = bestmoveStr.indexOf(" ", moveStart);
 
     if (moveEnd != -1) {

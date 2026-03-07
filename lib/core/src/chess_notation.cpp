@@ -123,10 +123,7 @@ std::string toSAN(const char board[8][8], const PositionState& state,
         // Ambiguity detected — determine which disambiguation is needed
         if (c != move.fromCol) {
           needFile = true;
-        } else if (r != move.fromRow) {
-          needRank = true;
         } else {
-          needFile = true;
           needRank = true;
         }
       }

@@ -82,7 +82,11 @@ class EngineProvider {
                  TaskFunction_t taskFn, uint32_t stackSize = 8192) {
     if (activeTask_) cancelRequest();
     activeTask_ = ctx;
-    xTaskCreate(taskFn, name, stackSize, ctx, 1, nullptr);
+    if (xTaskCreate(taskFn, name, stackSize, ctx, 1, nullptr) != pdPASS) {
+      Serial.println("EngineProvider: xTaskCreate failed (OOM?)");
+      delete activeTask_;
+      activeTask_ = nullptr;
+    }
   }
 
   // Poll for a completed result. Returns true and fills `result` when ready.

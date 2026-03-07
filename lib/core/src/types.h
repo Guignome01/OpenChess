@@ -52,7 +52,7 @@ struct MoveResult {
 };
 
 // Factory for an invalid (rejected) MoveResult.
-inline MoveResult invalidMoveResult() {
+constexpr MoveResult invalidMoveResult() {
   return {false, false, false, -1, false, false, ' ', false, GameResult::IN_PROGRESS, ' '};
 }
 

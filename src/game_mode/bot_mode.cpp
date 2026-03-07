@@ -92,6 +92,7 @@ void BotMode::update() {
 
       // If the game didn't end and it's now the engine's turn, start engine
       if (!controller_->isGameOver() && controller_->currentTurn() != playerColor_) {
+        engineRetryCount_ = 0;
         startThinking();
         provider_->requestMove(controller_->getFen());
         botState_ = BotState::ENGINE_THINKING;
@@ -109,7 +110,11 @@ void BotMode::update() {
           handleRemoteGameEnd(result);
           break;
         case EngineResult::NONE:
-          Serial.println("BotMode: engine returned no result, retrying...");
+          if (++engineRetryCount_ > 3) {
+            abortWithError("Engine failed to respond");
+            return;
+          }
+          Serial.printf("BotMode: engine returned no result, retry %d/3\n", engineRetryCount_);
           startThinking();
           provider_->requestMove(controller_->getFen());
           return;  // Stay in ENGINE_THINKING

@@ -622,6 +622,56 @@ void test_game_undo_clears_game_over(void) {
   TEST_ASSERT_FALSE(gm.isGameOver());
 }
 
+void test_game_redo_restores_game_over(void) {
+  setUpGame();
+  // Scholar's mate
+  gm.makeMove(6, 4, 4, 4);
+  gm.makeMove(1, 4, 3, 4);
+  gm.makeMove(7, 5, 4, 2);
+  gm.makeMove(1, 0, 2, 0);
+  gm.makeMove(7, 3, 3, 7);
+  gm.makeMove(1, 1, 2, 1);
+  gm.makeMove(3, 7, 1, 5);  // Qxf7#
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, gm.gameResult());
+
+  gm.undoMove();
+  TEST_ASSERT_FALSE(gm.isGameOver());
+
+  gm.redoMove();
+  TEST_ASSERT_TRUE(gm.isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, gm.gameResult());
+  TEST_ASSERT_EQUAL('w', gm.winnerColor());
+}
+
+void test_game_san_checkmate_suffix(void) {
+  setUpGame();
+  // Scholar's mate
+  gm.makeMove(6, 4, 4, 4);  // e4
+  gm.makeMove(1, 4, 3, 4);  // e5
+  gm.makeMove(7, 5, 4, 2);  // Bc4
+  gm.makeMove(1, 0, 2, 0);  // a6
+  gm.makeMove(7, 3, 3, 7);  // Qh5
+  gm.makeMove(1, 1, 2, 1);  // b6
+  gm.makeMove(3, 7, 1, 5);  // Qxf7#
+
+  std::string moves[10];
+  int count = gm.getHistory(moves, 10, MoveFormat::SAN);
+  TEST_ASSERT_EQUAL(7, count);
+  TEST_ASSERT_EQUAL_STRING("Qxf7#", moves[6].c_str());
+}
+
+void test_game_san_check_suffix(void) {
+  setUpGame();
+  gm.loadFEN("4k3/8/8/8/8/8/4R3/4K3 w - - 0 1");
+  gm.makeMove(6, 4, 1, 4);  // Re8+
+
+  std::string moves[10];
+  int count = gm.getHistory(moves, 10, MoveFormat::SAN);
+  TEST_ASSERT_EQUAL(1, count);
+  TEST_ASSERT_EQUAL_STRING("Re7+", moves[0].c_str());
+}
+
 // ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
@@ -694,4 +744,7 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_insufficient_material_sets_game_over);
   RUN_TEST(test_game_fifty_move_sets_game_over);
   RUN_TEST(test_game_undo_clears_game_over);
+  RUN_TEST(test_game_redo_restores_game_over);
+  RUN_TEST(test_game_san_checkmate_suffix);
+  RUN_TEST(test_game_san_check_suffix);
 }

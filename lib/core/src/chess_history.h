@@ -122,12 +122,22 @@ class ChessHistory {
   bool hasActiveGame();
   bool getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth);
 
+  // --- Header accessors ---
+
+  // Result stored in the recording header (reflects last save/replay).
+  GameResult headerResult() const { return header_.result; }
+  char headerWinnerColor() const { return static_cast<char>(header_.winnerColor); }
+
   // --- Replay ---
 
   // Restore a saved game into a ChessBoard: loads the last FEN snapshot,
   // then replays all moves after it.  Populates the in-memory move log
   // with cursor at the end.  Returns true on success.
   bool replayInto(ChessBoard& board);
+
+  // The FEN loaded during replayInto() (the position before replayed moves).
+  // Empty if no replay has occurred.
+  const std::string& replayFen() const { return replayFen_; }
 
   // --- Compact 2-byte move encoding (binary storage format) ---
   // Layout: bits 15..10 = from (row*8+col), bits 9..4 = to (row*8+col), bits 3..0 = promo code.
@@ -155,6 +165,9 @@ class ChessHistory {
 
   // Encode and persist a single move to storage.
   void persistMove(const MoveEntry& entry);
+
+  // FEN loaded during the last replayInto() call.
+  std::string replayFen_;
 };
 
 #endif  // CORE_CHESS_HISTORY_H

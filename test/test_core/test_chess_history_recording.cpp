@@ -660,6 +660,33 @@ void test_controller_resume_game(void) {
   teardownController();
 }
 
+void test_controller_resume_finished_game(void) {
+  setupController();
+  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+
+  // Play Scholar's mate to completion
+  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
+  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
+  ctrl->makeMove(7, 5, 4, 2);  // Bf1-c4
+  ctrl->makeMove(1, 0, 2, 0);  // a7-a6
+  ctrl->makeMove(7, 3, 3, 7);  // Qd1-h5
+  ctrl->makeMove(1, 1, 2, 1);  // b7-b6
+  ctrl->makeMove(3, 7, 1, 5);  // Qh5xf7#
+  TEST_ASSERT_TRUE(ctrl->isGameOver());
+  TEST_ASSERT_TRUE(storage.gameFinalized);
+
+  // Resume from storage — game-over state should be restored
+  observer = MockGameObserver();
+  ChessGame* ctrl2 = new ChessGame(&storage, &observer, &logger);
+  bool ok = ctrl2->resumeGame();
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_TRUE(ctrl2->isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, ctrl2->gameResult());
+  TEST_ASSERT_EQUAL('w', ctrl2->winnerColor());
+  delete ctrl2;
+  teardownController();
+}
+
 void test_controller_make_move_records_promotion(void) {
   setupController();
   ctrl->startNewGame(GameModeId::CHESS_MOVES);
@@ -824,6 +851,7 @@ void register_chess_history_recording_tests() {
   RUN_TEST(test_controller_end_game_idempotent);
   RUN_TEST(test_controller_start_new_game);
   RUN_TEST(test_controller_resume_game);
+  RUN_TEST(test_controller_resume_finished_game);
   RUN_TEST(test_controller_make_move_records_promotion);
   RUN_TEST(test_controller_undo_redo);
   RUN_TEST(test_controller_undo_at_start);

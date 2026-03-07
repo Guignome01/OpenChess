@@ -187,9 +187,8 @@ class ChessGame {
   void beginBatch();
   void endBatch();  // observer notification on exit if changes occurred
 
-  // --- Direct board access (for tests and edge cases) ---
+  // --- Direct board access (read-only, for tests and edge cases) ---
 
-  ChessBoard& board() { return board_; }
   const ChessBoard& board() const { return board_; }
 
  private:

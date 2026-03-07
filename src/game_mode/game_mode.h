@@ -2,7 +2,6 @@
 #define GAME_MODE_H
 
 #include "board_driver.h"
-#include "board_menu.h"
 #include "led_colors.h"
 #include "types.h"
 #include <Arduino.h>

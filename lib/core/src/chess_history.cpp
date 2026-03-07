@@ -1,6 +1,5 @@
 #include "chess_history.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <vector>
@@ -123,6 +122,7 @@ void ChessHistory::setHeader(const GameHeader& header) {
   if (recordingActive_)
     storage_->discardGame();
 
+  clear();  // Ensure no stale moves survive into the new recording
   header_ = header;
   storage_->beginGame(header_);
   recordingActive_ = true;
@@ -245,6 +245,9 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     if (logger_) logger_->error("ChessHistory: invalid FEN in recording");
     return false;
   }
+
+  // Store the replay FEN for callers (e.g. ChessGame::resumeGame)
+  replayFen_ = lastFen;
 
   // Clear and repopulate in-memory move log during replay
   clear();
