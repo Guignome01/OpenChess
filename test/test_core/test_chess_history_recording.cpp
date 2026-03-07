@@ -458,40 +458,40 @@ void test_recorder_branch_at_start_truncates_all(void) {
 // ---------------------------------------------------------------------------
 
 static MockGameObserver observer;
-static ChessGame* ctrl = nullptr;
+static ChessGame* game = nullptr;
 
-static void setupController() {
+static void setupGame() {
   logger = MockLogger();
   storage = MockGameStorage();
   observer = MockGameObserver();
-  delete ctrl;
-  ctrl = new ChessGame(&storage, &observer, &logger);
+  delete game;
+  game = new ChessGame(&storage, &observer, &logger);
 }
 
-static void teardownController() {
-  delete ctrl;
-  ctrl = nullptr;
+static void teardownGame() {
+  delete game;
+  game = nullptr;
 }
 
-void test_controller_new_game(void) {
-  setupController();
-  ctrl->newGame();
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
+void test_game_new_game(void) {
+  setupGame();
+  game->newGame();
+  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_FALSE(game->isGameOver());
   // Observer should have been notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_make_move(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_make_move(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
   observer.callCount = 0;
 
-  MoveResult r = ctrl->makeMove(6, 4, 4, 4);  // e2e4
+  MoveResult r = game->makeMove(6, 4, 4, 4);  // e2e4
   // startNewGame records initial FEN (FEN_MARKER 2 bytes) then addMove encodes (2 bytes) = 4
   TEST_ASSERT_EQUAL(4, (int)storage.moveData.size());
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());
 
   // Observer notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
@@ -500,64 +500,64 @@ void test_controller_make_move(void) {
   // persistMove incremented to 2 but only 1 half-move since flush — no
   // turn-based header update yet.  storedHeader still shows last flush.
   TEST_ASSERT_EQUAL_UINT16(1, storage.storedHeader.moveCount);
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_make_move_auto_finish(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_make_move_auto_finish(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
 
   // Scholar's mate sequence
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
-  ctrl->makeMove(7, 5, 4, 2);  // Bf1-c4
-  ctrl->makeMove(1, 0, 2, 0);  // a7-a6
-  ctrl->makeMove(7, 3, 3, 7);  // Qd1-h5
-  ctrl->makeMove(1, 1, 2, 1);  // b7-b6
-  MoveResult r = ctrl->makeMove(3, 7, 1, 5);  // Qh5xf7 checkmate
+  game->makeMove(6, 4, 4, 4);  // e2-e4
+  game->makeMove(1, 4, 3, 4);  // e7-e5
+  game->makeMove(7, 5, 4, 2);  // Bf1-c4
+  game->makeMove(1, 0, 2, 0);  // a7-a6
+  game->makeMove(7, 3, 3, 7);  // Qd1-h5
+  game->makeMove(1, 1, 2, 1);  // b7-b6
+  MoveResult r = game->makeMove(3, 7, 1, 5);  // Qh5xf7 checkmate
 
   TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, r.gameResult);
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
+  TEST_ASSERT_TRUE(game->isGameOver());
 
   // Recording should have been auto-finalized
   TEST_ASSERT_TRUE(storage.gameFinalized);
   TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, storage.storedHeader.result);
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_end_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_end_game(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
 
-  ctrl->endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
+  game->endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_TRUE(game->isGameOver());
 
   // Recording finalized
   TEST_ASSERT_TRUE(storage.gameFinalized);
   TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, storage.storedHeader.result);
   TEST_ASSERT_EQUAL_CHAR('b', storage.storedHeader.winnerColor);
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_load_fen(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_load_fen(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
   observer.callCount = 0;
 
   std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  bool ok = ctrl->loadFEN(fen);
+  bool ok = game->loadFEN(fen);
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());
 
   // Observer notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
 
   // FEN recorded (1 from startNewGame + 1 from loadFEN)
   TEST_ASSERT_EQUAL(2, (int)storage.fenEntries.size());
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_no_recorder(void) {
+void test_game_no_recorder(void) {
   // ChessGame with nullptr storage — mutations still work, no recording
   observer = MockGameObserver();
   ChessGame noRec(nullptr, &observer);
@@ -567,7 +567,7 @@ void test_controller_no_recorder(void) {
   TEST_ASSERT_TRUE(observer.callCount > 0);
 }
 
-void test_controller_no_observer(void) {
+void test_game_no_observer(void) {
   // ChessGame with nullptr observer — mutations still work, no notification
   logger = MockLogger();
   storage = MockGameStorage();
@@ -579,56 +579,56 @@ void test_controller_no_observer(void) {
   TEST_ASSERT_EQUAL(4, (int)storage.moveData.size());
 }
 
-void test_controller_discard_recording(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  ctrl->makeMove(6, 4, 4, 4);
+void test_game_discard_recording(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
+  game->makeMove(6, 4, 4, 4);
 
-  ctrl->discardRecording();
+  game->discardRecording();
   TEST_ASSERT_TRUE(storage.gameDiscarded);
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_pass_throughs(void) {
-  setupController();
-  ctrl->newGame();
+void test_game_pass_throughs(void) {
+  setupGame();
+  game->newGame();
 
   // Verify pass-through methods return correct values
-  TEST_ASSERT_EQUAL_CHAR('R', ctrl->getSquare(7, 0));
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
-  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, ctrl->gameResult());
+  TEST_ASSERT_EQUAL_CHAR('R', game->getSquare(7, 0));
+  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_FALSE(game->isGameOver());
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, game->gameResult());
 
-  std::string fen = ctrl->getFen();
+  std::string fen = game->getFen();
   TEST_ASSERT_EQUAL_STRING(
       "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
       fen.c_str());
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_end_game_idempotent(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_end_game_idempotent(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
 
-  ctrl->endGame(GameResult::RESIGNATION, 'b');
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
+  game->endGame(GameResult::RESIGNATION, 'b');
+  TEST_ASSERT_TRUE(game->isGameOver());
 
   observer.callCount = 0;
 
   // Second endGame should be a no-op (guard prevents overwrite)
-  ctrl->endGame(GameResult::TIMEOUT, 'w');
+  game->endGame(GameResult::TIMEOUT, 'w');
   TEST_ASSERT_EQUAL(0, observer.callCount);
-  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, ctrl->gameResult());
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->winnerColor());
-  teardownController();
+  TEST_ASSERT_ENUM_EQ(GameResult::RESIGNATION, game->gameResult());
+  TEST_ASSERT_EQUAL_CHAR('b', game->winnerColor());
+  teardownGame();
 }
 
-void test_controller_start_new_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::BOT, 'w', 5);
+void test_game_start_new_game(void) {
+  setupGame();
+  game->startNewGame(GameModeId::BOT, 'w', 5);
 
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_FALSE(ctrl->isGameOver());
+  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_FALSE(game->isGameOver());
 
   // Should have started recording and initialized board
   TEST_ASSERT_TRUE(storage.gameActive);
@@ -638,61 +638,61 @@ void test_controller_start_new_game(void) {
 
   // Initial FEN should have been recorded
   TEST_ASSERT_EQUAL(1, (int)storage.fenEntries.size());
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_resume_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
+void test_game_resume_game(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
+  game->makeMove(6, 4, 4, 4);  // e2-e4
+  game->makeMove(1, 4, 3, 4);  // e7-e5
 
-  // Now create a new controller and resume from storage
+  // Now create a new game and resume from storage
   observer = MockGameObserver();
-  ChessGame* ctrl2 = new ChessGame(&storage, &observer, &logger);
-  bool ok = ctrl2->resumeGame();
+  ChessGame* game2 = new ChessGame(&storage, &observer, &logger);
+  bool ok = game2->resumeGame();
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl2->currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', ctrl2->getSquare(4, 4));  // e4
-  TEST_ASSERT_EQUAL_CHAR('p', ctrl2->getSquare(3, 4));  // e5
+  TEST_ASSERT_EQUAL_CHAR('w', game2->currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('P', game2->getSquare(4, 4));  // e4
+  TEST_ASSERT_EQUAL_CHAR('p', game2->getSquare(3, 4));  // e5
   TEST_ASSERT_TRUE(observer.callCount > 0);  // Observer notified
-  delete ctrl2;
-  teardownController();
+  delete game2;
+  teardownGame();
 }
 
-void test_controller_resume_finished_game(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
+void test_game_resume_finished_game(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
 
   // Play Scholar's mate to completion
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
-  ctrl->makeMove(7, 5, 4, 2);  // Bf1-c4
-  ctrl->makeMove(1, 0, 2, 0);  // a7-a6
-  ctrl->makeMove(7, 3, 3, 7);  // Qd1-h5
-  ctrl->makeMove(1, 1, 2, 1);  // b7-b6
-  ctrl->makeMove(3, 7, 1, 5);  // Qh5xf7#
-  TEST_ASSERT_TRUE(ctrl->isGameOver());
+  game->makeMove(6, 4, 4, 4);  // e2-e4
+  game->makeMove(1, 4, 3, 4);  // e7-e5
+  game->makeMove(7, 5, 4, 2);  // Bf1-c4
+  game->makeMove(1, 0, 2, 0);  // a7-a6
+  game->makeMove(7, 3, 3, 7);  // Qd1-h5
+  game->makeMove(1, 1, 2, 1);  // b7-b6
+  game->makeMove(3, 7, 1, 5);  // Qh5xf7#
+  TEST_ASSERT_TRUE(game->isGameOver());
   TEST_ASSERT_TRUE(storage.gameFinalized);
 
   // Resume from storage — game-over state should be restored
   observer = MockGameObserver();
-  ChessGame* ctrl2 = new ChessGame(&storage, &observer, &logger);
-  bool ok = ctrl2->resumeGame();
+  ChessGame* game2 = new ChessGame(&storage, &observer, &logger);
+  bool ok = game2->resumeGame();
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_TRUE(ctrl2->isGameOver());
-  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, ctrl2->gameResult());
-  TEST_ASSERT_EQUAL('w', ctrl2->winnerColor());
-  delete ctrl2;
-  teardownController();
+  TEST_ASSERT_TRUE(game2->isGameOver());
+  TEST_ASSERT_EQUAL(GameResult::CHECKMATE, game2->gameResult());
+  TEST_ASSERT_EQUAL('w', game2->winnerColor());
+  delete game2;
+  teardownGame();
 }
 
-void test_controller_make_move_records_promotion(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  ctrl->loadFEN("8/4P3/8/8/8/8/8/4K2k w - - 0 1");
+void test_game_make_move_records_promotion(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
+  game->loadFEN("8/4P3/8/8/8/8/8/4K2k w - - 0 1");
 
-  MoveResult r = ctrl->makeMove(1, 4, 0, 4);  // e7-e8=Q (auto-queen)
+  MoveResult r = game->makeMove(1, 4, 0, 4);  // e7-e8=Q (auto-queen)
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
   TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
@@ -706,42 +706,42 @@ void test_controller_make_move_records_promotion(void) {
   char promo;
   ChessHistory::decodeMove(lastEntry, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_CHAR('q', promo);  // compact encoding normalizes to lowercase
-  teardownController();
+  teardownGame();
 }
 
-void test_controller_undo_redo(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  ctrl->makeMove(6, 4, 4, 4);  // e2-e4
-  ctrl->makeMove(1, 4, 3, 4);  // e7-e5
+void test_game_undo_redo(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
+  game->makeMove(6, 4, 4, 4);  // e2-e4
+  game->makeMove(1, 4, 3, 4);  // e7-e5
 
-  TEST_ASSERT_TRUE(ctrl->canUndo());
-  TEST_ASSERT_FALSE(ctrl->canRedo());
+  TEST_ASSERT_TRUE(game->canUndo());
+  TEST_ASSERT_FALSE(game->canRedo());
 
   // Undo e7-e5
-  TEST_ASSERT_TRUE(ctrl->undoMove());
-  TEST_ASSERT_EQUAL_CHAR('b', ctrl->currentTurn());  // black to move again
-  TEST_ASSERT_EQUAL_CHAR(' ', ctrl->getSquare(3, 4));  // e5 empty
-  TEST_ASSERT_EQUAL_CHAR('p', ctrl->getSquare(1, 4));  // pawn back on e7
+  TEST_ASSERT_TRUE(game->undoMove());
+  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());  // black to move again
+  TEST_ASSERT_EQUAL_CHAR(' ', game->getSquare(3, 4));  // e5 empty
+  TEST_ASSERT_EQUAL_CHAR('p', game->getSquare(1, 4));  // pawn back on e7
 
-  TEST_ASSERT_TRUE(ctrl->canUndo());
-  TEST_ASSERT_TRUE(ctrl->canRedo());
+  TEST_ASSERT_TRUE(game->canUndo());
+  TEST_ASSERT_TRUE(game->canRedo());
 
   // Redo e7-e5
-  TEST_ASSERT_TRUE(ctrl->redoMove());
-  TEST_ASSERT_EQUAL_CHAR('w', ctrl->currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('p', ctrl->getSquare(3, 4));  // e5 has pawn again
+  TEST_ASSERT_TRUE(game->redoMove());
+  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_EQUAL_CHAR('p', game->getSquare(3, 4));  // e5 has pawn again
 
-  TEST_ASSERT_FALSE(ctrl->canRedo());
-  teardownController();
+  TEST_ASSERT_FALSE(game->canRedo());
+  teardownGame();
 }
 
-void test_controller_undo_at_start(void) {
-  setupController();
-  ctrl->startNewGame(GameModeId::CHESS_MOVES);
-  TEST_ASSERT_FALSE(ctrl->canUndo());
-  TEST_ASSERT_FALSE(ctrl->undoMove());
-  teardownController();
+void test_game_undo_at_start(void) {
+  setupGame();
+  game->startNewGame(GameModeId::CHESS_MOVES);
+  TEST_ASSERT_FALSE(game->canUndo());
+  TEST_ASSERT_FALSE(game->undoMove());
+  teardownGame();
 }
 
 // ---------------------------------------------------------------------------
@@ -839,22 +839,22 @@ void register_chess_history_recording_tests() {
   RUN_TEST(test_recorder_branch_at_start_truncates_all);
 
   // ChessGame recording integration
-  RUN_TEST(test_controller_new_game);
-  RUN_TEST(test_controller_make_move);
-  RUN_TEST(test_controller_make_move_auto_finish);
-  RUN_TEST(test_controller_end_game);
-  RUN_TEST(test_controller_load_fen);
-  RUN_TEST(test_controller_no_recorder);
-  RUN_TEST(test_controller_no_observer);
-  RUN_TEST(test_controller_discard_recording);
-  RUN_TEST(test_controller_pass_throughs);
-  RUN_TEST(test_controller_end_game_idempotent);
-  RUN_TEST(test_controller_start_new_game);
-  RUN_TEST(test_controller_resume_game);
-  RUN_TEST(test_controller_resume_finished_game);
-  RUN_TEST(test_controller_make_move_records_promotion);
-  RUN_TEST(test_controller_undo_redo);
-  RUN_TEST(test_controller_undo_at_start);
+  RUN_TEST(test_game_new_game);
+  RUN_TEST(test_game_make_move);
+  RUN_TEST(test_game_make_move_auto_finish);
+  RUN_TEST(test_game_end_game);
+  RUN_TEST(test_game_load_fen);
+  RUN_TEST(test_game_no_recorder);
+  RUN_TEST(test_game_no_observer);
+  RUN_TEST(test_game_discard_recording);
+  RUN_TEST(test_game_pass_throughs);
+  RUN_TEST(test_game_end_game_idempotent);
+  RUN_TEST(test_game_start_new_game);
+  RUN_TEST(test_game_resume_game);
+  RUN_TEST(test_game_resume_finished_game);
+  RUN_TEST(test_game_make_move_records_promotion);
+  RUN_TEST(test_game_undo_redo);
+  RUN_TEST(test_game_undo_at_start);
 
   // Compact move encoding
   RUN_TEST(test_encodeMove_rook_promotion);

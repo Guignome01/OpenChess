@@ -6,8 +6,8 @@
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc, EngineProvider* provider)
-    : GameMode(bd, wm, gc), provider_(provider) {}
+BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, EngineProvider* provider)
+    : GameMode(bd, wm, cg), provider_(provider) {}
 
 BotMode::~BotMode() {
   delete provider_;
@@ -46,17 +46,17 @@ void BotMode::begin() {
   if (initResult.canResume && tryResumeGame()) {
     // Resumed from flash — skip new game
   } else {
-    controller_->startNewGame(initResult.gameModeId, playerColor_, initResult.depth);
+    chess_->startNewGame(initResult.gameModeId, playerColor_, initResult.depth);
     if (!initResult.fen.empty())
       setBoardStateFromFEN(initResult.fen);
   }
 
-  waitForBoardSetup(controller_->getBoard());
+  waitForBoardSetup(chess_->getBoard());
 
   // If it's the engine's turn after setup, start requesting immediately
-  if (controller_->currentTurn() != playerColor_) {
+  if (chess_->currentTurn() != playerColor_) {
     startThinking();
-    provider_->requestMove(controller_->getFen());
+    provider_->requestMove(chess_->getFen());
     botState_ = BotState::ENGINE_THINKING;
   }
 
@@ -68,11 +68,11 @@ void BotMode::begin() {
 // ---------------------------------------------------------------
 
 bool BotMode::isNavigationAllowed() const {
-  return controller_->isGameOver() || botState_ == BotState::PLAYER_TURN;
+  return chess_->isGameOver() || botState_ == BotState::PLAYER_TURN;
 }
 
 void BotMode::update() {
-  if (controller_->isGameOver()) return;
+  if (chess_->isGameOver()) return;
 
   boardDriver_->readSensors();
 
@@ -91,10 +91,10 @@ void BotMode::update() {
       }
 
       // If the game didn't end and it's now the engine's turn, start engine
-      if (!controller_->isGameOver() && controller_->currentTurn() != playerColor_) {
+      if (!chess_->isGameOver() && chess_->currentTurn() != playerColor_) {
         engineRetryCount_ = 0;
         startThinking();
-        provider_->requestMove(controller_->getFen());
+        provider_->requestMove(chess_->getFen());
         botState_ = BotState::ENGINE_THINKING;
       }
     }
@@ -116,7 +116,7 @@ void BotMode::update() {
           }
           Serial.printf("BotMode: engine returned no result, retry %d/3\n", engineRetryCount_);
           startThinking();
-          provider_->requestMove(controller_->getFen());
+          provider_->requestMove(chess_->getFen());
           return;  // Stay in ENGINE_THINKING
       }
       botState_ = BotState::PLAYER_TURN;
@@ -139,7 +139,7 @@ void BotMode::applyEngineMove(const std::string& move) {
   }
 
   // Verify the move is from the correct color piece
-  char piece = controller_->getSquare(fromRow, fromCol);
+  char piece = chess_->getSquare(fromRow, fromCol);
   char engineColor = ChessUtils::opponentColor(playerColor_);
   bool isEnginePiece = (engineColor == 'w') ? (piece >= 'A' && piece <= 'Z') : (piece >= 'a' && piece <= 'z');
 
@@ -160,13 +160,13 @@ void BotMode::handleRemoteGameEnd(const EngineResult& result) {
                      ? LedColors::Cyan
                      : SystemUtils::colorLed(result.winnerColor);
   boardDriver_->fireworkAnimation(color);
-  controller_->endGame(result.gameResult, result.winnerColor);
+  chess_->endGame(result.gameResult, result.winnerColor);
 }
 
 void BotMode::abortWithError(const char* message) {
   Serial.printf("BotMode ABORT: %s\n", message);
   boardDriver_->flashBoardAnimation(LedColors::Red);
-  controller_->endGame(GameResult::ABORTED, ' ');
+  chess_->endGame(GameResult::ABORTED, ' ');
 }
 
 // ---------------------------------------------------------------
@@ -182,9 +182,9 @@ void BotMode::onBeforeResignConfirm() {
 }
 
 void BotMode::onResignCancelled() {
-  if (wasThinkingBeforeResign_ && controller_->currentTurn() != playerColor_ && !controller_->isGameOver()) {
+  if (wasThinkingBeforeResign_ && chess_->currentTurn() != playerColor_ && !chess_->isGameOver()) {
     startThinking();
-    provider_->requestMove(controller_->getFen());
+    provider_->requestMove(chess_->getFen());
     botState_ = BotState::ENGINE_THINKING;
   }
 }

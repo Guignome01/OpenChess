@@ -11,13 +11,13 @@ class WiFiManagerESP32;
 class ChessGame;
 
 // Base class for chess game modes (shared state and common functionality).
-// All chess-state mutations flow through `controller_` (ChessGame facade),
+// All chess-state mutations flow through `chess_` (ChessGame orchestrator),
 // which atomically updates the board, records moves, and notifies observers.
 class GameMode {
  protected:
   BoardDriver* boardDriver_;
   WiFiManagerESP32* wifiManager_;
-  ChessGame* controller_;
+  ChessGame* chess_;
 
   // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
@@ -25,7 +25,7 @@ class GameMode {
   bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
-  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc);
+  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg);
 
   // Common initialization and game flow methods
   void waitForBoardSetup(const char targetBoard[8][8]);

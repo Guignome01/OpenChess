@@ -10,27 +10,27 @@ applyTo: "src/game_mode/**"
 
 ## GameMode (base)
 
-Central fields injected via constructor: `boardDriver_`, `wifiManager_`, `controller_` (ChessGame facade).
+Central fields injected via constructor: `boardDriver_`, `wifiManager_`, `chess_` (ChessGame orchestrator).
 
 ### Lifecycle
 - `begin()` — pure virtual. Subclasses set up the game (resume or new), then call `waitForBoardSetup()`.
 - `update()` — pure virtual. Called repeatedly from the main loop. Must be **non-blocking**.
-- `isGameOver()` — delegates to `controller_->isGameOver()`.
+- `isGameOver()` — delegates to `chess_->isGameOver()`.
 - `isNavigationAllowed()` — virtual, default `true`. BotMode blocks navigation during engine thinking.
 
 ### Core Move Flow
 1. `tryPlayerMove(playerColor, ...)` — scans sensor deltas for a piece lift, shows legal-move highlights (white = empty, red = capture, purple = en-passant pawn), waits for placement. Returns `true` with from/to coords when a valid destination is chosen.
-2. `applyMove(from, to, promotion, isRemoteMove)` — calls `controller_->makeMove()`, logs to Serial, drives hardware feedback (capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks).
+2. `applyMove(from, to, promotion, isRemoteMove)` — calls `chess_->makeMove()`, logs to Serial, drives hardware feedback (capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks).
 3. `applyMove(string)` — coordinate-string overload, parses then delegates with `isRemoteMove = true`.
 
 ### Resume Support
-`tryResumeGame()` — checks `controller_->hasActiveGame()`, calls `resumeGame()`. Returns `true` if a live game was resumed from flash.
+`tryResumeGame()` — checks `chess_->hasActiveGame()`, calls `resumeGame()`. Returns `true` if a live game was resumed from flash.
 
 ### Board Setup
 `waitForBoardSetup(targetBoard)` — blocking loop that lights LEDs to guide the player to the required position (white/black = place here, red = remove this). Ends with firework animation.
 
 ### Resign System
-Three-phase king-based resign gesture managed in `GameMode`: hold king off square (3s) → 2 quick lift-and-returns with escalating orange brightness → board confirm dialog → `controller_->endGame(RESIGN, ...)`.
+Three-phase king-based resign gesture managed in `GameMode`: hold king off square (3s) → 2 quick lift-and-returns with escalating orange brightness → board confirm dialog → `chess_->endGame(RESIGN, ...)`.
 
 Virtual hooks let subclasses customize: `isFlipped()`, `onBeforeResignConfirm()`, `onResignCancelled()`, `onResignConfirmed(color)`. BotMode uses these to cancel/restart the engine and notify the provider.
 

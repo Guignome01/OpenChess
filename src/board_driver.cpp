@@ -55,7 +55,7 @@ void BoardDriver::begin() {
   strip.Begin();
   showLEDs();        // turn off all LEDs
   loadLedSettings(); // Load LED settings from NVS (brightness, dim multiplier)
-  strip.SetBrightness(brightness);
+  strip.SetLuminance(brightness);
   // Shift register pins as outputs
   pinMode(SR_SER_DATA_PIN, OUTPUT);
   pinMode(SR_CLK_PIN, OUTPUT);
@@ -1006,7 +1006,7 @@ void BoardDriver::doWaiting(std::atomic<bool>* stopFlag) {
 void BoardDriver::setBrightness(uint8_t value) {
   LedGuard guard(this);
   brightness = value > 255 ? 255 : (value < 10 ? 10 : value);
-  strip.SetBrightness(brightness);
+  strip.SetLuminance(brightness);
   showLEDs();
 }
 

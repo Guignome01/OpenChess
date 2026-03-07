@@ -102,7 +102,7 @@ bool LichessAPI::verifyToken(String& username) {
     return false;
   }
 
-  if (doc.containsKey("username")) {
+  if (!doc["username"].isNull()) {
     username = doc["username"].as<String>();
     Serial.println("Lichess API: Verified token for user: " + username);
     return true;
@@ -170,7 +170,7 @@ static void checkGameEndStatus(JsonObject obj, LichessGameState& state) {
   state.status = status;
   if (status == "mate" || status == "resign" || status == "stalemate" || status == "timeout" || status == "draw" || status == "outoftime" || status == "aborted") {
     state.gameEnded = true;
-    if (obj.containsKey("winner"))
+    if (!obj["winner"].isNull())
       state.winner = obj["winner"].as<String>();
   }
 }
@@ -186,9 +186,9 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
   }
 
   // Check if this is a "gameFull" event
-  if (!doc.containsKey("type") || doc["type"].as<String>() != "gameFull") {
+  if (doc["type"].isNull() || doc["type"].as<String>() != "gameFull") {
     // Try to parse anyway if it has the right structure
-    if (!doc.containsKey("id") && !doc.containsKey("state")) {
+    if (doc["id"].isNull() && doc["state"].isNull()) {
       return false;
     }
   }
@@ -202,13 +202,13 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
   // (from /api/account/playing) is authoritative.
 
   // Get game state
-  if (doc.containsKey("state")) {
+  if (!doc["state"].isNull()) {
     JsonObject stateObj = doc["state"];
     String moves = stateObj["moves"].as<String>();
     applyMovesList(moves, state);
 
     // Get FEN if available
-    if (stateObj.containsKey("fen")) {
+    if (!stateObj["fen"].isNull()) {
       state.fen = stateObj["fen"].as<String>();
     }
 
@@ -216,7 +216,7 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
   }
 
   // Get initial FEN if provided
-  if (doc.containsKey("initialFen") && doc["initialFen"].as<String>() != "startpos") {
+  if (!doc["initialFen"].isNull() && doc["initialFen"].as<String>() != "startpos") {
     state.fen = doc["initialFen"].as<String>();
   }
 
@@ -257,7 +257,7 @@ bool LichessAPI::makeMove(const String& gameId, const String& move) {
     return response.indexOf("\"ok\":true") >= 0;
   }
 
-  if (doc.containsKey("ok") && doc["ok"].as<bool>()) {
+  if (!doc["ok"].isNull() && doc["ok"].as<bool>()) {
     Serial.println("Lichess: Move sent successfully: " + move);
     return true;
   }

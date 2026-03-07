@@ -39,7 +39,7 @@ BoardDriver boardDriver;
 SerialLogger logger;
 LittleFSStorage storage(&logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
-ChessGame controller(&storage, &wifiManager, &logger);
+ChessGame chess(&storage, &wifiManager, &logger);
 GameMode* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 
@@ -78,7 +78,7 @@ void setup() {
     Serial.println("LittleFS mounted successfully");
   storage.initialize();
   boardDriver.begin();
-  wifiManager.setGameRef(&controller);
+  wifiManager.setGameRef(&chess);
   wifiManager.begin();
   Serial.println();
 
@@ -98,7 +98,7 @@ void setup() {
 void checkForResumableGame() {
   uint8_t resumePlayerColor = 0, resumeBotDepth = 0;
   GameModeId resumeMode = static_cast<GameModeId>(0);
-  if (!controller.hasActiveGame() || !controller.getActiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
+  if (!chess.hasActiveGame() || !chess.getActiveGameInfo(resumeMode, resumePlayerColor, resumeBotDepth))
     return;
 
   Serial.println("========== Live game found on flash ==========");
@@ -120,12 +120,12 @@ void checkForResumableGame() {
       break;
     case GameModeId::LICHESS:
       Serial.println("  Lichess game found — cannot resume locally, discarding");
-      controller.discardRecording();
+      chess.discardRecording();
       Serial.println("================================================");
       return;
     default:
       Serial.println("Unknown live game mode, discarding");
-      controller.discardRecording();
+      chess.discardRecording();
       Serial.println("================================================");
       return;
   }
@@ -151,7 +151,7 @@ void checkForResumableGame() {
     }
   } else {
     Serial.println("  -> Player chose to DISCARD");
-    controller.discardRecording();
+    chess.discardRecording();
   }
 
   Serial.println("================================================");
@@ -238,20 +238,20 @@ void loop() {
           if (activeGame->isNavigationAllowed()) {
             switch (static_cast<NavAction>(navAction)) {
               case NavAction::UNDO:
-                controller.undoMove();
+                chess.undoMove();
                 break;
               case NavAction::REDO:
-                controller.redoMove();
+                chess.redoMove();
                 break;
               case NavAction::FIRST:
-                controller.beginBatch();
-                while (controller.canUndo()) controller.undoMove();
-                controller.endBatch();
+                chess.beginBatch();
+                while (chess.canUndo()) chess.undoMove();
+                chess.endBatch();
                 break;
               case NavAction::LAST:
-                controller.beginBatch();
-                while (controller.canRedo()) controller.redoMove();
-                controller.endBatch();
+                chess.beginBatch();
+                while (chess.canRedo()) chess.redoMove();
+                chess.endBatch();
                 break;
               default:
                 break;
@@ -373,7 +373,7 @@ void initializeSelectedMode(AppMode mode) {
   if (resumingGame)
     resumingGame = false;
   else
-    controller.discardRecording(); // Discard any incomplete live game that wasn't properly finished or resumed
+    chess.discardRecording(); // Discard any incomplete live game that wasn't properly finished or resumed
 
   // Clean up previous game/test
   delete activeGame;
@@ -384,17 +384,17 @@ void initializeSelectedMode(AppMode mode) {
   switch (mode) {
     case AppMode::CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      activeGame = new PlayerMode(&boardDriver, &wifiManager, &controller);
+      activeGame = new PlayerMode(&boardDriver, &wifiManager, &chess);
       activeGame->begin();
       break;
     case AppMode::BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new BotMode(&boardDriver, &wifiManager, &controller, new StockfishProvider(stockfishSettings, playerColor));
+      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new StockfishProvider(stockfishSettings, playerColor));
       activeGame->begin();
       break;
     case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new BotMode(&boardDriver, &wifiManager, &controller, new LichessProvider(lichessConfig));
+      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new LichessProvider(lichessConfig));
       activeGame->begin();
       break;
     case AppMode::SENSOR_TEST:

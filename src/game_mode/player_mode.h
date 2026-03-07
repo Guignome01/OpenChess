@@ -8,7 +8,7 @@ class ChessGame;
 // Human vs human local game mode
 class PlayerMode : public GameMode {
  public:
-  PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* gc);
+  PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg);
   void begin() override;
   void update() override;
 };

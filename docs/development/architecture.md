@@ -23,7 +23,7 @@ Firmware (src/):
   SensorTest (standalone, does not inherit GameMode)
 ```
 
-`GameMode` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`; the string overload parses coordinate notation via `ChessGame::parseCoordinate()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `GameMode` instance holds a `ChessGame*` (`controller_`) which orchestrates board state, recording, and observer notification. All chess mutations flow through `ChessGame`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
+`GameMode` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`; the string overload parses coordinate notation via `ChessGame::parseCoordinate()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `GameMode` instance holds a `ChessGame*` (`chess_`) which orchestrates board state, recording, and observer notification. All chess mutations flow through `ChessGame`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
 
 `BotMode` is a concrete class that composes an `EngineProvider*` (strategy pattern). Its `update()` implements a non-blocking state machine (`BotState::PLAYER_TURN` / `BotState::ENGINE_THINKING`): on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `provider_->onPlayerMoveApplied()`; when the turn flips to the engine it calls `provider_->requestMove()` (spawns a FreeRTOS task) and transitions to `ENGINE_THINKING`. In the thinking state, it polls `provider_->checkResult()` each tick — sensors, resign gestures, and web UI remain responsive while the engine computes. `BotMode` also provides shared infrastructure: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking), engine move application (`applyEngineMove()`), remote game-end handling (`handleRemoteGameEnd()`), error abort (`abortWithError()`), and resign hooks (`onBeforeResignConfirm()` cancels the engine request, `onResignCancelled()` re-requests, `onResignConfirmed()` delegates to the provider).
 
@@ -44,12 +44,12 @@ BoardDriver boardDriver;
 SerialLogger logger;
 LittleFSStorage storage(&logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
-ChessGame controller(&storage, &wifiManager, &logger);
+ChessGame chess(&storage, &wifiManager, &logger);
 auto* provider = new StockfishProvider(stockfishSettings, playerColor);
-BotMode botGame(&boardDriver, &wifiManager, &controller, provider);
+BotMode botGame(&boardDriver, &wifiManager, &chess, provider);
 ```
 
-`ChessGame` owns the `ChessBoard` internally — there is no shared chess state. All game mode classes interact with chess state through the `ChessGame` facade. `BotMode` takes ownership of the `EngineProvider*` (deletes it in its destructor). `ChessHistory` handles both in-memory tracking and persistent recording — when constructed without an `IGameStorage*`, recording is silently skipped (used by Lichess games since they are recorded on the server).
+`ChessGame` owns the `ChessBoard` internally — there is no shared chess state. All game mode classes interact with chess state through the `ChessGame` orchestrator. `BotMode` takes ownership of the `EngineProvider*` (deletes it in its destructor). `ChessHistory` handles both in-memory tracking and persistent recording — when constructed without an `IGameStorage*`, recording is silently skipped (used by Lichess games since they are recorded on the server).
 
 ## Coordinate System
 
@@ -187,8 +187,8 @@ The `GameHeader` struct (exactly 16 bytes, `__attribute__((packed))`) contains:
 
 The `GameMode` base class coordinates between `BoardDriver` (hardware) and `ChessGame` (chess state + recording + notification):
 
-1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `controller_->getPossibleMoves(row, col, ...)` (which delegates to `ChessRules::getPossibleMoves()`), waits for placement, validates the move, then calls `applyMove()`.
-2. `applyMove()` — calls `controller_->makeMove()` which atomically updates the board, records the move in history, persists via ChessHistory's recording, and notifies the observer. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, remote-move guidance, and game-end animations.
+1. `tryPlayerMove()` — polls sensors for a piece lift, shows valid moves via `chess_->getPossibleMoves(row, col, ...)` (which delegates to `ChessRules::getPossibleMoves()`), waits for placement, validates the move, then calls `applyMove()`.
+2. `applyMove()` — calls `chess_->makeMove()` which atomically updates the board, records the move in history, persists via ChessHistory's recording, and notifies the observer. Returns a `MoveResult` struct with all move metadata. The firmware then uses the `MoveResult` to drive LED feedback, sounds, remote-move guidance, and game-end animations.
 3. Turn advancement, castling rights, and game-end detection are all handled internally by `ChessBoard::makeMove()` — the firmware never modifies the board or turn directly.
 
 ## Game Mode Lifecycle
@@ -225,9 +225,9 @@ Every iteration of `loop()`:
 1. If not resuming, discard any leftover live game file
 2. `delete` the previous `activeGame` and `sensorTest` objects
 3. Create the new game object via `new` (the only heap allocation for game modes)
-4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `controller_->startRecording()` to begin recording
+4. Call `begin()` — which typically calls `waitForBoardSetup()` to wait for correct piece placement, then `chess_->startRecording()` to begin recording
 
-For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `controller_->resumeGame()` which delegates to `ChessHistory::replayInto()` to restore the full game state directly into the `ChessBoard`, then continues with normal `update()` calls.
+For game resume: `begin()` detects the `resumingGame` flag, skips piece setup, calls `chess_->resumeGame()` which delegates to `ChessHistory::replayInto()` to restore the full game state directly into the `ChessBoard`, then continues with normal `update()` calls.
 
 ### Menu Navigation
 
@@ -278,7 +278,7 @@ Move history navigation is server-driven: the web UI sends navigation commands v
 
 1. Web UI: nav button → `Api.nav(action)` → `POST /nav` with `action=undo|redo|first|last`
 2. `WiFiManagerESP32`: validates action, sets `pendingNavAction_`. If `navigationBlocked_`, returns `409`.
-3. `main.cpp loop()`: reads `wifiManager.getPendingNavAction()`, checks `activeGame->isNavigationAllowed()`, applies via `controller.undoMove()` / `controller.redoMove()` (loops for first/last), clears flag.
+3. `main.cpp loop()`: reads `wifiManager.getPendingNavAction()`, checks `activeGame->isNavigationAllowed()`, applies via `chess.undoMove()` / `chess.redoMove()` (loops for first/last), clears flag.
 4. `ChessGame::undoMove()`/`redoMove()` steps the history cursor and updates the board, then notifies the observer.
 5. `WiFiManagerESP32::onBoardStateChanged()` caches `moveIndex`, `moveCount`, `canUndo`, `canRedo`, and the move list as JSON.
 6. Next `GET /board-update` poll returns the navigated position FEN and all cached navigation state.

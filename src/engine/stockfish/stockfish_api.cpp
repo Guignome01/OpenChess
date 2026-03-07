@@ -32,7 +32,7 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
     return false;
   }
 
-  StaticJsonDocument<512> doc;
+  JsonDocument doc;
   DeserializationError error = deserializeJson(doc, jsonOnly);
 
   if (error) {
@@ -42,7 +42,7 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
   }
 
   // Check if the request was successful
-  if (!doc.containsKey("success")) {
+  if (doc["success"].isNull()) {
     stockfishResp.success = false;
     stockfishResp.errorMessage = "Missing 'success' field";
     return false;
@@ -52,9 +52,9 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
 
   if (!stockfishResp.success) {
     // If not successful, try to get error message
-    if (doc.containsKey("error"))
+    if (!doc["error"].isNull())
       stockfishResp.errorMessage = doc["error"].as<String>();
-    else if (doc.containsKey("data"))
+    else if (!doc["data"].isNull())
       stockfishResp.errorMessage = doc["data"].as<String>();
     else
       stockfishResp.errorMessage = "Unknown error from API";
@@ -63,13 +63,13 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
 
   // Parse evaluation (can be null)
   stockfishResp.evaluation = 0.0f;
-  if (doc.containsKey("evaluation") && !doc["evaluation"].isNull())
+  if (!doc["evaluation"].isNull())
     stockfishResp.evaluation = doc["evaluation"].as<float>();
 
   // Parse mate (can be null)
   stockfishResp.mateInMoves = 0;
   stockfishResp.hasMate = false;
-  if (doc.containsKey("mate") && !doc["mate"].isNull()) {
+  if (!doc["mate"].isNull()) {
     stockfishResp.mateInMoves = doc["mate"].as<int>();
     stockfishResp.hasMate = true;
   }
@@ -77,7 +77,7 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
   // Parse bestmove (format: "bestmove <move> ponder <move>")
   stockfishResp.bestMove = "";
   stockfishResp.ponderMove = "";
-  if (doc.containsKey("bestmove")) {
+  if (!doc["bestmove"].isNull()) {
     String bestmoveStr = doc["bestmove"].as<String>();
 
     // Parse the bestmove string
@@ -107,7 +107,7 @@ bool StockfishAPI::parseResponse(const String& response, StockfishResponse& stoc
   }
 
   // Parse continuation (top engine line)
-  stockfishResp.continuation = doc.containsKey("continuation") ? doc["continuation"].as<String>() : "";
+  stockfishResp.continuation = !doc["continuation"].isNull() ? doc["continuation"].as<String>() : "";
 
   return true;
 }
