@@ -15,8 +15,7 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 ├── LibreChess.code-workspace VS Code workspace file
 ├── grid_scan_test.cpp      Standalone sensor grid debugging utility
 ├── .clang-format           C++ code formatting rules (Google style base)
-├── .github/                GitHub Copilot instructions
-├── .claude/                Claude AI instructions
+├── .github/                Copilot instructions, scoped instruction files, and workflow skills
 ├── LICENSE                 Project license
 └── README.md               Project overview and quick start
 ```

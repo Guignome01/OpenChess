@@ -6,10 +6,11 @@ This project provides context files for AI coding assistants:
 
 | File | Purpose |
 |------|---------|
-| `.github/copilot-instructions.md` | GitHub Copilot instructions |
-| `.claude/CLAUDE.md` | Claude Code instructions |
+| `.github/copilot-instructions.md` | GitHub Copilot instructions (always loaded) |
+| `.github/instructions/*.instructions.md` | Scoped instructions (auto-loaded by `applyTo` pattern) |
+| `.github/skills/*/SKILL.md` | Workflow skills (loaded on keyword match) |
 
-Both files are identical (sync directive at the top of each). They contain the project architecture summary, conventions, patterns, and engineering principles.
+`copilot-instructions.md` contains the project architecture summary, conventions, and engineering principles. Scoped instruction files provide detailed context for specific areas (core library, game mode, engine, board driver, frontend, testing, API, WiFi manager) and load automatically when editing matching files.
 
 ### Workflow: Consult Documentation First
 
@@ -35,6 +36,7 @@ When a code change affects architecture, public APIs, endpoints, configuration, 
 - Architecture or internal design changes → update [architecture.md](architecture.md)
 - New LED behaviors, menu changes, or physical interaction changes → update the relevant file in `docs/guides/`
 - Chess logic changes in `lib/core/` → update or add unit tests in `test/`
+- Any behavior change documented in a `.github/instructions/` file → update the instruction file in the same change
 
 ## CLI Quick Reference
 
