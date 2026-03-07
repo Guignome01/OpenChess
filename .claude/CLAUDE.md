@@ -10,7 +10,7 @@ ESP32 Arduino smart chessboard: detects piece movements via hall-effect sensors 
 ### Class Hierarchy
 **Core (`lib/core/`)**: `ChessGame` is the central game orchestrator composing `ChessBoard` (board representation + position logic), `ChessHistory` (in-memory move log + persistent game recording), and optionally `IGameObserver`. All chess-state mutations flow through `ChessGame`.
 
-**Firmware (`src/game/`)**: `GameMode` (abstract base) → `PlayerMode` (human v human) | `BotMode` (abstract, Template Method) → `StockfishMode` (v Stockfish) / `LichessMode` (online play). `BotMode::update()` defines the game loop skeleton; subclasses override hooks (`requestEngineMove()`, `onPlayerMoveApplied()`, `getEngineEvaluation()`). `BoardDriver` is shared via pointer injection. Each `GameMode` holds a `ChessGame*` — no global chess state.
+**Firmware (`src/`)**: `GameMode` (abstract base, `src/game_mode/`) → `PlayerMode` (human v human) | `BotMode` (concrete, composes `EngineProvider*`). `EngineProvider` (base class with FreeRTOS task lifecycle, `src/engine/`) → `StockfishProvider` (`src/engine/stockfish/`) / `LichessProvider` (`src/engine/lichess/`). `BotMode::update()` drives a non-blocking state machine (`BotState::PLAYER_TURN` / `BotState::ENGINE_THINKING`); engine requests are async via FreeRTOS tasks. `BoardDriver` is shared via pointer injection. Each `GameMode` holds a `ChessGame*` — no global chess state.
 
 ### Key Components
 - **`BoardDriver`** — hardware abstraction: LED strip (NeoPixelBus), sensor grid (shift register), calibration, async animation queue (FreeRTOS task + queue).

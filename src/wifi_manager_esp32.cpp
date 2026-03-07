@@ -1,6 +1,6 @@
 #include "wifi_manager_esp32.h"
 #include "chess_game.h"
-#include "game/lichess_mode.h"
+#include "engine/lichess/lichess_config.h"
 #include "system_utils.h"
 #include "littlefs_storage.h"
 #include <Arduino.h>

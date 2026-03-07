@@ -44,9 +44,9 @@ class GameMode {
   bool processResign();
   /// Show standard invalid-move feedback (red blink) on a square.
   void showIllegalMoveFeedback(int row, int col);
-  /// Handle resign confirmation and game-end sequence (Template Method).
+  /// Handle resign confirmation and game-end sequence.
   /// Uses virtual hooks so subclasses can customize behavior without
-  /// duplicating the flow.  Not virtual — override the hooks instead.
+  /// duplicating the flow.
   bool handleResign(char resignColor);
 
   // --- Resign hooks (override in subclasses) ---

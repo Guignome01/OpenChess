@@ -3,7 +3,7 @@
 
 #include "board_driver.h"
 #include "game_observer.h"
-#include "stockfish_settings.h"
+#include "engine/stockfish/stockfish_settings.h"
 #include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>

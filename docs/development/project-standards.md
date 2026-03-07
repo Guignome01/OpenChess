@@ -37,7 +37,7 @@ Components are connected through pointer injection at construction time, not thr
 
 Before writing new code, check whether an existing function or pattern covers the need. Shared logic is extracted into helpers (`ChessUtils`), base classes (`ChessGame`), or utility functions. If the same pattern appears in more than one place, refactor it into a single reusable implementation.
 
-New features should build on existing infrastructure. For example, `LichessMode` extends `BotMode` (which extends `GameMode`) rather than reimplementing bot-move guidance from scratch.
+New features should build on existing infrastructure. For example, `LichessProvider` implements the `EngineProvider` interface and is composed into `BotMode` (which extends `GameMode`) rather than reimplementing bot-move guidance from scratch.
 
 ## LED Access Rules
 

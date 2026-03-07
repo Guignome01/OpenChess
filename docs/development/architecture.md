@@ -11,21 +11,27 @@ Core (lib/core/):
    ├─ composes ChessHistory (move log + persistent game recording)
    └─ uses IGameObserver (notification)
 
-Firmware (src/game/):
-  GameMode (abstract base)
+Firmware (src/):
+  GameMode (abstract base, src/game_mode/)
    ├─ PlayerMode (human vs human)
-   └─ BotMode (abstract, Template Method pattern)
-       ├─ StockfishMode (human vs Stockfish API)
-       └─ LichessMode (online Lichess play)
+   └─ BotMode (concrete, composes EngineProvider*)
+
+  EngineProvider (base class, src/engine/)
+   ├─ StockfishProvider (src/engine/stockfish/)
+   └─ LichessProvider (src/engine/lichess/)
 
   SensorTest (standalone, does not inherit GameMode)
 ```
 
 `GameMode` defines the shared game infrastructure and common logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`; the string overload parses coordinate notation via `ChessGame::parseCoordinate()`), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. Each `GameMode` instance holds a `ChessGame*` (`controller_`) which orchestrates board state, recording, and observer notification. All chess mutations flow through `ChessGame`; the firmware never modifies the board or turn directly. Each subclass overrides `begin()` and `update()` to implement mode-specific behavior.
 
-`BotMode` is an abstract intermediate class using the Template Method pattern. Its concrete `update()` defines the game loop skeleton: on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; on the engine's turn it calls `requestEngineMove()`. Subclasses override only the engine-specific hooks: `requestEngineMove()` (pure virtual — compute/fetch the engine move), `onPlayerMoveApplied()` (react to player moves, e.g. send to server), and `getEngineEvaluation()`. `BotMode` also provides shared infrastructure for all engine modes: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking for physically executing engine moves), and resign hooks (`isFlipped()`, `onBeforeResignConfirm()`, `onResignCancelled()`).
+`BotMode` is a concrete class that composes an `EngineProvider*` (strategy pattern). Its `update()` implements a non-blocking state machine (`BotState::PLAYER_TURN` / `BotState::ENGINE_THINKING`): on the player's turn it calls `tryPlayerMove()` → `applyMove()` → `provider_->onPlayerMoveApplied()`; when the turn flips to the engine it calls `provider_->requestMove()` (spawns a FreeRTOS task) and transitions to `ENGINE_THINKING`. In the thinking state, it polls `provider_->checkResult()` each tick — sensors, resign gestures, and web UI remain responsive while the engine computes. `BotMode` also provides shared infrastructure: thinking animation management (`startThinking()`/`stopThinking()`), remote move guidance (`waitForRemoteMoveCompletion()` — LED cues + sensor blocking), engine move application (`applyEngineMove()`), remote game-end handling (`handleRemoteGameEnd()`), error abort (`abortWithError()`), and resign hooks (`onBeforeResignConfirm()` cancels the engine request, `onResignCancelled()` re-requests, `onResignConfirmed()` delegates to the provider).
 
-`StockfishMode` overrides `requestEngineMove()` to call the Stockfish API, and `getEngineEvaluation()` to return the Stockfish evaluation score. `LichessMode` overrides `requestEngineMove()` to poll the Lichess game stream for opponent moves, `onPlayerMoveApplied()` to send moves to the Lichess server, and `onResignConfirmed()` to also resign on the Lichess API.
+`EngineProvider` is the base class in `src/engine/engine_provider.h`. It defines the contract for all chess engines: `initialize()` (blocking setup, returns `EngineInitResult` with player color, FEN, mode ID), `requestMove()` / `checkResult()` (async move computation via FreeRTOS tasks), plus optional hooks `onPlayerMoveApplied()` (Lichess sends the move to the server), `onResignConfirmed()` (Lichess resigns on the server), and `getEvaluation()` (Stockfish returns engine eval). It also owns the shared FreeRTOS task lifecycle: `activeTask_` pointer (a `BaseTaskContext*` with `std::atomic<bool>` cancel/ready flags and an `EngineResult`), `spawnTask()` (creates + launches a FreeRTOS task), `pollResult()` / `peekResult()` (non-destructive ready check), `finishTask()` (deletes the context), and `cancelRequest()`. Providers never touch `ChessGame`, `BoardDriver`, or any hardware — they only do HTTP and return data.
+
+`StockfishProvider` extends `EngineProvider` by spawning a one-shot FreeRTOS task per move that calls the Stockfish API. The task performs the HTTP GET with retry logic, parses the JSON response, and stores the result in its `TaskContext` (extends `BaseTaskContext` with FEN, depth, and evaluation fields).
+
+`LichessProvider` extends `EngineProvider`. Its `initialize()` blocks during game discovery (token verification + polling for active games). Its `requestMove()` spawns a FreeRTOS task that opens a persistent NDJSON stream via `LichessAPI::connectGameStream()` and reads events via `readStreamEvent()`. On connection loss, it reconnects with exponential backoff (1s→2s→4s→8s, up to 5 attempts) — the game stays paused during reconnection; if all attempts are exhausted the game is aborted.
 
 `SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `GameMode` subclass — it doesn't need chess logic, FEN state, or move history.
 
@@ -39,10 +45,11 @@ SerialLogger logger;
 LittleFSStorage storage(&logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
 ChessGame controller(&storage, &wifiManager, &logger);
-StockfishMode stockfishGame(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
+auto* provider = new StockfishProvider(stockfishSettings, playerColor);
+BotMode botGame(&boardDriver, &wifiManager, &controller, provider);
 ```
 
-`ChessGame` owns the `ChessBoard` internally — there is no shared chess state. All game mode classes interact with chess state through the `ChessGame` facade. `ChessHistory` handles both in-memory tracking and persistent recording — when constructed without an `IGameStorage*`, recording is silently skipped (used by `LichessMode` since Lichess games are recorded on the server).
+`ChessGame` owns the `ChessBoard` internally — there is no shared chess state. All game mode classes interact with chess state through the `ChessGame` facade. `BotMode` takes ownership of the `EngineProvider*` (deletes it in its destructor). `ChessHistory` handles both in-memory tracking and persistent recording — when constructed without an `IGameStorage*`, recording is silently skipped (used by Lichess games since they are recorded on the server).
 
 ## Coordinate System
 
@@ -232,7 +239,7 @@ The `MenuNavigator` manages a stack of `BoardMenu` instances (max depth 4):
 
 Menu IDs use distinct ranges per level (0–9 root, 10–19 difficulty, 20–29 color) so `handleMenuResult()` can route by ID value alone — no callbacks or virtual dispatch.
 
-The web UI can also trigger game selection via `POST /game/select`, setting `gameMode` and `botConfig` on `WiFiManagerESP32`. The main loop detects this, bypasses the physical menu, and proceeds directly to mode initialization.
+The web UI can also trigger game selection via `POST /game/select`, setting `gameMode` and bot configuration on `WiFiManagerESP32`. The main loop detects this, bypasses the physical menu, and proceeds directly to mode initialization.
 
 ## Resign System
 
@@ -245,7 +252,7 @@ The gesture runs inline inside `tryPlayerMove()` — no separate state machine. 
 3. Player returns the king. Orange increases to 50% (`showResignProgress(row, col, 1, clearFirst=true)`). All other LEDs are cleared.
 4. `continueResignGesture()` takes over — a blocking loop that waits for 2 more quick lift-and-return cycles, each within `RESIGN_LIFT_WINDOW_MS` (1000ms). Orange progresses to 75% then 100%.
 5. If all lifts complete in time, `boardConfirm()` shows a yes/no dialog (green/red squares).
-6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `GameResult::RESIGNATION` and plays a firework animation in the opponent's color. `LichessMode` overrides this to also call `LichessAPI::resignGame()` and manages the thinking animation stop flag.
+6. On confirm, `handleResign(resignColor)` is called. The base implementation ends the game with `GameResult::RESIGNATION` and plays a firework animation in the opponent's color. In bot mode, `BotMode::onResignConfirmed()` delegates to `EngineProvider::onResignConfirmed()` — `LichessProvider` sends a resign request to the Lichess server.
 
 If any step times out (king not returned within the window), the gesture is silently canceled — no error feedback, just a return to normal play. The progressive orange brightness (25% → 50% → 75% → 100%) uses `LedColors::scaleColor(LedColors::Orange, factor)` with factors from `RESIGN_BRIGHTNESS_LEVELS`.
 
@@ -276,7 +283,7 @@ Move history navigation is server-driven: the web UI sends navigation commands v
 5. `WiFiManagerESP32::onBoardStateChanged()` caches `moveIndex`, `moveCount`, `canUndo`, `canRedo`, and the move list as JSON.
 6. Next `GET /board-update` poll returns the navigated position FEN and all cached navigation state.
 
-**Navigation blocking** — `GameMode::isNavigationAllowed()` is a virtual method (default: `true`). `BotMode` overrides it to return `true` only on the player's turn or when the game is over. The main loop updates `wifiManager.setNavigationBlocked()` each tick so the async web handler can reject requests immediately.
+**Navigation blocking** — `GameMode::isNavigationAllowed()` is a virtual method (default: `true`). `BotMode` overrides it to return `true` only when `botState_ == BotState::PLAYER_TURN` or when the game is over. The main loop updates `wifiManager.setNavigationBlocked()` each tick so the async web handler can reject requests immediately.
 
 ## LED System
 
@@ -383,12 +390,12 @@ All menu layout data lives in `menu_config.h/cpp`:
 
 ### Stockfish
 
-`StockfishAPI` (in `stockfish_api.h/cpp`) handles HTTPS requests to `stockfish.online` using `WiFiClientSecure`:
+`StockfishAPI` (in `engine/stockfish/stockfish_api.h/cpp`) handles HTTPS requests to `stockfish.online` using `WiFiClientSecure`:
 - Builds request URLs with FEN and depth parameters
 - Parses JSON responses for best move, evaluation, and continuation line
 - Connection uses TLS with `setInsecure()` (no certificate pinning)
 
-`StockfishSettings` (in `stockfish_settings.h`) defines 8 difficulty presets:
+`StockfishSettings` (in `engine/stockfish/stockfish_settings.h`) defines 8 difficulty presets:
 
 | Level | Name | Depth | Timeout |
 |-------|------|-------|---------|
@@ -401,11 +408,11 @@ All menu layout data lives in `menu_config.h/cpp`:
 | 7 | Expert | 15 | 55s |
 | 8 | Master | 17 | 65s |
 
-`StockfishSettings::fromLevel(int)` is a factory that selects by 1-based level. `BotConfig` bundles `StockfishSettings` + `playerIsWhite` flag and is passed to `BotMode` at construction.
+`StockfishSettings::fromLevel(int)` is a factory that selects by 1-based level. `StockfishProvider` is constructed with a `StockfishSettings` and player color, then passed to `BotMode` as an `EngineProvider*`.
 
 ### Lichess
 
-`LichessAPI` (in `lichess_api.h/cpp`) handles HTTPS requests to `lichess.org`:
+`LichessAPI` (in `engine/lichess/lichess_api.h/cpp`) handles HTTPS requests to `lichess.org`:
 - **Game event polling** — checks for active or incoming games
 - **Game stream polling** — retrieves the current game state (moves, status, clocks)
 - **Move submission** — sends a UCI move to the active game
@@ -413,7 +420,7 @@ All menu layout data lives in `menu_config.h/cpp`:
 
 The Lichess token is stored in NVS (namespace `"lichess"`, key `"token"`). The web UI's Lichess settings page allows entering or clearing the token. API responses to the web UI return only a masked version of the token (first 4 characters + asterisks).
 
-`LichessMode` polls in `update()` every `POLL_INTERVAL_MS` (500ms). Game state sync happens in `syncBoardWithLichess()`, which compares the server's move list against `lastKnownMoves` and applies any new remote moves. `lastSentMove` prevents the player's own move from being processed as a remote move on the next poll.
+`LichessProvider` spawns a FreeRTOS polling task (via `requestMove()`) that calls `LichessAPI::pollGameStream()` every 500ms. The task compares the server's move list against `lastKnownMoves_` and returns new opponent moves via `EngineResult`. `lastSentMove_` prevents the player's own move echo from being treated as an opponent move. Game-end events from the server are also detected and returned as `EngineResult::Type::GAME_ENDED`.
 
 ## Storage
 

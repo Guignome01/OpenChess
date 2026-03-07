@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <atomic>
 
 // Static member initialization
 String LichessAPI::apiToken = "";
@@ -99,57 +100,12 @@ bool LichessAPI::verifyToken(String& username) {
 }
 
 bool LichessAPI::pollForGameEvent(LichessEvent& event) {
-  // Check for currently playing games first
-  WiFiClientSecure client;
-  client.setInsecure();
-
-  if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
-    return false;
-  }
-
-  // Use the /api/account/playing endpoint to get current games
-  String request = "GET /api/account/playing HTTP/1.1\r\n";
-  request += "Host: " LICHESS_API_HOST "\r\n";
-  request += "Authorization: Bearer " + apiToken + "\r\n";
-  request += "Accept: application/json\r\n";
-  request += "Connection: close\r\n\r\n";
-
-  client.print(request);
-
-  unsigned long timeout = millis() + 10000;
-  while (client.connected() && !client.available()) {
-    if (millis() > timeout) {
-      client.stop();
-      return false;
-    }
-    delay(10);
-  }
-
-  String response = "";
-  bool headersDone = false;
-
-  while (client.available()) {
-    String line = client.readStringUntil('\n');
-    if (!headersDone) {
-      if (line == "\r" || line.length() == 0) {
-        headersDone = true;
-      }
-    } else {
-      response += line;
-    }
-  }
-
-  client.stop();
-
-  if (response.length() == 0) {
-    return false;
-  }
+  String response = makeHttpRequest("GET", "/api/account/playing");
+  if (response.length() == 0) return false;
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, response);
-  if (error) {
-    return false;
-  }
+  if (error) return false;
 
   JsonArray games = doc["nowPlaying"].as<JsonArray>();
   if (games.size() > 0) {
@@ -282,18 +238,21 @@ bool LichessAPI::pollGameStream(const String& gameId, LichessGameState& state) {
   return parseGameStateEvent(jsonLine, state);
 }
 
-// Parse a space-separated UCI moves string into a move count and the last move.
-static void parseMovesList(const String& moves, int& moveCount, String& lastMove) {
-  moveCount = 0;
+// Parse a space-separated UCI moves string and update state fields.
+static void applyMovesList(const String& moves, LichessGameState& state) {
+  int moveCount = 0;
   if (moves.length() > 0) {
     moveCount = 1;
     for (size_t i = 0; i < moves.length(); i++)
       if (moves[i] == ' ') moveCount++;
     int lastSpace = moves.lastIndexOf(' ');
-    lastMove = (lastSpace >= 0) ? moves.substring(lastSpace + 1) : moves;
+    state.lastMove = (lastSpace >= 0) ? moves.substring(lastSpace + 1) : moves;
   } else {
-    lastMove = "";
+    state.lastMove = "";
   }
+  state.moveCount = moveCount;
+  state.isMyTurn = ((moveCount % 2 == 0) && state.myColor == 'w') ||
+                   ((moveCount % 2 == 1) && state.myColor == 'b');
 }
 
 // Check whether the game has ended and populate state accordingly.
@@ -329,29 +288,15 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
   state.gameStarted = true;
   state.gameEnded = false;
 
-  // Get player color
-  String whiteId = doc["white"]["id"].as<String>();
-  String myId = "";
-
-  // We need to know our username to determine color
-  // For now, use the "white"/"black" approach from the initial event
-  if (doc.containsKey("white") && doc.containsKey("black")) {
-    // Check which one has aiLevel (if any) - that's the bot
-    if (doc["white"].containsKey("aiLevel")) {
-      state.myColor = 'b'; // We're Black, White is AI
-    } else if (doc["black"].containsKey("aiLevel")) {
-      state.myColor = 'w'; // We're White, Black is AI
-    }
-  }
+  // myColor is already set by the caller from the initial game event.
+  // parseGameFullEvent does not override it — the event-level color
+  // (from /api/account/playing) is authoritative.
 
   // Get game state
   if (doc.containsKey("state")) {
     JsonObject stateObj = doc["state"];
     String moves = stateObj["moves"].as<String>();
-
-    int moveCount = 0;
-    parseMovesList(moves, moveCount, state.lastMove);
-    state.isMyTurn = ((moveCount % 2 == 0) && state.myColor == 'w') || ((moveCount % 2 == 1) && state.myColor == 'b');
+    applyMovesList(moves, state);
 
     // Get FEN if available
     if (stateObj.containsKey("fen")) {
@@ -384,10 +329,7 @@ bool LichessAPI::parseGameStateEvent(const String& json, LichessGameState& state
   }
 
   String moves = doc["moves"].as<String>();
-
-  int moveCount = 0;
-  parseMovesList(moves, moveCount, state.lastMove);
-  state.isMyTurn = ((moveCount % 2 == 0) && state.myColor == 'w') || ((moveCount % 2 == 1) && state.myColor == 'b');
+  applyMovesList(moves, state);
 
   checkGameEndStatus(doc.as<JsonObject>(), state);
 
@@ -419,4 +361,102 @@ bool LichessAPI::resignGame(const String& gameId) {
   String path = "/api/board/game/" + gameId + "/resign";
   String response = makeHttpRequest("POST", path);
   return response.indexOf("ok") >= 0 || response.indexOf("true") >= 0;
+}
+
+// ---------------------------------------------------------------
+// Persistent stream helpers
+// ---------------------------------------------------------------
+
+// Return true if `line` looks like a chunked-encoding size (hex digits only, ≤8 chars).
+static bool isChunkSizeLine(const String& line) {
+  if (line.length() == 0 || line.length() > 8) return false;
+  for (size_t i = 0; i < line.length(); i++) {
+    char c = line[i];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+      return false;
+  }
+  return true;
+}
+
+bool LichessAPI::connectGameStream(WiFiClientSecure& client, const String& gameId) {
+  client.setInsecure();
+
+  if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
+    Serial.println("Lichess stream: connection failed");
+    return false;
+  }
+
+  // Request with keep-alive — Lichess streams use chunked transfer encoding
+  String request = "GET /api/board/game/stream/" + gameId + " HTTP/1.1\r\n";
+  request += "Host: " LICHESS_API_HOST "\r\n";
+  request += "Authorization: Bearer " + apiToken + "\r\n";
+  request += "Accept: application/x-ndjson\r\n";
+  request += "Connection: keep-alive\r\n\r\n";
+
+  client.print(request);
+
+  // Skip HTTP response headers
+  unsigned long timeout = millis() + 15000;
+  while (client.connected()) {
+    if (millis() > timeout) {
+      Serial.println("Lichess stream: header timeout");
+      client.stop();
+      return false;
+    }
+    if (client.available()) {
+      String line = client.readStringUntil('\n');
+      line.trim();
+      if (line.length() == 0) break;  // Empty line = end of headers
+    }
+    delay(1);
+  }
+
+  if (!client.connected()) {
+    Serial.println("Lichess stream: disconnected during headers");
+    return false;
+  }
+
+  Serial.println("Lichess stream: connected, headers consumed");
+  return true;
+}
+
+bool LichessAPI::readStreamEvent(WiFiClientSecure& client, LichessGameState& state,
+                                 const std::atomic<bool>& cancel, unsigned long timeoutMs) {
+  unsigned long deadline = millis() + timeoutMs;
+
+  while (client.connected() || client.available()) {
+    if (cancel.load()) return false;
+    if (millis() > deadline) return false;
+
+    if (!client.available()) {
+      delay(10);
+      continue;
+    }
+
+    String line = client.readStringUntil('\n');
+    line.trim();
+
+    // Skip empty heartbeat lines
+    if (line.length() == 0) {
+      deadline = millis() + timeoutMs;  // Reset timeout on heartbeat
+      continue;
+    }
+
+    // Skip chunked-encoding size lines
+    if (isChunkSizeLine(line)) continue;
+
+    // Must start with '{' to be valid JSON
+    if (line[0] != '{') continue;
+
+    Serial.println("Lichess stream event: " + line.substring(0, min((size_t)200, line.length())));
+
+    // Try gameFull first, then gameState
+    if (parseGameFullEvent(line, state)) return true;
+    if (parseGameStateEvent(line, state)) return true;
+
+    Serial.println("Lichess stream: unrecognized event, skipping");
+  }
+
+  // Connection dropped
+  return false;
 }

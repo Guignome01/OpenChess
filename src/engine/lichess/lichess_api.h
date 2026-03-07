@@ -2,6 +2,7 @@
 #define LICHESS_API_H
 
 #include <Arduino.h>
+#include <WiFiClientSecure.h>
 
 // Lichess API Configuration
 #define LICHESS_API_HOST "lichess.org"
@@ -12,6 +13,7 @@ struct LichessGameState {
   String gameId;
   String fen;
   String lastMove; // UCI format (e.g., "e2e4")
+  int moveCount = 0; // Total half-moves in the game
   bool isMyTurn;
   char myColor; // 'w' or 'b'
   bool gameStarted;
@@ -65,6 +67,19 @@ class LichessAPI {
 
   // Resign the game
   static bool resignGame(const String& gameId);
+
+  // --- Persistent stream helpers ---
+
+  // Open a persistent TLS connection to the game stream endpoint.
+  // Skips HTTP headers. Returns true if the connection is ready to read NDJSON lines.
+  static bool connectGameStream(WiFiClientSecure& client, const String& gameId);
+
+  // Read the next NDJSON event from an open stream connection.
+  // Skips heartbeat (empty) lines and chunked-encoding size lines.
+  // Returns true if a JSON line was read into `state`; false on timeout or disconnect.
+  // `cancel` is polled to allow early exit.
+  static bool readStreamEvent(WiFiClientSecure& client, LichessGameState& state,
+                              const std::atomic<bool>& cancel, unsigned long timeoutMs = 30000);
 
  private:
   static String apiToken;

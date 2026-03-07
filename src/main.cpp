@@ -1,7 +1,10 @@
 #include "board_driver.h"
-#include "game/player_mode.h"
-#include "game/lichess_mode.h"
-#include "game/stockfish_mode.h"
+#include "game_mode/player_mode.h"
+#include "game_mode/bot_mode.h"
+#include "engine/stockfish/stockfish_provider.h"
+#include "engine/stockfish/stockfish_settings.h"
+#include "engine/lichess/lichess_provider.h"
+#include "engine/lichess/lichess_config.h"
 #include "chess_game.h"
 #include "littlefs_storage.h"
 #include "serial_logger.h"
@@ -386,12 +389,12 @@ void initializeSelectedMode(AppMode mode) {
       break;
     case AppMode::BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new StockfishMode(&boardDriver, &wifiManager, &controller, playerColor, stockfishSettings);
+      activeGame = new BotMode(&boardDriver, &wifiManager, &controller, new StockfishProvider(stockfishSettings, playerColor));
       activeGame->begin();
       break;
     case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new LichessMode(&boardDriver, &wifiManager, &controller, lichessConfig);
+      activeGame = new BotMode(&boardDriver, &wifiManager, &controller, new LichessProvider(lichessConfig));
       activeGame->begin();
       break;
     case AppMode::SENSOR_TEST:

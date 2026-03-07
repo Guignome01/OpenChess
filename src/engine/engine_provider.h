@@ -1,0 +1,115 @@
+#ifndef ENGINE_PROVIDER_H
+#define ENGINE_PROVIDER_H
+
+#include "types.h"
+#include <Arduino.h>
+#include <atomic>
+#include <string>
+
+// Result from engine initialization (populated by the provider during begin()).
+struct EngineInitResult {
+  char playerColor = 'w';       // Discovered at runtime (Lichess) or passed in (Stockfish)
+  std::string fen;              // Empty = starting position; non-empty = load this FEN
+  GameModeId gameModeId;        // BOT, LICHESS, etc.
+  uint8_t depth = 0;            // For recording metadata (Stockfish depth); 0 = unused
+  bool canResume = true;        // false = skip tryResumeGame (Lichess: state comes from server)
+};
+
+// Result from an async engine computation (move or game-end event).
+struct EngineResult {
+  enum Type { NONE, MOVE, GAME_ENDED };
+  Type type = NONE;
+  std::string move;             // UCI coordinate when type == MOVE (e.g., "e2e4")
+  float evaluation = 0.0f;     // Engine eval (Stockfish); 0 = use material count
+  GameResult gameResult = GameResult::IN_PROGRESS;  // When type == GAME_ENDED
+  char winnerColor = ' ';       // When type == GAME_ENDED
+};
+
+// Base context shared between the main loop and a FreeRTOS task.
+// Derived providers add request-specific fields.
+struct BaseTaskContext {
+  virtual ~BaseTaskContext() = default;
+  std::atomic<bool> cancel{false};
+  std::atomic<bool> ready{false};
+  EngineResult result;
+};
+
+// Base class for chess engine providers.
+// Manages a single FreeRTOS background task for async move computation.
+// Providers handle all network communication and return data only —
+// they never touch ChessGame, BoardDriver, or any hardware.
+class EngineProvider {
+ public:
+  virtual ~EngineProvider() { cancelRequest(); }
+
+  // Lifecycle — called once during BotMode::begin(). May block (HTTP calls).
+  // BotMode handles waiting animation before/after.
+  // Returns false if initialization failed (BotMode will abort the game).
+  virtual bool initialize(EngineInitResult& result) = 0;
+
+  // Async move computation — non-blocking.
+  // requestMove() spawns a background task; checkResult() polls for completion.
+  virtual void requestMove(const std::string& fen) = 0;
+  virtual bool checkResult(EngineResult& result) = 0;
+
+  virtual void cancelRequest() {
+    if (activeTask_) {
+      activeTask_->cancel.store(true);
+      unsigned long start = millis();
+      while (!activeTask_->ready.load() && (millis() - start < 2000))
+        delay(10);
+      delete activeTask_;
+      activeTask_ = nullptr;
+    }
+  }
+
+  // Called after a local player move is applied. Lichess uses this to send the
+  // move to the server. Returns false if the operation failed (BotMode aborts).
+  virtual bool onPlayerMoveApplied(const std::string& moveCoord) { return true; }
+
+  // Called after resign is confirmed. Lichess uses this to resign on the server.
+  virtual void onResignConfirmed() {}
+
+  // Engine evaluation for the web UI. Returns 0 by default (BotMode falls back
+  // to material count).
+  virtual float getEvaluation() { return 0.0f; }
+
+ protected:
+  BaseTaskContext* activeTask_ = nullptr;
+
+  // Spawn a FreeRTOS task with the given context. Cancels any running task first.
+  void spawnTask(BaseTaskContext* ctx, const char* name,
+                 TaskFunction_t taskFn, uint32_t stackSize = 8192) {
+    if (activeTask_) cancelRequest();
+    activeTask_ = ctx;
+    xTaskCreate(taskFn, name, stackSize, ctx, 1, nullptr);
+  }
+
+  // Poll for a completed result. Returns true and fills `result` when ready.
+  // Deletes the task context — caller must do any post-processing before this.
+  bool pollResult(EngineResult& result) {
+    if (!activeTask_ || !activeTask_->ready.load()) return false;
+    result = activeTask_->result;
+    delete activeTask_;
+    activeTask_ = nullptr;
+    return true;
+  }
+
+  // Like pollResult but does NOT delete the context, allowing the caller to
+  // read provider-specific fields from the derived context first.
+  // Caller MUST call finishTask() after reading extra fields.
+  bool peekResult(EngineResult& result) {
+    if (!activeTask_ || !activeTask_->ready.load()) return false;
+    result = activeTask_->result;
+    return true;
+  }
+
+  // Delete the active task context after peekResult(). Must be called if
+  // peekResult() returned true.
+  void finishTask() {
+    delete activeTask_;
+    activeTask_ = nullptr;
+  }
+};
+
+#endif  // ENGINE_PROVIDER_H

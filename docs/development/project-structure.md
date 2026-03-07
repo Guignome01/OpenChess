@@ -36,20 +36,22 @@ A comprehensive map of the codebase, covering firmware, web frontend, build tool
 
 | File | Purpose |
 |------|---------|
-| `game/game_mode.h/.cpp` | Abstract base class for all game modes. Holds a `ChessGame*` that orchestrates chess state, recording, and observer notification. Implements shared logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`; the string overload parses coordinate notation), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. No longer includes `chess_rules.h` directly — all chess queries go through the game orchestrator. |
-| `game/bot_mode.h/.cpp` | Abstract intermediate class for remote-engine modes (Template Method pattern). Concrete `update()` drives the game loop: player turn → `tryPlayerMove()` → `applyMove()` → `onPlayerMoveApplied()` hook; engine turn → `requestEngineMove()`. Provides thinking animation helpers, remote-move LED guidance (`waitForRemoteMoveCompletion()`), and resign with animation lifecycle. |
-| `game/player_mode.h/.cpp` | Human vs Human mode. Minimal subclass of `GameMode` — implements `begin()` (board setup, game recording) and `update()` (sensor polling, move processing). |
-| `game/stockfish_mode.h/.cpp` | Human vs Stockfish mode. Extends `BotMode` — overrides `requestEngineMove()` to call the Stockfish API and `getEngineEvaluation()` to return the engine's score. |
-| `game/lichess_mode.h/.cpp` | Lichess online mode. Extends `BotMode` — overrides `requestEngineMove()` with Lichess game stream polling, `onPlayerMoveApplied()` to send moves to Lichess, and `handleResign()` to also resign on the Lichess API. |
+| `game_mode/game_mode.h/.cpp` | Abstract base class for all game modes. Holds a `ChessGame*` that orchestrates chess state, recording, and observer notification. Implements shared logic: `tryPlayerMove()`, `applyMove()` (delegates to `ChessGame::makeMove()`; the string overload parses coordinate notation), `waitForBoardSetup()`, `tryResumeGame()`, resign gesture handling, and LED feedback helpers. No longer includes `chess_rules.h` directly — all chess queries go through the game orchestrator. |
+| `game_mode/bot_mode.h/.cpp` | Concrete class for human-vs-engine play (composition pattern). Composes an `EngineProvider*` via strategy injection. Non-blocking `update()` drives an async state machine (`BotState::PLAYER_TURN` / `BotState::ENGINE_THINKING`): player turn → `tryPlayerMove()` → `applyMove()` → `provider_->onPlayerMoveApplied()`; engine turn → `provider_->requestMove()` (spawns FreeRTOS task) → polls `provider_->checkResult()` each tick. Provides thinking animation helpers, remote-move LED guidance (`waitForRemoteMoveCompletion()`), and resign hooks that delegate to the provider. |
+| `game_mode/player_mode.h/.cpp` | Human vs Human mode. Minimal subclass of `GameMode` — implements `begin()` (board setup, game recording) and `update()` (sensor polling, move processing). |
 | `sensor_test.h/.cpp` | Standalone sensor diagnostic mode (does not inherit `GameMode`). Tracks visited squares, lights them white, completes when all 64 are visited. |
 
-### External APIs
+### Engine Providers
 
 | File | Purpose |
 |------|---------|
-| `stockfish_api.h/.cpp` | Stockfish API client. Builds request URLs, parses JSON responses (evaluation, best move, continuation). Connects to `stockfish.online` over HTTPS. |
-| `stockfish_settings.h` | 8 difficulty presets (beginner through master, depths 3–17, scaled timeouts 10s–65s). `StockfishSettings::fromLevel(int)` factory. |
-| `lichess_api.h/.cpp` | Lichess API client. Token management, game event polling, game stream polling, move submission, and resignation. Connects to `lichess.org` over HTTPS. |
+| `engine/engine_provider.h` | `EngineProvider` base class. Defines the contract for all chess engines: `initialize()`, `requestMove()` / `checkResult()` / `cancelRequest()` (async move computation), `onPlayerMoveApplied()`, `onResignConfirmed()`, `getEvaluation()`. Also owns the shared FreeRTOS task lifecycle (`BaseTaskContext`, `spawnTask()`, `pollResult()`, `peekResult()`, `finishTask()`). Defines `EngineResult` (move/game-end data) and `EngineInitResult` (player color, FEN, mode, depth, resume flag). |
+| `engine/stockfish/stockfish_provider.h/.cpp` | `StockfishProvider`: extends `EngineProvider`, spawns a one-shot FreeRTOS task per move that calls `StockfishAPI`. `TaskContext` extends `BaseTaskContext` with FEN, depth, and evaluation fields. Retry logic with cancel checking between attempts. |
+| `engine/stockfish/stockfish_api.h/.cpp` | Stockfish API client. Builds request URLs, parses JSON responses (evaluation, best move, continuation). Connects to `stockfish.online` over HTTPS. |
+| `engine/stockfish/stockfish_settings.h` | 8 difficulty presets (beginner through master, depths 1–15, scaled timeouts 10s–65s). `StockfishSettings::fromLevel(int)` factory. |
+| `engine/lichess/lichess_provider.h/.cpp` | `LichessProvider`: extends `EngineProvider`, blocking `initialize()` discovers active games (token verification + event polling). `requestMove()` spawns a FreeRTOS task that opens a persistent NDJSON stream and reads events; reconnects with exponential backoff on connection loss. `onPlayerMoveApplied()` sends moves to Lichess with retries. `onResignConfirmed()` resigns on the server. |
+| `engine/lichess/lichess_api.h/.cpp` | Lichess API client. Token management, game event polling, persistent game stream (`connectGameStream()` / `readStreamEvent()`), move submission, and resignation. Connects to `lichess.org` over HTTPS. |
+| `engine/lichess/lichess_config.h` | `LichessConfig` struct: holds the Lichess API token. |
 
 ### Infrastructure
 
