@@ -69,7 +69,7 @@ void test_back_rank_mate(void) {
   placePiece(board, 'p', "g7");
   placePiece(board, 'p', "h7");
   placePiece(board, 'R', "e8"); // delivers mate
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', flags));
 }
 
@@ -85,7 +85,7 @@ void test_not_checkmate_can_block(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'R', "d1"); // own rook can block/interpose
   placePiece(board, 'r', "e8"); // attacking rook
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
 }
 
@@ -93,7 +93,7 @@ void test_not_checkmate_can_escape(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'r', "e8"); // rook checks
   // King can escape to d1, d2, f1, f2
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
 }
 
@@ -101,7 +101,7 @@ void test_not_checkmate_can_capture_attacker(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'r', "e2"); // rook checks from e2
   // King can capture the rook (assuming no support)
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
 }
 
@@ -114,7 +114,7 @@ void test_stalemate_king_only(void) {
   placePiece(board, 'k', "a8");
   placePiece(board, 'Q', "b6");
   placePiece(board, 'K', "c6");
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // Black to move — king has no legal moves, not in check
   TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
@@ -123,7 +123,7 @@ void test_stalemate_king_only(void) {
 void test_not_stalemate_has_move(void) {
   placePiece(board, 'k', "a8");
   placePiece(board, 'K', "c6");
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // Black king can move to b8, b7, a7
   TEST_ASSERT_FALSE(ChessRules::isStalemate(board, 'b', flags));
 }
@@ -139,7 +139,7 @@ void test_king_cannot_move_into_check(void) {
   sq("e1", r, c);
   int tr, tc;
   sq("f1", tr, tc);
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
 }
 
@@ -152,7 +152,7 @@ void test_pinned_piece_cannot_move(void) {
   sq("e2", r, c);
   int tr, tc;
   sq("d3", tr, tc);
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // Moving bishop exposes king to check → illegal
   TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
 }
@@ -166,7 +166,7 @@ void test_pinned_piece_can_move_along_pin(void) {
   sq("e4", r, c);
   int tr, tc;
   sq("e8", tr, tc); // capture the pinning rook
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_TRUE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
 }
 
@@ -182,7 +182,7 @@ void test_hasLegalEnPassantCapture_true(void) {
   placePiece(board, 'p', "d5");
   int epR, epC;
   sq("d6", epR, epC);
-  PositionState flags{0x00, epR, epC};
+  PositionState flags{0x00, epR, epC, 0, 1};
   TEST_ASSERT_TRUE(ChessRules::hasLegalEnPassantCapture(board, 'w', flags));
 }
 
@@ -191,7 +191,7 @@ void test_hasLegalEnPassantCapture_false_no_target(void) {
   placePiece(board, 'k', "a8");
   placePiece(board, 'P', "e5");
   placePiece(board, 'p', "d5");
-  PositionState flags{0x00, -1, -1}; // no EP target
+  PositionState flags{0x00, -1, -1, 0, 1}; // no EP target
   TEST_ASSERT_FALSE(ChessRules::hasLegalEnPassantCapture(board, 'w', flags));
 }
 
@@ -244,7 +244,7 @@ void test_discovered_check(void) {
   sq("d1", r, c);
   int tr, tc;
   sq("e2", tr, tc);
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_TRUE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
 }
 
@@ -257,7 +257,7 @@ void test_double_check_only_king_can_move(void) {
   placePiece(board, 'B', "b5"); // bishop checks along b5-e8 diagonal
   placePiece(board, 'n', "d6"); // black knight could theoretically block/capture
 
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // King is in check
   TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
   // Knight on d6 cannot resolve double check (even though it attacks both e4 and b5)
@@ -277,7 +277,7 @@ void test_smothered_mate(void) {
   placePiece(board, 'p', "h7");
   placePiece(board, 'K', "a1");
   placePiece(board, 'N', "f7"); // knight checks h8, blocks via g8/g7/h7
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', flags));
 }
@@ -290,7 +290,7 @@ void test_stalemate_with_blocked_pawns(void) {
   placePiece(board, 'p', "a7");
   placePiece(board, 'P', "a6"); // blocks the pawn
   placePiece(board, 'K', "c7"); // controls b8, b7, c8, d8, d7
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
   TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
 }
@@ -303,7 +303,7 @@ void test_diagonal_pin(void) {
   placePiece(board, 'B', "a1"); // pins d4 to g7 along diagonal
   int r, c;
   sq("d4", r, c);
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // Pawn should have 0 legal moves (pinned diagonally, can't move along pin)
   int moveCount = 0;
   int moves[28][2];

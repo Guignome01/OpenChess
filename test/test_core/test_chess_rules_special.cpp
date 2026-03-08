@@ -81,7 +81,7 @@ void test_castle_while_in_check_forbidden(void) {
 void test_no_castle_right_revoked(void) {
   placePiece(board, 'K', "e1");
   placePiece(board, 'R', "h1");
-  PositionState flags{0x00, -1, -1}; // no rights
+  PositionState flags{0x00, -1, -1, 0, 1}; // no rights
   int r, c;
   sq("e1", r, c);
   int tr, tc;
@@ -253,7 +253,7 @@ void test_ep_capture_leaves_king_in_check(void) {
   placePiece(board, 'r', "h5");
   int epR, epC;
   sq("e6", epR, epC);
-  PositionState flags{0x00, epR, epC};
+  PositionState flags{0x00, epR, epC, 0, 1};
   int r, c;
   sq("d5", r, c);
   TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, epR, epC, flags));

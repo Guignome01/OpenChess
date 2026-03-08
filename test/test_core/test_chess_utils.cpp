@@ -96,7 +96,7 @@ void test_no_legal_moves_stalemate(void) {
   placePiece(board, 'k', "a8");
   placePiece(board, 'Q', "b6");
   placePiece(board, 'K', "c6");
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(board, 'b', flags));
 }
 
@@ -126,7 +126,7 @@ void test_hasAnyLegalMove_in_check_with_escape(void) {
   // King in check but can escape
   placePiece(board, 'K', "e1");
   placePiece(board, 'r', "e8"); // rook checks
-  PositionState flags{0x00, -1, -1};
+  PositionState flags{0x00, -1, -1, 0, 1};
   // King can escape to d1, d2, f1, f2
   TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, 'w', flags));
 }
