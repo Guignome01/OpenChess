@@ -130,6 +130,9 @@ class ChessBoard {
   // Returns count; fills positions[][2] with [row, col] pairs.
   int findPiece(char type, char color, int positions[][2], int maxPositions) const;
 
+  // Format the board as a human-readable text block.
+  std::string boardToText() const { return ChessUtils::boardToText(board_); }
+
   // Current full-move number (starts at 1, increments after black's move).
   int moveNumber() const { return state_.fullmoveClock; }
 

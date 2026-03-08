@@ -24,7 +24,7 @@ bool GameMode::tryResumeGame() {
   return false;
 }
 
-void GameMode::waitForBoardSetup(const char targetBoard[8][8]) {
+void GameMode::waitForBoardSetup() {
   Serial.println("Set up the board in the required position...");
 
   {
@@ -36,40 +36,26 @@ void GameMode::waitForBoardSetup(const char targetBoard[8][8]) {
       allCorrect = true;
 
       // Check every square
-      for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
-          bool shouldHavePiece = (targetBoard[row][col] != ' ');
-          bool hasPiece = boardDriver_->getSensorState(row, col);
-          if (shouldHavePiece != hasPiece) {
-            allCorrect = false;
-            break;
-          }
-        }
-        if (!allCorrect)
-          break;
-      }
+      chess_->forEachSquare([&](int row, int col, char piece) {
+        bool shouldHavePiece = (piece != ' ');
+        bool hasPiece = boardDriver_->getSensorState(row, col);
+        if (shouldHavePiece != hasPiece) allCorrect = false;
+      });
 
       // Update LED display to show required setup
-      for (int row = 0; row < 8; row++) {
-        for (int col = 0; col < 8; col++) {
-          bool shouldHavePiece = (targetBoard[row][col] != ' ');
-          bool hasPiece = boardDriver_->getSensorState(row, col);
+      chess_->forEachSquare([&](int row, int col, char piece) {
+        bool shouldHavePiece = (piece != ' ');
+        bool hasPiece = boardDriver_->getSensorState(row, col);
 
-          if (shouldHavePiece && !hasPiece) {
-            // Need to place a piece here - show where pieces should go
-            if (ChessUtils::isWhitePiece(targetBoard[row][col]))
-              boardDriver_->setSquareLED(row, col, SystemUtils::colorLed('w'));
-            else
-              boardDriver_->setSquareLED(row, col, SystemUtils::colorLed('b'));
-          } else if (!shouldHavePiece && hasPiece) {
-            // Need to remove a piece from here - show in red
-            boardDriver_->setSquareLED(row, col, LedColors::Red);
-          } else {
-            // Correct state - no LED
-            boardDriver_->setSquareLED(row, col, LedColors::Off);
-          }
+        if (shouldHavePiece && !hasPiece) {
+          boardDriver_->setSquareLED(row, col,
+              ChessUtils::isWhitePiece(piece) ? SystemUtils::colorLed('w') : SystemUtils::colorLed('b'));
+        } else if (!shouldHavePiece && hasPiece) {
+          boardDriver_->setSquareLED(row, col, LedColors::Red);
+        } else {
+          boardDriver_->setSquareLED(row, col, LedColors::Off);
         }
-      }
+      });
       boardDriver_->showLEDs();
 
       delay(SENSOR_READ_DELAY_MS);
@@ -364,7 +350,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
 void GameMode::setBoardStateFromFEN(const std::string& fen) {
   chess_->loadFEN(fen);
   Serial.println("Board state set from FEN: " + String(fen.c_str()));
-  SystemUtils::printBoard(chess_->getBoard());
+  Serial.println(chess_->boardToText().c_str());
 }
 
 // --- Hardware-only castling interactions ---

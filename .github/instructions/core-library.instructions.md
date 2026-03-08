@@ -53,7 +53,7 @@ Understanding this flow prevents bugs where steps get skipped or reordered:
 
 These explain *why* the architecture is the way it is — constraints that code alone doesn't communicate:
 
-- **ChessGame is the only firmware entry point** — firmware (`src/`) must never include `ChessBoard`, `ChessHistory`, or `ChessRules` directly. This guarantees recording, observer notification, and lifecycle tracking can't be bypassed. Native tests may include internal headers.
+- **ChessGame is the only firmware entry point** — firmware (`src/`) must never include `ChessBoard`, `ChessHistory`, `ChessRules`, or `ChessIterator` directly. `ChessGame` re-exports iterator helpers (`forEachSquare`, `forEachPiece`, `somePiece`). This guarantees recording, observer notification, and lifecycle tracking can't be bypassed. Native tests may include internal headers.
 
 - **ChessBoard has no lifecycle state** — `gameOver_`, `gameResult_`, `winnerColor_` live in `ChessGame`, not `ChessBoard`. This separation means `ChessBoard` is a replayable position container: you can undo past game-end, replay games into a scratch board, or query positions without lifecycle side effects.
 

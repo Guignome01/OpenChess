@@ -197,6 +197,9 @@ inline bool isValidPromotionChar(char c) {
 // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9
 float evaluatePosition(const char board[8][8]);
 
+// Format the board as a human-readable text block for debugging.
+std::string boardToText(const char board[8][8]);
+
 }  // namespace ChessUtils
 
 #endif  // CORE_CHESS_UTILS_H

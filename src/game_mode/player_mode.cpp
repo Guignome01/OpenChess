@@ -8,7 +8,7 @@ void PlayerMode::begin() {
   Serial.println("=== Starting Chess Moves Mode ===");
   if (!tryResumeGame())
     chess_->startNewGame(GameModeId::CHESS_MOVES);
-  waitForBoardSetup(chess_->getBoard());
+  waitForBoardSetup();
 }
 
 void PlayerMode::update() {

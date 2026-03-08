@@ -51,7 +51,7 @@ void BotMode::begin() {
       setBoardStateFromFEN(initResult.fen);
   }
 
-  waitForBoardSetup(chess_->getBoard());
+  waitForBoardSetup();
 
   // If it's the engine's turn after setup, start requesting immediately
   if (chess_->currentTurn() != playerColor_) {

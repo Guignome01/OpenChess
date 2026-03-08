@@ -369,21 +369,13 @@ bool ChessRules::isCheck(const char board[8][8], char kingColor) {
 }
 
 bool ChessRules::hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags) {
-  for (int fromRow = 0; fromRow < 8; fromRow++)
-    for (int fromCol = 0; fromCol < 8; fromCol++) {
-      char piece = board[fromRow][fromCol];
-      if (piece == ' ') continue;
-
-      if (ChessUtils::getPieceColor(piece) != color) continue;
-
-      int moveCount = 0;
-      int moves[MAX_MOVES_PER_PIECE][2];
-      getPossibleMoves(board, fromRow, fromCol, flags, moveCount, moves);
-      if (moveCount > 0)
-        return true;
-    }
-
-  return false;
+  return ChessIterator::somePiece(board, [&](int r, int c, char piece) {
+    if (ChessUtils::getPieceColor(piece) != color) return false;
+    int moveCount = 0;
+    int moves[MAX_MOVES_PER_PIECE][2];
+    getPossibleMoves(board, r, c, flags, moveCount, moves);
+    return moveCount > 0;
+  });
 }
 
 bool ChessRules::isCheckmate(const char board[8][8], char kingColor, const PositionState& flags) {

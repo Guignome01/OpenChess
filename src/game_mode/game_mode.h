@@ -28,7 +28,7 @@ class GameMode {
   GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg);
 
   // Common initialization and game flow methods
-  void waitForBoardSetup(const char targetBoard[8][8]);
+  void waitForBoardSetup();
   MoveResult applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
   MoveResult applyMove(const std::string& move);
   bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);

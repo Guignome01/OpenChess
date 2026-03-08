@@ -1,4 +1,5 @@
 #include <unity.h>
+#include <chess_iterator.h>
 
 #include "../test_helpers.h"
 
@@ -419,16 +420,13 @@ void test_initial_position_white_moves(void) {
 
   // Each of the 8 pawns has 2 moves, each of 2 knights has 2 moves = 20 total
   int totalMoves = 0;
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++) {
-      char piece = board[row][col];
-      if (piece >= 'A' && piece <= 'Z') {
-        int moveCount = 0;
-        int moves[28][2];
-        ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
-        totalMoves += moveCount;
-      }
-    }
+  ChessIterator::forEachPiece(board, [&](int row, int col, char piece) {
+    if (piece < 'A' || piece > 'Z') return;
+    int moveCount = 0;
+    int moves[28][2];
+    ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
+    totalMoves += moveCount;
+  });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
 
@@ -437,16 +435,13 @@ void test_initial_position_black_moves(void) {
   PositionState flags{0x0F, -1, -1};
 
   int totalMoves = 0;
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++) {
-      char piece = board[row][col];
-      if (piece >= 'a' && piece <= 'z') {
-        int moveCount = 0;
-        int moves[28][2];
-        ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
-        totalMoves += moveCount;
-      }
-    }
+  ChessIterator::forEachPiece(board, [&](int row, int col, char piece) {
+    if (piece < 'a' || piece > 'z') return;
+    int moveCount = 0;
+    int moves[28][2];
+    ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
+    totalMoves += moveCount;
+  });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
 

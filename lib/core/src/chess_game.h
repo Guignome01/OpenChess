@@ -4,6 +4,7 @@
 #include <string>
 
 #include "chess_board.h"
+#include "chess_iterator.h"
 #include "chess_notation.h"
 #include "game_observer.h"
 #include "chess_history.h"
@@ -157,6 +158,25 @@ class ChessGame {
 
   int findPiece(char type, char color, int positions[][2], int maxPositions) const {
     return board_.findPiece(type, color, positions, maxPositions);
+  }
+
+  std::string boardToText() const { return board_.boardToText(); }
+
+  // --- Board iteration wrappers (delegated to ChessIterator on the game board) ---
+
+  template <typename Fn>
+  void forEachSquare(Fn&& fn) const {
+    ChessIterator::forEachSquare(board_.getBoard(), static_cast<Fn&&>(fn));
+  }
+
+  template <typename Fn>
+  void forEachPiece(Fn&& fn) const {
+    ChessIterator::forEachPiece(board_.getBoard(), static_cast<Fn&&>(fn));
+  }
+
+  template <typename Fn>
+  bool somePiece(Fn&& fn) const {
+    return ChessIterator::somePiece(board_.getBoard(), static_cast<Fn&&>(fn));
   }
 
   int moveNumber() const { return board_.moveNumber(); }

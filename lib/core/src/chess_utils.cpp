@@ -33,4 +33,24 @@ float evaluatePosition(const char board[8][8]) {
   return evaluation;
 }
 
+std::string boardToText(const char board[8][8]) {
+  std::string result = "====== BOARD ======\n";
+  ChessIterator::forEachSquare(board, [&](int row, int col, char piece) {
+    if (col == 0) {
+      result += static_cast<char>('0' + (8 - row));
+      result += ' ';
+    }
+    result += (piece == ' ') ? '.' : piece;
+    result += ' ';
+    if (col == 7) {
+      result += ' ';
+      result += static_cast<char>('0' + (8 - row));
+      result += '\n';
+    }
+  });
+  result += "  a b c d e f g h\n";
+  result += "===================";
+  return result;
+}
+
 }  // namespace ChessUtils

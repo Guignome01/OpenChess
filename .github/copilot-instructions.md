@@ -56,7 +56,7 @@ C++ formatting: `.clang-format` (Google style base, no column limit). Run clang-
 
 - **Separation of Concerns** — each class owns a single responsibility. Hardware in `BoardDriver`, chess rules in `ChessRules`, network in `WiFiManagerESP32`. Never mix concerns.
 - **Loose Coupling** — pointer injection, no global state. Expose minimal public APIs, keep internals private.
-- **Orchestrator via ChessGame** — firmware accesses chess logic exclusively through `ChessGame`. Never include `ChessBoard`, `ChessHistory`, or `ChessRules` directly from firmware (`src/`). Native tests may include internal `lib/core/` headers.
+- **Orchestrator via ChessGame** — firmware accesses chess logic exclusively through `ChessGame`. Never include `ChessBoard`, `ChessHistory`, `ChessRules`, or `ChessIterator` directly from firmware (`src/`). `ChessGame` re-exports iterator helpers (`forEachSquare`, `forEachPiece`, `somePiece`). Native tests may include internal `lib/core/` headers.
 - **Dependency Minimization** — prefer bundled ESP-IDF/Arduino functionality (`mbedtls`, FreeRTOS) over external libraries.
 - **DRY** — extract shared logic into helpers, base classes, or utilities. No duplication.
 - **Reuse Before Creating** — check existing functions/patterns first. Build on existing infrastructure.
