@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "chess_history.h"  // MoveEntry
+#include "chess_iterator.h"
 #include "chess_rules.h"
 #include "chess_utils.h"
 
@@ -108,26 +109,19 @@ std::string toSAN(const char board[8][8], const PositionState& state,
     bool needFile = false;
     bool needRank = false;
 
-    for (int r = 0; r < 8; ++r) {
-      for (int c = 0; c < 8; ++c) {
-        if (r == move.fromRow && c == move.fromCol) continue;
+    ChessIterator::forEachPiece(board, [&](int r, int c, char other) {
+      if (r == move.fromRow && c == move.fromCol) return;
+      if (toupper(other) != piece) return;
+      if (ChessUtils::getPieceColor(other) != color) return;
 
-        char other = board[r][c];
-        if (toupper(other) != piece) continue;
-        if (ChessUtils::getPieceColor(other) != color) continue;
+      if (!ChessRules::isValidMove(board, r, c, move.toRow, move.toCol, state))
+        return;
 
-        // Can this other piece also reach the target square legally?
-        if (!ChessRules::isValidMove(board, r, c, move.toRow, move.toCol, state))
-          continue;
-
-        // Ambiguity detected — determine which disambiguation is needed
-        if (c != move.fromCol) {
-          needFile = true;
-        } else {
-          needRank = true;
-        }
-      }
-    }
+      if (c != move.fromCol)
+        needFile = true;
+      else
+        needRank = true;
+    });
 
     if (needFile) result += ChessUtils::fileChar(move.fromCol);
     if (needRank) result += ChessUtils::rankChar(move.fromRow);
@@ -374,26 +368,20 @@ bool parseSAN(const char board[8][8], const PositionState& state,
   int matchRow = -1, matchCol = -1;
   int matchCount = 0;
 
-  for (int r = 0; r < 8; ++r) {
-    for (int c = 0; c < 8; ++c) {
-      char p = board[r][c];
-      if (toupper(p) != pieceType) continue;
-      // Must be correct color (side to move)
-      if (ChessUtils::getPieceColor(p) != currentTurn) continue;
+  ChessIterator::forEachPiece(board, [&](int r, int c, char p) {
+    if (toupper(p) != pieceType) return;
+    if (ChessUtils::getPieceColor(p) != currentTurn) return;
 
-      // Apply disambiguation hints
-      if (hintFile >= 0 && c != hintFile) continue;
-      if (hintRank >= 0 && r != hintRank) continue;
+    if (hintFile >= 0 && c != hintFile) return;
+    if (hintRank >= 0 && r != hintRank) return;
 
-      // Check if this piece can legally make the move
-      if (!ChessRules::isValidMove(board, r, c, toRow, toCol, state))
-        continue;
+    if (!ChessRules::isValidMove(board, r, c, toRow, toCol, state))
+      return;
 
-      matchRow = r;
-      matchCol = c;
-      ++matchCount;
-    }
-  }
+    matchRow = r;
+    matchCol = c;
+    ++matchCount;
+  });
 
   if (matchCount != 1) return false;  // ambiguous or no match
 

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <string>
 
+#include "chess_iterator.h"
 #include "chess_utils.h"
 
 namespace ChessFEN {
@@ -21,23 +22,27 @@ std::string boardToFEN(const char board[8][8], char currentTurn, const PositionS
   std::string fen;
 
   // Board position — rank 8 first (row 0), rank 1 last (row 7).
-  for (int row = 0; row < 8; row++) {
-    int emptyCount = 0;
-    for (int col = 0; col < 8; col++)
-      if (board[row][col] == ' ') {
-        emptyCount++;
-      } else {
-        if (emptyCount > 0) {
-          fen += std::to_string(emptyCount);
-          emptyCount = 0;
-        }
-        fen += board[row][col];
+  int emptyCount = 0;
+  ChessIterator::forEachSquare(board, [&](int row, int col, char piece) {
+    if (col == 0 && row > 0) {
+      if (emptyCount > 0) {
+        fen += std::to_string(emptyCount);
+        emptyCount = 0;
       }
-    if (emptyCount > 0)
-      fen += std::to_string(emptyCount);
-    if (row < 7)
       fen += '/';
-  }
+    }
+    if (piece == ' ') {
+      emptyCount++;
+    } else {
+      if (emptyCount > 0) {
+        fen += std::to_string(emptyCount);
+        emptyCount = 0;
+      }
+      fen += piece;
+    }
+  });
+  if (emptyCount > 0)
+    fen += std::to_string(emptyCount);
 
   // Active color
   fen += ' ';

@@ -121,7 +121,7 @@ Notation convenience methods: `makeMove(const std::string& move)` parses a coord
 
 ### ChessUtils & SystemUtils
 
-`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing helper functions for chess logic: piece color detection, material evaluation, board queries (`findPiece`, `findKingPosition`, `isValidSquare`), piece construction (`makePiece`, `isValidPromotionChar`), and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`, `opponentColor`, `squareName`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessFEN` (in `lib/core/`, `chess_fen.h/cpp`) centralizes all FEN string handling: `boardToFEN()` (board array → FEN string), `fenToBoard()` (FEN string → board array + state), and `validateFEN()` (format validation). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
+`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing helper functions for chess logic: piece color detection, material evaluation, board queries (`isValidSquare`), piece construction (`makePiece`, `isValidPromotionChar`), and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`, `opponentColor`, `squareName`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessFEN` (in `lib/core/`, `chess_fen.h/cpp`) centralizes all FEN string handling: `boardToFEN()` (board array → FEN string), `fenToBoard()` (FEN string → board array + state), and `validateFEN()` (format validation). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
 
 `SystemUtils` (in `src/`) contains the Arduino/ESP32-dependent functions that were separated from the core library: `colorLed()` (piece char → LED color), `printBoard()` (Serial debug output), and `ensureNvsInitialized()` (Arduino Preferences guard). These are not available in native tests.
 
@@ -556,8 +556,7 @@ The `data/` directory is committed to git so users without npm tools can still b
 - `isValidSquare(row, col)` — bounds check for 8×8 board
 - `makePiece(type, color)` — construct piece char from uppercase type + color
 - `isValidPromotionChar(c)` — case-insensitive promotion piece validation
-- `findPiece(board, type, color, positions, max)` — locate all pieces of given type/color
-- `findKingPosition(board, color, row, col)` — locate a king (inline wrapper over `findPiece`)
+- `findPiece(board, type, color, positions, max)` — locate all pieces of given type/color (in `ChessIterator`)
 - `isEnPassantMove()`, `getEnPassantCapturedPawnRow()`, `isCastlingMove()` — special move detection
 - `evaluatePosition(board)` — material balance in pawns
 - `castlingRightsToString()` / `castlingRightsFromString()` — FEN castling field
@@ -565,6 +564,12 @@ The `data/` directory is committed to git so users without npm tools can still b
 - `opponentColor()` — `'w'`→`'b'`, `'b'`→`'w'`
 - `squareName(row, col)` — returns algebraic notation string (e.g. `"e4"`)
 - `fileChar()`, `rankChar()`, `fileIndex()`, `rankIndex()` — coordinate helpers
+
+**`ChessIterator`** (`chess_iterator.h`) — header-only namespace with board iteration helpers, all built on a single internal `detail::forEachSquareUntil` primitive:
+- `forEachSquare(board, fn)` — call `fn(row, col, piece)` for all 64 squares
+- `forEachPiece(board, fn)` — call `fn(row, col, piece)` for occupied squares only
+- `somePiece(board, fn)` — return `true` on first occupied square where `fn` returns `true`
+- `findPiece(board, type, color, positions, max)` — locate all pieces of given type/color
 
 **`ChessFEN`** (`chess_fen.h/cpp`) — namespace with FEN string handling:
 - `boardToFEN(board, turn, state)` / `fenToBoard(fen, board, turn, state)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks) via `PositionState*`

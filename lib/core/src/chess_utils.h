@@ -192,23 +192,6 @@ inline bool isValidPromotionChar(char c) {
   return lower == 'q' || lower == 'r' || lower == 'b' || lower == 'n';
 }
 
-// Find all pieces of the given type and color on a board.
-// type: uppercase piece letter ('P','N','B','R','Q','K').
-// color: 'w' or 'b'.
-// Returns count; fills positions[][2] with [row, col] pairs.
-int findPiece(const char board[8][8], char type, char color, int positions[][2], int maxPositions);
-
-// Locate the king of the given color. Returns false if not found.
-inline bool findKingPosition(const char board[8][8], char kingColor, int& kingRow, int& kingCol) {
-  int positions[1][2];
-  if (findPiece(board, 'K', kingColor, positions, 1) > 0) {
-    kingRow = positions[0][0];
-    kingCol = positions[0][1];
-    return true;
-  }
-  return false;
-}
-
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)
 // Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9

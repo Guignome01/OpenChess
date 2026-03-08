@@ -171,33 +171,6 @@ void test_pinned_piece_can_move_along_pin(void) {
 }
 
 // ---------------------------------------------------------------------------
-// findKingPosition
-// ---------------------------------------------------------------------------
-
-void test_find_king_position_white(void) {
-  setupInitialBoard(board);
-  int row, col;
-  TEST_ASSERT_TRUE(ChessUtils::findKingPosition(board, 'w', row, col));
-  TEST_ASSERT_EQUAL_INT(7, row); // rank 1 = row 7
-  TEST_ASSERT_EQUAL_INT(4, col); // e-file = col 4
-}
-
-void test_find_king_position_black(void) {
-  setupInitialBoard(board);
-  int row, col;
-  TEST_ASSERT_TRUE(ChessUtils::findKingPosition(board, 'b', row, col));
-  TEST_ASSERT_EQUAL_INT(0, row); // rank 8 = row 0
-  TEST_ASSERT_EQUAL_INT(4, col); // e-file = col 4
-}
-
-void test_find_king_position_no_king(void) {
-  // Empty board — no king of either color
-  int row, col;
-  TEST_ASSERT_FALSE(ChessUtils::findKingPosition(board, 'w', row, col));
-  TEST_ASSERT_FALSE(ChessUtils::findKingPosition(board, 'b', row, col));
-}
-
-// ---------------------------------------------------------------------------
 // hasLegalEnPassantCapture (direct tests)
 // ---------------------------------------------------------------------------
 
@@ -371,11 +344,6 @@ void register_chess_rules_check_tests() {
   RUN_TEST(test_diagonal_pin);
   RUN_TEST(test_discovered_check);
   RUN_TEST(test_double_check_only_king_can_move);
-
-  // King position
-  RUN_TEST(test_find_king_position_white);
-  RUN_TEST(test_find_king_position_black);
-  RUN_TEST(test_find_king_position_no_king);
 
   // En passant legality
   RUN_TEST(test_hasLegalEnPassantCapture_true);

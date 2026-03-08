@@ -1,4 +1,5 @@
 #include "chess_rules.h"
+#include "chess_iterator.h"
 #include "chess_utils.h"
 #include <cctype>
 #include <cstring>
@@ -294,33 +295,26 @@ bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, c
   emptyFlags.epRow = -1;
   emptyFlags.epCol = -1;
 
-  for (int r = 0; r < 8; r++)
-    for (int c = 0; c < 8; c++) {
-      char piece = board[r][c];
-      if (piece == ' ') continue;
+  return ChessIterator::somePiece(board, [&](int r, int c, char piece) {
+    char pieceColor = ChessUtils::getPieceColor(piece);
+    if (pieceColor != attackingColor) return false;
 
-      char pieceColor = ChessUtils::getPieceColor(piece);
-      if (pieceColor != attackingColor) continue;
-
-      // Pawns are special: their attack pattern differs from their move pattern.
-      if (toupper(piece) == 'P') {
-        int direction = (pieceColor == 'w') ? -1 : 1;
-        if (r + direction == row && (c - 1 == col || c + 1 == col))
-          return true;
-        continue;
-      }
-
-      int moveCount = 0;
-      int moves[MAX_MOVES_PER_PIECE][2];
-      // IMPORTANT: for attack detection, do NOT include castling moves
-      getPseudoLegalMoves(board, r, c, emptyFlags, moveCount, moves, false);
-
-      for (int i = 0; i < moveCount; i++)
-        if (moves[i][0] == row && moves[i][1] == col)
-          return true;
+    // Pawns are special: their attack pattern differs from their move pattern.
+    if (toupper(piece) == 'P') {
+      int direction = (pieceColor == 'w') ? -1 : 1;
+      return (r + direction == row && (c - 1 == col || c + 1 == col));
     }
 
-  return false;
+    int moveCount = 0;
+    int moves[MAX_MOVES_PER_PIECE][2];
+    // IMPORTANT: for attack detection, do NOT include castling moves
+    getPseudoLegalMoves(board, r, c, emptyFlags, moveCount, moves, false);
+
+    for (int i = 0; i < moveCount; i++)
+      if (moves[i][0] == row && moves[i][1] == col)
+        return true;
+    return false;
+  });
 }
 
 // Apply a temporary move on a board copy (for check detection)
@@ -359,22 +353,19 @@ bool ChessRules::leavesInCheck(const char board[8][8], int fromRow, int fromCol,
   char capturedPiece;
   applyMove(testBoard, fromRow, fromCol, toRow, toCol, flags, capturedPiece);
 
-  int kingRow, kingCol;
-  bool kingFound = ChessUtils::findKingPosition(testBoard, movingColor, kingRow, kingCol);
-
-  if (!kingFound)
+  int kingPos[1][2];
+  if (ChessIterator::findPiece(testBoard, 'K', movingColor, kingPos, 1) == 0)
     return true;
 
-  return isSquareUnderAttack(testBoard, kingRow, kingCol, movingColor);
+  return isSquareUnderAttack(testBoard, kingPos[0][0], kingPos[0][1], movingColor);
 }
 
 bool ChessRules::isCheck(const char board[8][8], char kingColor) {
-  int kingRow, kingCol;
-
-  if (!ChessUtils::findKingPosition(board, kingColor, kingRow, kingCol))
+  int kingPos[1][2];
+  if (ChessIterator::findPiece(board, 'K', kingColor, kingPos, 1) == 0)
     return false;
 
-  return isSquareUnderAttack(board, kingRow, kingCol, kingColor);
+  return isSquareUnderAttack(board, kingPos[0][0], kingPos[0][1], kingColor);
 }
 
 bool ChessRules::hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags) {

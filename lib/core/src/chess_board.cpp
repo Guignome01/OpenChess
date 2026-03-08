@@ -5,6 +5,7 @@
 
 #include "chess_fen.h"
 #include "chess_history.h"
+#include "chess_iterator.h"
 #include "chess_rules.h"
 
 const char ChessBoard::INITIAL_BOARD[8][8] = {
@@ -165,7 +166,7 @@ float ChessBoard::getEvaluation() const {
 }
 
 int ChessBoard::findPiece(char type, char color, int positions[][2], int maxPositions) const {
-  return ChessUtils::findPiece(board_, type, color, positions, maxPositions);
+  return ChessIterator::findPiece(board_, type, color, positions, maxPositions);
 }
 
 bool ChessBoard::isInsufficientMaterial() const {
@@ -361,14 +362,10 @@ uint64_t ChessBoard::computeZobristHash() const {
   uint64_t hash = 0;
 
   // Hash piece positions
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++) {
-      char piece = board_[row][col];
-      if (piece != ' ') {
-        int idx = pieceToZobristIndex(piece);
-        hash ^= ZOBRIST_TABLE[idx][row * 8 + col];
-      }
-    }
+  ChessIterator::forEachPiece(board_, [&](int row, int col, char piece) {
+    int idx = pieceToZobristIndex(piece);
+    hash ^= ZOBRIST_TABLE[idx][row * 8 + col];
+  });
 
   // Hash castling rights
   hash ^= ZOBRIST_CASTLING[state_.castlingRights];

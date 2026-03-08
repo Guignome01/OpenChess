@@ -16,6 +16,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
 | `ChessUtils` | Piece queries, coordinate helpers, castling/EP analysis | Stateless namespace |
+| `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
 
