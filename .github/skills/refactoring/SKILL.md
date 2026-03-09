@@ -122,3 +122,4 @@ These principles govern every step:
 ## Related Skills
 
 - **optimization** — use when the goal is performance tuning, complexity reduction, or dead-code elimination *without* structural changes. If profiling reveals an architectural bottleneck, switch back to this refactoring skill.
+- **audit** — use when you want to explore the codebase for quality issues before deciding what to refactor. An audit report may identify architectural violations or cross-cutting inconsistencies that become refactoring targets.

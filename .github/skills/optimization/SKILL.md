@@ -126,3 +126,4 @@ Update all documentation that references the changed code.
 ## Related Skills
 
 - **refactoring** — use when optimization reveals an architectural problem that requires structural changes (class extraction, hierarchy redesign, module reorganization). Finish or pause the optimization, then invoke the refactoring workflow.
+- **audit** — use when you want to explore the codebase for quality issues before deciding what to optimize. An audit report may identify targets for this optimization workflow.
