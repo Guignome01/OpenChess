@@ -98,7 +98,7 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
     } else if (c >= '1' && c <= '8') {
       col += c - '0';
     } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
-      if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+      if (ChessUtils::isValidSquare(row, col)) {
         board[row][col] = c;
         col++;
       }
@@ -188,8 +188,12 @@ bool validateFEN(const std::string& fen) {
   if (remaining.empty()) return true;
   std::string castlingField = nextToken(remaining);
   if (castlingField != "-") {
+    uint8_t seen = 0;
     for (char c : castlingField) {
-      if (c != 'K' && c != 'Q' && c != 'k' && c != 'q') return false;
+      uint8_t bit = ChessUtils::castlingCharToBit(c);
+      if (!bit) return false;
+      if (seen & bit) return false;  // duplicate
+      seen |= bit;
     }
   }
 

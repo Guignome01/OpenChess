@@ -5,27 +5,23 @@
 #include <vector>
 
 #include "chess_board.h"
+#include "chess_utils.h"
 
 // --- Compact 2-byte move encoding ---
 
+// Promotion piece mapping: code 0 = none, 1 = queen, 2 = rook, 3 = bishop, 4 = knight.
+static constexpr char PROMO_PIECES[] = {' ', 'q', 'r', 'b', 'n'};
+static constexpr int PROMO_COUNT = sizeof(PROMO_PIECES);
+
 static uint8_t promoCharToCode(char p) {
-  switch (tolower(p)) {
-    case 'q': return 1;
-    case 'r': return 2;
-    case 'b': return 3;
-    case 'n': return 4;
-    default:  return 0;
-  }
+  char lower = tolower(p);
+  for (int i = 1; i < PROMO_COUNT; i++)
+    if (PROMO_PIECES[i] == lower) return i;
+  return 0;
 }
 
 static char promoCodeToChar(uint8_t code) {
-  switch (code) {
-    case 1: return 'q';
-    case 2: return 'r';
-    case 3: return 'b';
-    case 4: return 'n';
-    default: return ' ';
-  }
+  return (code < PROMO_COUNT) ? PROMO_PIECES[code] : ' ';
 }
 
 uint16_t ChessHistory::encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
@@ -108,6 +104,8 @@ const MoveEntry& ChessHistory::getMove(int index) const {
 }
 
 const MoveEntry& ChessHistory::lastMove() const {
+  static const MoveEntry empty{};
+  if (currentIndex_ < 0) return empty;
   return moves_[currentIndex_];
 }
 
@@ -271,27 +269,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     }
 
     // Build MoveEntry and add to in-memory log (but don't persist — it's already on disk)
-    char captured = ' ';
-    if (moveResult.isEnPassant)
-      captured = (piece >= 'A' && piece <= 'Z') ? 'p' : 'P';
-    else if (moveResult.isCapture)
-      captured = targetPiece;
-
-    MoveEntry entry;
-    entry.fromRow = fromRow;
-    entry.fromCol = fromCol;
-    entry.toRow = toRow;
-    entry.toCol = toCol;
-    entry.piece = piece;
-    entry.captured = captured;
-    entry.promotion = moveResult.isPromotion ? moveResult.promotedTo : ' ';
-    entry.isCapture = moveResult.isCapture;
-    entry.isEnPassant = moveResult.isEnPassant;
-    entry.epCapturedRow = moveResult.epCapturedRow;
-    entry.isCastling = moveResult.isCastling;
-    entry.isPromotion = moveResult.isPromotion;
-    entry.isCheck = moveResult.isCheck;
-    entry.prevState = prevState;
+    MoveEntry entry = buildMoveEntry(fromRow, fromCol, toRow, toCol, piece, targetPiece, moveResult, prevState);
 
     // Add to in-memory log only (bypass persistMove by direct insertion)
     if (moveCount_ < MAX_MOVES) {

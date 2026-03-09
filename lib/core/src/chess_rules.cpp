@@ -11,7 +11,7 @@
 bool ChessRules::hasLegalEnPassantCapture(const char board[8][8], char sideToMove, const PositionState& flags) {
   if (flags.epRow < 0 || flags.epCol < 0) return false;
   int capturerRow = (sideToMove == 'w') ? flags.epRow + 1 : flags.epRow - 1;
-  char capturerPawn = (sideToMove == 'w') ? 'P' : 'p';
+  char capturerPawn = ChessUtils::makePiece('P', sideToMove);
   if (flags.epCol > 0 && board[capturerRow][flags.epCol - 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol - 1, flags.epRow, flags.epCol, flags))
     return true;
   if (flags.epCol < 7 && board[capturerRow][flags.epCol + 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol + 1, flags.epRow, flags.epCol, flags))
@@ -73,7 +73,7 @@ void ChessRules::getPossibleMoves(const char board[8][8], int row, int col, cons
 
 // Pawn move generation
 void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pieceColor, const PositionState& flags, int& moveCount, int moves[][2]) {
-  int direction = (pieceColor == 'w') ? -1 : 1;
+  int direction = ChessUtils::pawnDirection(pieceColor);
 
   // One square forward
   if (isValidSquare(row + direction, col) && isSquareEmpty(board, row + direction, col)) {
@@ -201,16 +201,10 @@ void ChessRules::addKingMoves(const char board[8][8], int row, int col, char pie
     addCastlingMoves(board, row, col, pieceColor, flags.castlingRights, moveCount, moves);
 }
 
-bool ChessRules::hasCastlingRight(uint8_t castlingRights, char pieceColor, bool kingSide) {
-  if (pieceColor == 'w')
-    return kingSide ? ((castlingRights & 0x01) != 0) : ((castlingRights & 0x02) != 0);
-  return kingSide ? ((castlingRights & 0x04) != 0) : ((castlingRights & 0x08) != 0);
-}
-
 void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char pieceColor, uint8_t castlingRights, int& moveCount, int moves[][2]) {
-  int homeRow = (pieceColor == 'w') ? 7 : 0;
-  char kingPiece = (pieceColor == 'w') ? 'K' : 'k';
-  char rookPiece = (pieceColor == 'w') ? 'R' : 'r';
+  int homeRow = ChessUtils::homeRow(pieceColor);
+  char kingPiece = ChessUtils::makePiece('K', pieceColor);
+  char rookPiece = ChessUtils::makePiece('R', pieceColor);
 
   if (row != homeRow || col != 4) return;
   if (board[row][col] != kingPiece) return;
@@ -219,7 +213,7 @@ void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char
   if (isSquareUnderAttack(board, row, col, pieceColor)) return;
 
   // King-side castling (e -> g)
-  if (hasCastlingRight(castlingRights, pieceColor, true))
+  if (ChessUtils::hasCastlingRight(castlingRights, pieceColor, true))
     if (board[homeRow][5] == ' ' && board[homeRow][6] == ' ' && board[homeRow][7] == rookPiece)
       if (!isSquareUnderAttack(board, homeRow, 5, pieceColor) && !isSquareUnderAttack(board, homeRow, 6, pieceColor)) {
         moves[moveCount][0] = homeRow;
@@ -228,7 +222,7 @@ void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char
       }
 
   // Queen-side castling (e -> c)
-  if (hasCastlingRight(castlingRights, pieceColor, false))
+  if (ChessUtils::hasCastlingRight(castlingRights, pieceColor, false))
     if (board[homeRow][3] == ' ' && board[homeRow][2] == ' ' && board[homeRow][1] == ' ' && board[homeRow][0] == rookPiece)
       if (!isSquareUnderAttack(board, homeRow, 3, pieceColor) && !isSquareUnderAttack(board, homeRow, 2, pieceColor)) {
         moves[moveCount][0] = homeRow;
@@ -290,10 +284,7 @@ bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, c
   // Empty flags — attack detection doesn't need castling or en passant.
   // Pawns are handled separately (attack pattern only, not en passant).
   // Non-pawn pieces don't use castling in attack mode (includeCastling=false).
-  PositionState emptyFlags;
-  emptyFlags.castlingRights = 0;
-  emptyFlags.epRow = -1;
-  emptyFlags.epCol = -1;
+  PositionState emptyFlags{0, -1, -1, 0, 0};
 
   return ChessIterator::somePiece(board, [&](int r, int c, char piece) {
     char pieceColor = ChessUtils::getPieceColor(piece);
@@ -301,7 +292,7 @@ bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, c
 
     // Pawns are special: their attack pattern differs from their move pattern.
     if (toupper(piece) == 'P') {
-      int direction = (pieceColor == 'w') ? -1 : 1;
+      int direction = ChessUtils::pawnDirection(pieceColor);
       return (r + direction == row && (c - 1 == col || c + 1 == col));
     }
 

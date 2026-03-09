@@ -120,7 +120,7 @@ class ChessBoard {
   bool isAttacked(int row, int col, char byColor) const {
     // ChessRules defines "defendingColor" as the side that owns the square.
     // Attacked-by 'w' means squares defended by 'w' = attacked from 'b' perspective.
-    char defendingColor = (byColor == 'w') ? 'b' : 'w';
+    char defendingColor = ChessUtils::opponentColor(byColor);
     return ChessRules::isSquareUnderAttack(board_, row, col, defendingColor);
   }
 

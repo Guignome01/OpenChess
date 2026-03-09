@@ -16,6 +16,11 @@ static void stripCheckSuffix(std::string& s) {
     s.pop_back();
 }
 
+// Castling notation: kingside "O-O", queenside "O-O-O".
+static std::string castlingNotation(const MoveEntry& move) {
+  return (move.toCol > move.fromCol) ? "O-O" : "O-O-O";
+}
+
 // ---------------------------------------------------------------------------
 // Output — Coordinate notation
 // ---------------------------------------------------------------------------
@@ -38,7 +43,7 @@ std::string toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char pr
 std::string toLAN(const MoveEntry& move) {
   // Castling
   if (move.isCastling) {
-    return (move.toCol > move.fromCol) ? "O-O" : "O-O-O";
+    return castlingNotation(move);
   }
 
   std::string result;
@@ -81,7 +86,7 @@ std::string toSAN(const char board[8][8], const PositionState& state,
                   const MoveEntry& move) {
   // Castling
   if (move.isCastling) {
-    return (move.toCol > move.fromCol) ? "O-O" : "O-O-O";
+    return castlingNotation(move);
   }
 
   std::string result;
@@ -250,6 +255,29 @@ static bool isPieceLetter(char c) {
   return c == 'N' || c == 'B' || c == 'R' || c == 'Q' || c == 'K';
 }
 
+// Find and validate a castling move for the given side.
+static bool findCastlingMove(const char board[8][8], const PositionState& state,
+                             char currentTurn, bool kingSide,
+                             int& fromRow, int& fromCol, int& toRow, int& toCol,
+                             char& promotion) {
+  for (int r = 0; r < 8; r += 7) {
+    for (int c = 0; c < 8; ++c) {
+      char p = board[r][c];
+      if (toupper(p) == 'K') {
+        char color = ChessUtils::getPieceColor(p);
+        if (color != currentTurn) continue;
+        if (!ChessUtils::hasCastlingRight(state.castlingRights, color, kingSide)) continue;
+        fromRow = r; fromCol = c;
+        toRow = r; toCol = kingSide ? c + 2 : c - 2;
+        promotion = ' ';
+        if (ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool parseSAN(const char board[8][8], const PositionState& state,
               char currentTurn, const std::string& san,
               int& fromRow, int& fromCol,
@@ -264,50 +292,11 @@ bool parseSAN(const char board[8][8], const PositionState& state,
   std::string castleStr = upper;
   stripCheckSuffix(castleStr);
 
-  if (castleStr == "O-O" || castleStr == "0-0") {
-    // Kingside castle: find the king of the side to move
-    for (int r = 0; r < 8; r += 7) {
-      for (int c = 0; c < 8; ++c) {
-        char p = board[r][c];
-        if (toupper(p) == 'K') {
-          char color = ChessUtils::getPieceColor(p);
-          if (color != currentTurn) continue;
-          bool isKingSide = (color == 'w') ? (state.castlingRights & 0x01) : (state.castlingRights & 0x04);
-          if (isKingSide) {
-            fromRow = r; fromCol = c;
-            toRow = r; toCol = c + 2;
-            promotion = ' ';
-            // Validate the move is actually legal
-            if (ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state))
-              return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
+  if (castleStr == "O-O" || castleStr == "0-0")
+    return findCastlingMove(board, state, currentTurn, true, fromRow, fromCol, toRow, toCol, promotion);
 
-  if (castleStr == "O-O-O" || castleStr == "0-0-0") {
-    // Queenside castle: find the king of the side to move
-    for (int r = 0; r < 8; r += 7) {
-      for (int c = 0; c < 8; ++c) {
-        char p = board[r][c];
-        if (toupper(p) == 'K') {
-          char color = ChessUtils::getPieceColor(p);
-          if (color != currentTurn) continue;
-          bool isQueenSide = (color == 'w') ? (state.castlingRights & 0x02) : (state.castlingRights & 0x08);
-          if (isQueenSide) {
-            fromRow = r; fromCol = c;
-            toRow = r; toCol = c - 2;
-            promotion = ' ';
-            if (ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state))
-              return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
+  if (castleStr == "O-O-O" || castleStr == "0-0-0")
+    return findCastlingMove(board, state, currentTurn, false, fromRow, fromCol, toRow, toCol, promotion);
 
   // Strip check/checkmate suffixes
   std::string s = san;

@@ -330,6 +330,74 @@ void test_castling_rights_from_string_invalid(void) {
   TEST_ASSERT_EQUAL_UINT8(0x00, ChessUtils::castlingRightsFromString("XYZ"));
 }
 
+// ---------------------------------------------------------------------------
+// pawnDirection
+// ---------------------------------------------------------------------------
+
+void test_pawnDirection_white(void) {
+  TEST_ASSERT_EQUAL_INT(-1, ChessUtils::pawnDirection('w'));
+}
+
+void test_pawnDirection_black(void) {
+  TEST_ASSERT_EQUAL_INT(1, ChessUtils::pawnDirection('b'));
+}
+
+// ---------------------------------------------------------------------------
+// homeRow
+// ---------------------------------------------------------------------------
+
+void test_homeRow_white(void) {
+  TEST_ASSERT_EQUAL_INT(7, ChessUtils::homeRow('w'));
+}
+
+void test_homeRow_black(void) {
+  TEST_ASSERT_EQUAL_INT(0, ChessUtils::homeRow('b'));
+}
+
+// ---------------------------------------------------------------------------
+// castlingCharToBit
+// ---------------------------------------------------------------------------
+
+void test_castlingCharToBit_all_four(void) {
+  TEST_ASSERT_EQUAL_UINT8(0x01, ChessUtils::castlingCharToBit('K'));
+  TEST_ASSERT_EQUAL_UINT8(0x02, ChessUtils::castlingCharToBit('Q'));
+  TEST_ASSERT_EQUAL_UINT8(0x04, ChessUtils::castlingCharToBit('k'));
+  TEST_ASSERT_EQUAL_UINT8(0x08, ChessUtils::castlingCharToBit('q'));
+}
+
+void test_castlingCharToBit_invalid(void) {
+  TEST_ASSERT_EQUAL_UINT8(0, ChessUtils::castlingCharToBit('X'));
+  TEST_ASSERT_EQUAL_UINT8(0, ChessUtils::castlingCharToBit(' '));
+}
+
+// ---------------------------------------------------------------------------
+// hasCastlingRight
+// ---------------------------------------------------------------------------
+
+void test_hasCastlingRight_all_rights(void) {
+  uint8_t all = 0x0F;
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'w', true));   // K
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'w', false));  // Q
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'b', true));   // k
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'b', false));  // q
+}
+
+void test_hasCastlingRight_no_rights(void) {
+  uint8_t none = 0x00;
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'w', true));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'w', false));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'b', true));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'b', false));
+}
+
+void test_hasCastlingRight_partial(void) {
+  uint8_t wKbq = 0x09;  // K + q
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, 'w', true));   // K set
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, 'w', false)); // Q not set
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, 'b', true));  // k not set
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, 'b', false));  // q set
+}
+
 void register_chess_utils_tests() {
   needsDefaultKings = false;
 
@@ -398,4 +466,21 @@ void register_chess_utils_tests() {
   RUN_TEST(test_castling_rights_from_string);
   RUN_TEST(test_castling_rights_roundtrip_all_16);
   RUN_TEST(test_castling_rights_from_string_invalid);
+
+  // pawnDirection
+  RUN_TEST(test_pawnDirection_white);
+  RUN_TEST(test_pawnDirection_black);
+
+  // homeRow
+  RUN_TEST(test_homeRow_white);
+  RUN_TEST(test_homeRow_black);
+
+  // castlingCharToBit
+  RUN_TEST(test_castlingCharToBit_all_four);
+  RUN_TEST(test_castlingCharToBit_invalid);
+
+  // hasCastlingRight
+  RUN_TEST(test_hasCastlingRight_all_rights);
+  RUN_TEST(test_hasCastlingRight_no_rights);
+  RUN_TEST(test_hasCastlingRight_partial);
 }

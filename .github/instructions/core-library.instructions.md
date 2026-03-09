@@ -15,7 +15,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, Zobrist history |
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessUtils` | Piece queries, coordinate helpers, castling/EP analysis | Stateless namespace |
+| `ChessUtils` | Piece queries, coordinate helpers, color-derived helpers, castling/EP analysis | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
@@ -79,3 +79,6 @@ These explain *why* the architecture is the way it is — constraints that code 
 - **Composition over inheritance**: `ChessGame` composes `ChessBoard` + `ChessHistory`. No inheritance hierarchy.
 - **Nullable DI**: Storage, observer, and logger are pointer-injected. All nullable with `if (ptr_)` guards.
 - **Compact 2-byte move encoding**: `encodeMove()`/`decodeMove()` — bits 15..10 = from (row*8+col), bits 9..4 = to, bits 3..0 = promo code. Used for binary storage.
+- **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `opponentColor()`, `makePiece()` — use these instead of inline ternaries for color-dependent values.
+- **Castling bit mapping**: `castlingCharToBit()` is the single source of truth for K/Q/k/q → bitmask. `hasCastlingRight()` wraps it with color+side semantics. All castling rights logic should use these.
+- **MoveEntry factory**: `buildMoveEntry()` encapsulates captured-piece determination and all field assignments. Both `ChessGame::makeMove()` and `ChessHistory::replayInto()` use it.

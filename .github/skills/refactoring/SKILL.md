@@ -35,6 +35,8 @@ The plan must cover:
 
 Keep phases scoped and sequential. Each phase should leave the codebase in a buildable, testable state.
 
+After drafting the plan, cross-check every high-level requirement and finding against the technical steps — ensure nothing was dropped between analysis and plan.
+
 **Gate**: Wait for user approval before proceeding. The user may adjust scope, reorder phases, or reject parts of the plan.
 
 ## Step 3 — Add Missing Tests (if needed)
@@ -118,6 +120,7 @@ These principles govern every step:
 - **User gates matter** — don't proceed past a gate without explicit user approval.
 - **Simplicity over cleverness** — prefer flat hierarchies, direct solutions, and minimal indirection. Every abstraction must earn its place.
 - **Clean as you go** — remove dead code, fix stale comments, and update names in the same change that makes them stale. Don't leave cleanup for "later."
+- **Verify plan completeness** — before seeking user approval, re-read the plan against the original findings and requirements. Every bullet from analysis must map to a concrete step.
 
 ## Related Skills
 

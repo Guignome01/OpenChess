@@ -39,6 +39,7 @@ Categorize findings by type and impact.
 - **Redundancy**: near-duplicate functions, copy-pasted logic, repeated patterns that should be a helper
 - **Over-engineering**: unnecessary abstractions, intermediate classes that add indirection without value, generic solutions for single use cases
 - **Complexity**: deeply nested conditionals that could be early-returns, long functions that should be split, boolean parameters that should be enums
+- **Branching cascades**: if/switch chains that map discrete inputs to outputs. Replace with lookup tables (`constexpr` arrays) for cleaner, faster code
 
 **Output**: Prioritized list of opportunities with estimated impact (high/medium/low) and risk (safe/moderate/risky). Present to user for approval.
 
@@ -122,6 +123,7 @@ Update all documentation that references the changed code.
 - **Reversibility** — if an optimization doesn't measurably help, revert it. Sunk cost doesn't justify keeping complex code.
 - **ESP32 constraints are real** — 320KB RAM, 4MB flash, 8KB default task stacks, watchdog timers. These aren't theoretical limits — they're daily constraints. Optimize for them specifically.
 - **Readability survives optimization** — performance-critical code that nobody can understand will be broken by the next maintainer. A well-placed comment costs nothing.
+- **Verify plan completeness** — after finalizing the optimization plan (Step 2), cross-check every finding against the technical steps. Ensure no identified opportunity was dropped between analysis and plan.
 
 ## Related Skills
 

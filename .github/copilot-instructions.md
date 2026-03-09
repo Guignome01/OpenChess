@@ -60,6 +60,7 @@ C++ formatting: `.clang-format` (Google style base, no column limit). Run clang-
 - **Dependency Minimization** — prefer bundled ESP-IDF/Arduino functionality (`mbedtls`, FreeRTOS) over external libraries.
 - **DRY** — extract shared logic into helpers, base classes, or utilities. No duplication.
 - **Reuse Before Creating** — check existing functions/patterns first. Build on existing infrastructure.
+- **Lookup Tables over Branching** — when mapping a small set of discrete inputs to outputs, prefer a `constexpr` array or lookup function over if/switch cascades. Simpler, faster, and less error-prone.
 - **ESP32 Awareness** — `constexpr` and compile-time computation, minimize heap (fixed arrays, file-scoped statics), `enum class` over raw integers. Be mindful of stack sizes and watchdog timers.
 - **Performance & Readability** — optimize for performance, but prioritize readability over cleverness.
 - **Security by Default** — validate inputs at boundaries, never expose secrets in APIs, hash credentials, use TLS.

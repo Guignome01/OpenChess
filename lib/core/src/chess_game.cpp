@@ -75,28 +75,7 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
 
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
-  char captured = ' ';
-  if (result.isEnPassant) {
-    captured = ChessUtils::makePiece('P', ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
-  } else if (result.isCapture) {
-    captured = targetPiece;
-  }
-
-  MoveEntry entry;
-  entry.fromRow = fromRow;
-  entry.fromCol = fromCol;
-  entry.toRow = toRow;
-  entry.toCol = toCol;
-  entry.piece = piece;
-  entry.captured = captured;
-  entry.promotion = result.isPromotion ? result.promotedTo : ' ';
-  entry.isCapture = result.isCapture;
-  entry.isEnPassant = result.isEnPassant;
-  entry.epCapturedRow = result.epCapturedRow;
-  entry.isCastling = result.isCastling;
-  entry.isPromotion = result.isPromotion;
-  entry.isCheck = result.isCheck;
-  entry.prevState = prevState;
+  MoveEntry entry = buildMoveEntry(fromRow, fromCol, toRow, toCol, piece, targetPiece, result, prevState);
   history_.addMove(entry);
 
   // Auto-end game on checkmate/stalemate/draw

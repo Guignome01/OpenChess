@@ -21,10 +21,11 @@ float evaluatePosition(const char board[8][8]) {
       case 'b': value = 3.0f; break;
       case 'r': value = 5.0f; break;
       case 'q': value = 9.0f; break;
-      default: return;  // King or unexpected
+      case 'k': return;  // King has no material value
+      default: return;
     }
 
-    if (piece >= 'A' && piece <= 'Z')
+    if (isWhitePiece(piece))
       evaluation += value;
     else
       evaluation -= value;

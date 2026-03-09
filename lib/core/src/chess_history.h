@@ -7,6 +7,7 @@
 #include "game_storage.h"
 #include "logger.h"
 #include "types.h"
+#include "chess_utils.h"
 
 class ChessBoard;  // forward declaration for replayInto()
 
@@ -27,6 +28,36 @@ struct MoveEntry {
   bool isCheck;
   PositionState prevState;  // position state before the move (enables undo)
 };
+
+// Build a MoveEntry from move coordinates and result.
+// Encapsulates captured-piece determination and all field assignments.
+inline MoveEntry buildMoveEntry(int fromRow, int fromCol, int toRow, int toCol,
+                                char piece, char targetPiece,
+                                const MoveResult& result,
+                                const PositionState& prevState) {
+  char captured = ' ';
+  if (result.isEnPassant)
+    captured = ChessUtils::makePiece('P', ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
+  else if (result.isCapture)
+    captured = targetPiece;
+
+  MoveEntry entry;
+  entry.fromRow = fromRow;
+  entry.fromCol = fromCol;
+  entry.toRow = toRow;
+  entry.toCol = toCol;
+  entry.piece = piece;
+  entry.captured = captured;
+  entry.promotion = result.isPromotion ? result.promotedTo : ' ';
+  entry.isCapture = result.isCapture;
+  entry.isEnPassant = result.isEnPassant;
+  entry.epCapturedRow = result.epCapturedRow;
+  entry.isCastling = result.isCastling;
+  entry.isPromotion = result.isPromotion;
+  entry.isCheck = result.isCheck;
+  entry.prevState = prevState;
+  return entry;
+}
 
 // In-memory game history with optional persistent recording.
 //

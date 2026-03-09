@@ -69,6 +69,8 @@ Look for patterns that vary without reason across the codebase:
 - **Parameter ordering** — do similar functions take parameters in the same order?
 - **Include style** — consistent include ordering, guards vs pragma once, relative vs absolute paths?
 - **Code patterns** — similar operations implemented differently in different files without justification
+- **Helper extraction opportunities** — repeated multi-line logic blocks across files that could become shared helpers: identical struct construction, duplicated conditional patterns, same ternary expression (3+ occurrences), same loop structure with minor parameter differences. Flag as DRY violations with concrete extraction recommendations.
+- **Helper generalization opportunities** — multiple specific helpers or inline patterns that do almost the same thing but vary slightly. Look for: inverse converter pairs with mirrored switch/mapping logic, functions that differ only in a hard-coded parameter value, private helpers whose logic is reimplemented elsewhere because they aren't accessible, and scattered inline expressions computing the same derived value. Recommend a single general helper parameterized to cover all cases.
 
 #### 4. Code Clarity
 Identify sections that would confuse a developer reading them for the first time:

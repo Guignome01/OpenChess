@@ -11,18 +11,18 @@ namespace ChessUtils {
 
 // Inline helper functions for chess logic.
 
-inline char getPieceColor(char piece) {
-  if (piece >= 'a' && piece <= 'z') return 'b';
-  if (piece >= 'A' && piece <= 'Z') return 'w';
-  return ' ';  // empty square or invalid
-}
-
 inline bool isWhitePiece(char piece) {
   return (piece >= 'A' && piece <= 'Z');
 }
 
 inline bool isBlackPiece(char piece) {
   return (piece >= 'a' && piece <= 'z');
+}
+
+inline char getPieceColor(char piece) {
+  if (isWhitePiece(piece)) return 'w';
+  if (isBlackPiece(piece)) return 'b';
+  return ' ';  // empty square or invalid
 }
 
 inline bool isEnPassantMove(int fromRow, int fromCol, int toRow, int toCol, char piece, char capturedPiece) {
@@ -45,30 +45,44 @@ inline char opponentColor(char color) {
   return (color == 'w') ? 'b' : 'w';
 }
 
-// --- Castling rights bitmask ↔ FEN string ---
+inline int pawnDirection(char color) {
+  return (color == 'w') ? -1 : 1;
+}
+
+inline int homeRow(char color) {
+  return (color == 'w') ? 7 : 0;
+}
+
+// --- Castling rights ---
 // Bitmask: 0x01 = K, 0x02 = Q, 0x04 = k, 0x08 = q.
+
+inline uint8_t castlingCharToBit(char c) {
+  switch (c) {
+    case 'K': return 0x01;
+    case 'Q': return 0x02;
+    case 'k': return 0x04;
+    case 'q': return 0x08;
+    default: return 0;
+  }
+}
+
+inline bool hasCastlingRight(uint8_t castlingRights, char pieceColor, bool kingSide) {
+  char c = kingSide ? (pieceColor == 'w' ? 'K' : 'k') : (pieceColor == 'w' ? 'Q' : 'q');
+  return (castlingRights & castlingCharToBit(c)) != 0;
+}
 
 inline std::string castlingRightsToString(uint8_t rights) {
   std::string s;
-  if (rights & 0x01) s += 'K';
-  if (rights & 0x02) s += 'Q';
-  if (rights & 0x04) s += 'k';
-  if (rights & 0x08) s += 'q';
+  for (char c : {'K', 'Q', 'k', 'q'})
+    if (rights & castlingCharToBit(c)) s += c;
   if (s.empty()) s = "-";
   return s;
 }
 
 inline uint8_t castlingRightsFromString(const std::string& rightsStr) {
   uint8_t rights = 0;
-  for (size_t i = 0; i < rightsStr.length(); i++) {
-    switch (rightsStr[i]) {
-      case 'K': rights |= 0x01; break;
-      case 'Q': rights |= 0x02; break;
-      case 'k': rights |= 0x04; break;
-      case 'q': rights |= 0x08; break;
-      default: break;
-    }
-  }
+  for (size_t i = 0; i < rightsStr.length(); i++)
+    rights |= castlingCharToBit(rightsStr[i]);
   return rights;
 }
 
