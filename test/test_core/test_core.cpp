@@ -31,6 +31,7 @@ void register_chess_history_recording_tests();
 void register_chess_game_tests();
 void register_chess_notation_tests();
 void register_chess_iterator_tests();
+void register_chess_hash_tests();
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
@@ -41,6 +42,7 @@ int main(int argc, char** argv) {
   register_chess_fen_tests();
   register_chess_notation_tests();
   register_chess_iterator_tests();
+  register_chess_hash_tests();
   register_chess_board_tests();
   register_chess_history_tests();
   register_chess_history_recording_tests();

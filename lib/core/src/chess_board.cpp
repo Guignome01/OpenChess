@@ -234,38 +234,15 @@ void ChessBoard::advanceTurn() {
 }
 
 // ---------------------------------------------------------------------------
-// Internal: Zobrist hashing (for threefold repetition detection)
+// Internal: position recording (Zobrist hashing for threefold repetition)
 // ---------------------------------------------------------------------------
-
-uint64_t ChessBoard::computeZobristHash() const {
-  uint64_t hash = 0;
-
-  // Hash piece positions
-  ChessIterator::forEachPiece(board_, [&](int row, int col, char piece) {
-    int idx = pieceToZobristIndex(piece);
-    hash ^= ZOBRIST_TABLE[idx][row * 8 + col];
-  });
-
-  // Hash castling rights
-  hash ^= ZOBRIST_CASTLING[state_.castlingRights];
-
-  // Hash en passant file only if a legal en passant capture exists
-  if (ChessRules::hasLegalEnPassantCapture(board_, currentTurn_, state_)) {
-    hash ^= ZOBRIST_EN_PASSANT[state_.epCol];
-  }
-
-  // Hash side to move
-  if (currentTurn_ == 'b')
-    hash ^= ZOBRIST_SIDE_TO_MOVE;
-
-  return hash;
-}
 
 void ChessBoard::recordPosition() {
   if (state_.halfmoveClock == 0 && positionHistoryCount_ > 0)
     positionHistoryCount_ = 0;
 
   if (positionHistoryCount_ < MAX_POSITION_HISTORY) {
-    positionHistory_[positionHistoryCount_++] = computeZobristHash();
+    positionHistory_[positionHistoryCount_++] =
+        ChessHash::computeHash(board_, currentTurn_, state_);
   }
 }

@@ -1,6 +1,6 @@
 ---
 applyTo: "lib/core/**, src/game_mode/**, src/engine/**"
-description: "Core chess library classes — ChessGame, ChessBoard, ChessHistory, ChessRules, ChessUtils, ChessFEN, ChessNotation, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
+description: "Core chess library classes — ChessGame, ChessBoard, ChessHistory, ChessRules, ChessUtils, ChessFEN, ChessNotation, ChessHash, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
 ---
 
 # Core Chess Library (`lib/core/`)
@@ -17,6 +17,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
 | `ChessUtils` | Piece queries, coordinate helpers, color-derived helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
+| `ChessHash` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
 

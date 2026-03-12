@@ -6,10 +6,10 @@
 #include <string>
 
 #include "types.h"
+#include "chess_hash.h"
 #include "chess_iterator.h"
 #include "chess_rules.h"
 #include "chess_utils.h"
-#include "zobrist_keys.h"
 
 struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 
@@ -182,13 +182,6 @@ class ChessBoard {
   mutable bool evalDirty_;
   void invalidateCache();
 
-  // Zobrist hashing
-  static inline int pieceToZobristIndex(char piece) {
-    const char* pieces = "PNBRQKpnbrqk";
-    const char* p = std::strchr(pieces, piece);
-    return p ? static_cast<int>(p - pieces) : -1;
-  }
-  uint64_t computeZobristHash() const;
   void recordPosition();
 
   // Pure chess logic extracted from GameMode::applyMove / updateGameStatus
