@@ -6,8 +6,9 @@
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, EngineProvider* provider)
-    : GameMode(bd, wm, cg), provider_(provider) {}
+BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, EngineProvider* provider,
+                 ILogger* logger)
+    : GameMode(bd, wm, cg, logger), provider_(provider) {}
 
 BotMode::~BotMode() {
   delete provider_;
@@ -18,7 +19,7 @@ BotMode::~BotMode() {
 // ---------------------------------------------------------------
 
 void BotMode::begin() {
-  Serial.println("=== Starting Bot Mode ===");
+  logger_.info("=== Starting Bot Mode ===");
 
   if (!wifiManager_->isWiFiConnected()) {
     abortWithError("No WiFi connection");
@@ -39,9 +40,9 @@ void BotMode::begin() {
   }
 
   playerColor_ = initResult.playerColor;
-  Serial.printf("Player: %s, Engine: %s\n",
-                playerColor_ == 'w' ? "White" : "Black",
-                playerColor_ == 'w' ? "Black" : "White");
+  logger_.infof("Player: %s, Engine: %s",
+                              playerColor_ == 'w' ? "White" : "Black",
+                              playerColor_ == 'w' ? "Black" : "White");
 
   if (initResult.canResume && tryResumeGame()) {
     // Resumed from flash — skip new game
@@ -60,7 +61,7 @@ void BotMode::begin() {
     botState_ = BotState::ENGINE_THINKING;
   }
 
-  Serial.println("=== Game Ready ===");
+  logger_.info("=== Game Ready ===");
 }
 
 // ---------------------------------------------------------------
@@ -114,7 +115,7 @@ void BotMode::update() {
             abortWithError("Engine failed to respond");
             return;
           }
-          Serial.printf("BotMode: engine returned no result, retry %d/3\n", engineRetryCount_);
+          logger_.infof("BotMode: engine returned no result, retry %d/3", engineRetryCount_);
           startThinking();
           provider_->requestMove(chess_->getFen());
           return;  // Stay in ENGINE_THINKING
@@ -134,28 +135,25 @@ void BotMode::applyEngineMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion;
   if (!ChessGame::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion)) {
-    Serial.printf("BotMode: failed to parse engine move: %s\n", move.c_str());
+    logger_.errorf("BotMode: failed to parse engine move: %s", move.c_str());
     return;
   }
 
   // Verify the move is from the correct color piece
   char piece = chess_->getSquare(fromRow, fromCol);
   char engineColor = ChessUtils::opponentColor(playerColor_);
-  bool isEnginePiece = (engineColor == 'w') ? (piece >= 'A' && piece <= 'Z') : (piece >= 'a' && piece <= 'z');
 
-  if (piece == ' ' || !isEnginePiece) {
-    Serial.printf("BotMode: engine move from invalid square (%d,%d) piece='%c'\n",
-                  fromRow, fromCol, piece);
+  if (piece == ' ' || ChessUtils::getPieceColor(piece) != engineColor) {
+    logger_.errorf("BotMode: engine move from invalid square (%d,%d) piece='%c'",
+                                 fromRow, fromCol, piece);
     return;
   }
 
-  Serial.printf("Engine move: %s (%d,%d)->(%d,%d)\n", move.c_str(), fromRow, fromCol, toRow, toCol);
+  logger_.infof("Engine move: %s (%d,%d)->(%d,%d)", move.c_str(), fromRow, fromCol, toRow, toCol);
   applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
 }
 
 void BotMode::handleRemoteGameEnd(const EngineResult& result) {
-  Serial.printf("Remote game ended: result=%d, winner=%c\n",
-                static_cast<int>(result.gameResult), result.winnerColor);
   LedRGB color = (result.winnerColor == 'd')
                      ? LedColors::Cyan
                      : SystemUtils::colorLed(result.winnerColor);
@@ -164,7 +162,7 @@ void BotMode::handleRemoteGameEnd(const EngineResult& result) {
 }
 
 void BotMode::abortWithError(const char* message) {
-  Serial.printf("BotMode ABORT: %s\n", message);
+  logger_.errorf("BotMode ABORT: %s", message);
   boardDriver_->flashBoardAnimation(LedColors::Red);
   chess_->endGame(GameResult::ABORTED, ' ');
 }
@@ -232,7 +230,7 @@ void BotMode::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, i
   bool capturedPieceRemoved = false;
   bool moveCompleted = false;
 
-  Serial.println("Waiting for you to complete the remote move...");
+  logger_.info("Waiting for you to complete the remote move...");
 
   while (!moveCompleted) {
     boardDriver_->readSensors();
@@ -243,17 +241,18 @@ void BotMode::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, i
       int captureCheckRow = isEnPassant ? enPassantCapturedPawnRow : toRow;
       if (!boardDriver_->getSensorState(captureCheckRow, toCol)) {
         capturedPieceRemoved = true;
-        if (isEnPassant)
-          Serial.println("En passant captured pawn removed, now complete the move...");
-        else
-          Serial.println("Captured piece removed, now complete the move...");
+        if (isEnPassant) {
+          logger_.info("En passant captured pawn removed, now complete the move...");
+        } else {
+          logger_.info("Captured piece removed, now complete the move...");
+        }
       }
     }
 
     // Check if piece was picked up from source
     if (!piecePickedUp && !boardDriver_->getSensorState(fromRow, fromCol)) {
       piecePickedUp = true;
-      Serial.println("Piece picked up, now place it on the destination...");
+      logger_.info("Piece picked up, now place it on the destination...");
     }
 
     // Check if piece was placed on destination
@@ -262,7 +261,7 @@ void BotMode::waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, i
     if (piecePickedUp && boardDriver_->getSensorState(toRow, toCol))
       if (!isCapture || (isCapture && capturedPieceRemoved)) {
         moveCompleted = true;
-        Serial.println("Move completed on physical board!");
+        logger_.info("Move completed on physical board!");
       }
 
     delay(SENSOR_READ_DELAY_MS);

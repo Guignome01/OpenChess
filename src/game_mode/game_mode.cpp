@@ -11,21 +11,21 @@
 // ---------------------------
 static constexpr float RESIGN_BRIGHTNESS_LEVELS[] = {0.25f, 0.50f, 0.75f, 1.0f};
 
-GameMode::GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg)
-    : boardDriver_(bd), wifiManager_(wm), chess_(cg) {}
+GameMode::GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger)
+    : boardDriver_(bd), wifiManager_(wm), chess_(cg), logger_(logger) {}
 
 bool GameMode::isGameOver() const { return chess_->isGameOver(); }
 
 bool GameMode::tryResumeGame() {
   if (chess_->hasActiveGame()) {
-    Serial.println("Resuming live game...");
+    logger_.info("Resuming live game...");
     return chess_->resumeGame();
   }
   return false;
 }
 
 void GameMode::waitForBoardSetup() {
-  Serial.println("Set up the board in the required position...");
+  logger_.info("Set up the board in the required position...");
 
   {
     BoardDriver::LedGuard guard(boardDriver_);
@@ -35,21 +35,15 @@ void GameMode::waitForBoardSetup() {
       boardDriver_->readSensors();
       allCorrect = true;
 
-      // Check every square
+      // Single pass: check correctness and update LEDs
       chess_->forEachSquare([&](int row, int col, char piece) {
         bool shouldHavePiece = (piece != ' ');
         bool hasPiece = boardDriver_->getSensorState(row, col);
-        if (shouldHavePiece != hasPiece) allCorrect = false;
-      });
 
-      // Update LED display to show required setup
-      chess_->forEachSquare([&](int row, int col, char piece) {
-        bool shouldHavePiece = (piece != ' ');
-        bool hasPiece = boardDriver_->getSensorState(row, col);
+        if (shouldHavePiece != hasPiece) allCorrect = false;
 
         if (shouldHavePiece && !hasPiece) {
-          boardDriver_->setSquareLED(row, col,
-              ChessUtils::isWhitePiece(piece) ? SystemUtils::colorLed('w') : SystemUtils::colorLed('b'));
+          boardDriver_->setSquareLED(row, col, SystemUtils::colorLed(ChessUtils::getPieceColor(piece)));
         } else if (!shouldHavePiece && hasPiece) {
           boardDriver_->setSquareLED(row, col, LedColors::Red);
         } else {
@@ -62,29 +56,18 @@ void GameMode::waitForBoardSetup() {
     }
   } // LedGuard released
 
-  Serial.println("Board setup complete! Game starting...");
+  logger_.info("Board setup complete! Game starting...");
   boardDriver_->fireworkAnimation();
   boardDriver_->readSensors();
   boardDriver_->updateSensorPrev();
 }
 
 MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion, bool isRemoteMove) {
-  // Capture piece type before the move for logging
+  // Capture piece type before the move (needed for castling hardware detection)
   char piece = chess_->getSquare(fromRow, fromCol);
 
   MoveResult result = chess_->makeMove(fromRow, fromCol, toRow, toCol, promotion);
   if (!result.valid) return result;
-
-  // --- Serial logging ---
-  const char* moveType = result.isCastling ? "castling"
-                         : result.isEnPassant ? "en passant"
-                         : result.isCapture   ? "capture"
-                                              : "move";
-  Serial.printf("%s %s: %c %s -> %s\n",
-                isRemoteMove ? "Remote" : "Player", moveType,
-                piece,
-                ChessUtils::squareName(fromRow, fromCol).c_str(),
-                ChessUtils::squareName(toRow, toCol).c_str());
 
   // --- Hardware feedback ---
 
@@ -105,33 +88,18 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
     confirmSquareCompletion(toRow, toCol);
 
   // Promotion
-  if (result.isPromotion) {
-    Serial.printf("Pawn promoted to %c\n", result.promotedTo);
+  if (result.isPromotion)
     boardDriver_->promotionAnimation(toCol);
-  }
 
-  // --- Game-end / check feedback ---
+  // --- Game-end / check hardware feedback ---
   if (result.gameResult == GameResult::CHECKMATE) {
-    Serial.printf("CHECKMATE! %s wins!\n", ChessUtils::colorName(result.winnerColor));
     boardDriver_->fireworkAnimation(SystemUtils::colorLed(result.winnerColor));
-  } else if (result.gameResult == GameResult::STALEMATE) {
-    Serial.println("STALEMATE! Game is a draw.");
+  } else if (result.gameResult != GameResult::IN_PROGRESS) {
     boardDriver_->fireworkAnimation(LedColors::Cyan);
-  } else if (result.gameResult == GameResult::DRAW_50) {
-    Serial.println("DRAW by 50-move rule! No captures or pawn moves in the last 50 moves.");
-    boardDriver_->fireworkAnimation(LedColors::Cyan);
-  } else if (result.gameResult == GameResult::DRAW_3FOLD) {
-    Serial.println("DRAW by threefold repetition! Same position occurred 3 times.");
-    boardDriver_->fireworkAnimation(LedColors::Cyan);
-  } else {
-    // Game continues — check for check
-    if (result.isCheck) {
-      Serial.printf("%s is in CHECK!\n", ChessUtils::colorName(chess_->currentTurn()));
-      int kingPos[1][2];
-      if (chess_->findPiece('K', chess_->currentTurn(), kingPos, 1) > 0)
-        boardDriver_->blinkSquare(kingPos[0][0], kingPos[0][1], LedColors::Yellow, 3, true, true);
-    }
-    Serial.printf("It's %s's turn !\n", ChessUtils::colorName(chess_->currentTurn()));
+  } else if (result.isCheck) {
+    int kingPos[1][2];
+    if (chess_->findPiece('K', chess_->currentTurn(), kingPos, 1) > 0)
+      boardDriver_->blinkSquare(kingPos[0][0], kingPos[0][1], LedColors::Yellow, 3, true, true);
   }
 
   return result;
@@ -141,7 +109,7 @@ MoveResult GameMode::applyMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
   if (!ChessGame::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion)) {
-    Serial.printf("Failed to parse move: %s\n", move.c_str());
+    logger_.errorf("Failed to parse move: %s", move.c_str());
     return invalidMoveResult();
   }
   return applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
@@ -162,12 +130,12 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
 
       // Check if it's the correct player's piece
       if (ChessUtils::getPieceColor(piece) != playerColor) {
-        Serial.printf("Wrong turn! It's %s's turn to move.\n", ChessUtils::colorName(playerColor));
+        logger_.infof("Wrong turn! It's %s's turn to move.", ChessUtils::colorName(playerColor));
         showIllegalMoveFeedback(row, col);
         continue;
       }
 
-      Serial.printf("Piece pickup from %c%d\n", (char)('a' + col), 8 - row);
+      logger_.infof("Piece pickup from %s", ChessUtils::squareName(row, col).c_str());
 
       // Generate possible moves
       int moveCount = 0;
@@ -216,7 +184,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
         if (isKing && !resignTransitioned && (millis() - liftTimestamp >= RESIGN_HOLD_MS)) {
           resignTransitioned = true;
           resignFlagTimestamp = millis();
-          Serial.println("King held off square for 3s — resign gesture initiated");
+          logger_.info("King held off square for 3s \xe2\x80\x94 resign gesture initiated");
           showResignProgress(row, col, 0);
         }
 
@@ -258,7 +226,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
                 return !boardDriver_->getSensorState(r2, c2);
             };
             if ((chess_->getSquare(r2, c2) != ' ' || epInfo.isCapture) && isCapturedPiecePickedUp()) {
-              Serial.printf("Capture initiated at %c%d\n", (char)('a' + c2), 8 - r2);
+              logger_.infof("Capture initiated at %s", ChessUtils::squareName(r2, c2).c_str());
               // Store the target square and wait for the capturing piece to be placed there
               targetRow = r2;
               targetCol = c2;
@@ -275,7 +243,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
                 boardDriver_->readSensors();
                 // Allow cancellation by placing the piece back to its original position
                 if (boardDriver_->getSensorState(row, col)) {
-                  Serial.println("Capture cancelled");
+                  logger_.info("Capture cancelled");
                   targetRow = row;
                   targetCol = col;
                   break;
@@ -319,7 +287,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
             continueResignGesture(row, col, ChessUtils::getPieceColor(piece));
           }
         } else {
-          Serial.println("Pickup cancelled");
+          logger_.info("Pickup cancelled");
         }
         return false;
       }
@@ -332,7 +300,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
         }
 
       if (!legalMove) {
-        Serial.println("Illegal move, reverting");
+        logger_.info("Illegal move, reverting");
         return false;
       }
 
@@ -349,8 +317,8 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
 
 void GameMode::setBoardStateFromFEN(const std::string& fen) {
   chess_->loadFEN(fen);
-  Serial.println("Board state set from FEN: " + String(fen.c_str()));
-  Serial.println(chess_->boardToText().c_str());
+  logger_.infof("Board state set from FEN: %s", fen.c_str());
+  logger_.info(chess_->boardToText().c_str());
 }
 
 // --- Hardware-only castling interactions ---
@@ -363,7 +331,9 @@ void GameMode::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingT
   BoardDriver::LedGuard guard(boardDriver_);
 
   if (waitForKingCompletion) {
-    Serial.printf("Castling: please move king from %c%d to %c%d\n", (char)('a' + kingFromCol), 8 - kingFromRow, (char)('a' + kingToCol), 8 - kingToRow);
+    logger_.infof("Castling: please move king from %s to %s",
+                                ChessUtils::squareName(kingFromRow, kingFromCol).c_str(),
+                                ChessUtils::squareName(kingToRow, kingToCol).c_str());
 
     boardDriver_->clearAllLEDs(false);
     boardDriver_->setSquareLED(kingFromRow, kingFromCol, LedColors::Cyan);
@@ -387,7 +357,9 @@ void GameMode::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingT
     boardDriver_->clearAllLEDs();
   }
 
-  Serial.printf("Castling: please move rook from %c%d to %c%d\n", (char)('a' + ci.rookFromCol), 8 - kingToRow, (char)('a' + ci.rookToCol), 8 - kingToRow);
+  logger_.infof("Castling: please move rook from %s to %s",
+                              ChessUtils::squareName(kingToRow, ci.rookFromCol).c_str(),
+                              ChessUtils::squareName(kingToRow, ci.rookToCol).c_str());
 
   boardDriver_->clearAllLEDs(false);
   boardDriver_->setSquareLED(kingToRow, ci.rookFromCol, LedColors::Cyan);
@@ -484,7 +456,7 @@ bool GameMode::continueResignGesture(int row, int col, char color) {
     showResignProgress(row, col, lift + 1);
   }
 
-  Serial.printf("Resign gesture completed by %s\n", ChessUtils::colorName(color));
+  logger_.infof("Resign gesture completed by %s", ChessUtils::colorName(color));
   delay(500);
   clearResignFeedback(row, col);
   return handleResign(color);
@@ -494,10 +466,10 @@ bool GameMode::handleResign(char resignColor) {
   onBeforeResignConfirm();
 
   bool flipped = isFlipped();
-  Serial.printf("Resign confirmation for %s...\n", ChessUtils::colorName(resignColor));
+  logger_.infof("Resign confirmation for %s...", ChessUtils::colorName(resignColor));
 
   if (!boardConfirm(boardDriver_, flipped)) {
-    Serial.println("Resign cancelled");
+    logger_.info("Resign cancelled");
     onResignCancelled();
     return false;
   }
@@ -505,8 +477,6 @@ bool GameMode::handleResign(char resignColor) {
   onResignConfirmed(resignColor);
 
   char winnerColor = ChessUtils::opponentColor(resignColor);
-  Serial.printf("RESIGNATION! %s resigns. %s wins!\n", ChessUtils::colorName(resignColor), ChessUtils::colorName(winnerColor));
-
   boardDriver_->fireworkAnimation(SystemUtils::colorLed(winnerColor));
   chess_->endGame(GameResult::RESIGNATION, winnerColor);
   return true;

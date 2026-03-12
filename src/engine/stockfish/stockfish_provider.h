@@ -8,7 +8,8 @@
 // Spawns a FreeRTOS task per move request for non-blocking HTTP.
 class StockfishProvider : public EngineProvider {
  public:
-  explicit StockfishProvider(const StockfishSettings& settings, char playerColor = 'w');
+  explicit StockfishProvider(const StockfishSettings& settings, char playerColor = 'w',
+                             ILogger* logger = nullptr);
 
   bool initialize(EngineInitResult& result) override;
   void requestMove(const std::string& fen) override;

@@ -1,6 +1,8 @@
 #ifndef LICHESS_API_H
 #define LICHESS_API_H
 
+#include "engine/lichess/lichess_config.h"
+#include "logger.h"
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 
@@ -40,49 +42,50 @@ struct LichessEvent {
   char myColor; // 'w' or 'b'
 };
 
+// Lichess HTTP API layer. Stateless except for config + logger references.
+// FreeRTOS tasks create local instances with a copy of config for thread safety.
 class LichessAPI {
  public:
-  // Set the API token (Personal Access Token)
-  static void setToken(const String& token);
-  static String getToken();
-  static bool hasToken();
+  LichessAPI(const LichessConfig& config, Log logger = Log())
+      : config_(config), logger_(logger) {}
 
   // Account verification
-  static bool verifyToken(String& username);
+  bool verifyToken(String& username);
 
   // Stream events to find new games
   // Returns true if a new game event was found
-  static bool pollForGameEvent(LichessEvent& event);
+  bool pollForGameEvent(LichessEvent& event);
 
   // Stream game state (for ongoing game updates)
   // Returns true if there's new state data
-  static bool pollGameStream(const String& gameId, LichessGameState& state);
+  bool pollGameStream(const String& gameId, LichessGameState& state);
 
   // Make a move in the current game
   // move: UCI format (e.g., "e2e4", "e7e8q" for promotion)
-  static bool makeMove(const String& gameId, const String& move);
+  bool makeMove(const String& gameId, const String& move);
 
   // Resign the game
-  static bool resignGame(const String& gameId);
+  bool resignGame(const String& gameId);
 
   // --- Persistent stream helpers ---
 
   // Open a persistent TLS connection to the game stream endpoint.
   // Skips HTTP headers. Returns true if the connection is ready to read NDJSON lines.
-  static bool connectGameStream(WiFiClientSecure& client, const String& gameId);
+  bool connectGameStream(WiFiClientSecure& client, const String& gameId);
 
   // Read the next NDJSON event from an open stream connection.
   // Skips heartbeat (empty) lines and chunked-encoding size lines.
   // Returns true if a JSON line was read into `state`; false on timeout or disconnect.
   // `cancel` is polled to allow early exit.
-  static bool readStreamEvent(WiFiClientSecure& client, LichessGameState& state,
-                              const std::atomic<bool>& cancel, unsigned long timeoutMs = 30000);
+  bool readStreamEvent(WiFiClientSecure& client, LichessGameState& state,
+                       const std::atomic<bool>& cancel, unsigned long timeoutMs = 30000);
 
  private:
-  static String apiToken;
-  static String makeHttpRequest(const String& method, const String& path, const String& body = "");
-  static bool parseGameFullEvent(const String& json, LichessGameState& state);
-  static bool parseGameStateEvent(const String& json, LichessGameState& state);
+  const LichessConfig& config_;
+  Log logger_;
+  String makeHttpRequest(const String& method, const String& path, const String& body = "");
+  bool parseGameFullEvent(const String& json, LichessGameState& state);
+  bool parseGameStateEvent(const String& json, LichessGameState& state);
 };
 
 #endif // LICHESS_API_H

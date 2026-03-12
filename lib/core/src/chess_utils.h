@@ -41,6 +41,23 @@ inline const char* colorName(char color) {
   return (color == 'w') ? "White" : ((color == 'b') ? "Black" : "Unknown");
 }
 
+inline const char* gameResultName(GameResult result) {
+  static constexpr const char* NAMES[] = {
+      "In progress",                  // 0 = IN_PROGRESS
+      "Checkmate",                    // 1 = CHECKMATE
+      "Stalemate",                    // 2 = STALEMATE
+      "Draw (50-move rule)",          // 3 = DRAW_50
+      "Draw (threefold repetition)",  // 4 = DRAW_3FOLD
+      "Resignation",                  // 5 = RESIGNATION
+      "Draw (insufficient material)", // 6 = DRAW_INSUFFICIENT
+      "Draw (agreement)",             // 7 = DRAW_AGREEMENT
+      "Timeout",                      // 8 = TIMEOUT
+      "Aborted",                      // 9 = ABORTED
+  };
+  auto idx = static_cast<uint8_t>(result);
+  return (idx < sizeof(NAMES) / sizeof(NAMES[0])) ? NAMES[idx] : "Unknown";
+}
+
 inline char opponentColor(char color) {
   return (color == 'w') ? 'b' : 'w';
 }
@@ -205,6 +222,16 @@ inline bool isValidPromotionChar(char c) {
   char lower = static_cast<char>(tolower(c));
   return lower == 'q' || lower == 'r' || lower == 'b' || lower == 'n';
 }
+
+// ---------------------------------------------------------------------------
+// Board transform — minimal move application on a raw board array.
+// Moves the piece, handles castling rook, and removes en-passant captured pawn.
+// Sets capturedPiece to the piece actually captured (including EP captures).
+// Does NOT update PositionState, promotion, or MoveResult — callers handle those.
+// ---------------------------------------------------------------------------
+void applyBoardTransform(char board[8][8], int fromRow, int fromCol,
+                         int toRow, int toCol,
+                         const PositionState& state, char& capturedPiece);
 
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)

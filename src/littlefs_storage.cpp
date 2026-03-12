@@ -125,8 +125,7 @@ void LittleFSStorage::finalizeGame(const GameHeader& header) {
   LittleFS.rename(LIVE_MOVES_PATH, dest.c_str());
   discardGame();  // Remove remaining live files (FEN table)
 
-  if (logger_)
-    logger_->infof("LittleFSStorage: game saved as %s (%d moves) (%d FEN entries)",
+  logger_.infof("LittleFSStorage: game saved as %s (%d moves) (%d FEN entries)",
                    dest.c_str(), hdr.moveCount, hdr.fenEntryCnt);
 }
 
@@ -201,7 +200,7 @@ void LittleFSStorage::enforceStorageLimitsInternal(std::vector<int>& ids) {
   while (static_cast<int>(ids.size()) > MAX_GAMES) {
     LittleFS.remove(gamePath(ids.front()));
     ids.erase(ids.begin());
-    if (logger_) logger_->info("LittleFSStorage: deleted oldest game (max game limit)");
+    logger_.info("LittleFSStorage: deleted oldest game (max game limit)");
   }
 
   // 2. Enforce MAX_USAGE_PERCENT
@@ -212,7 +211,7 @@ void LittleFSStorage::enforceStorageLimitsInternal(std::vector<int>& ids) {
       break;
     LittleFS.remove(gamePath(ids.front()));
     ids.erase(ids.begin());
-    if (logger_) logger_->info("LittleFSStorage: deleted oldest game (storage limit)");
+    logger_.info("LittleFSStorage: deleted oldest game (storage limit)");
   }
 }
 

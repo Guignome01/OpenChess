@@ -18,7 +18,7 @@ static void setUpGame(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Threefold repetition (detected inside ChessBoard::detectGameEnd)
+// Threefold repetition (detected via ChessRules::isGameOver)
 // ---------------------------------------------------------------------------
 
 void test_game_threefold_repetition(void) {

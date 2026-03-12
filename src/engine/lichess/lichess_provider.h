@@ -2,6 +2,7 @@
 #define LICHESS_PROVIDER_H
 
 #include "engine/engine_provider.h"
+#include "engine/lichess/lichess_api.h"
 #include "engine/lichess/lichess_config.h"
 
 // EngineProvider implementation for Lichess online play.
@@ -9,7 +10,7 @@
 // requestMove() spawns a persistent NDJSON stream task for opponent moves.
 class LichessProvider : public EngineProvider {
  public:
-  explicit LichessProvider(const LichessConfig& config);
+  explicit LichessProvider(const LichessConfig& config, ILogger* logger = nullptr);
 
   bool initialize(EngineInitResult& result) override;
   void requestMove(const std::string& fen) override;
@@ -20,6 +21,7 @@ class LichessProvider : public EngineProvider {
  private:
   // Heap-allocated context shared between the caller and the FreeRTOS task.
   struct TaskContext : BaseTaskContext {
+    LichessConfig config;
     String gameId;
     char playerColor;
     int lastKnownMoveCount;
@@ -29,6 +31,7 @@ class LichessProvider : public EngineProvider {
   static void taskFunction(void* param);
 
   LichessConfig config_;
+  LichessAPI api_;
   String currentGameId_;
   char playerColor_ = 'w';
   int lastKnownMoveCount_ = 0;

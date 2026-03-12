@@ -6,6 +6,7 @@
 #include <string>
 
 #include "types.h"
+#include "chess_iterator.h"
 #include "chess_rules.h"
 #include "chess_utils.h"
 #include "zobrist_keys.h"
@@ -17,7 +18,7 @@ struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 // clocks), and Zobrist position history for threefold repetition.
 // Handles move validation, application, and game-end detection — all end
 // conditions (checkmate, stalemate, 50-move, insufficient material, threefold)
-// are detected uniformly inside detectGameEnd() and returned via MoveResult.
+// are detected uniformly via ChessRules::isGameOver() and returned via MoveResult.
 // Pure position container: no lifecycle state (game-over flag, result, winner).
 // Lifecycle authority lives in ChessGame.
 // Pure logic, no hardware dependencies, natively compilable for unit tests.
@@ -103,17 +104,25 @@ class ChessBoard {
   }
 
   // Is the position drawn due to insufficient material?
-  bool isInsufficientMaterial() const;
+  bool isInsufficientMaterial() const {
+    return ChessRules::isInsufficientMaterial(board_);
+  }
 
   // Has the 50-move rule been reached (100 half-moves)?
-  bool isFiftyMoves() const { return state_.halfmoveClock >= 100; }
+  bool isFiftyMoves() const {
+    return ChessRules::isFiftyMoveRule(state_);
+  }
 
   // Has the current position occurred three or more times?
-  bool isThreefoldRepetition() const;
+  bool isThreefoldRepetition() const {
+    return ChessRules::isThreefoldRepetition(positionHistory_, positionHistoryCount_);
+  }
 
   // Is the position drawn by any automatic draw rule?
-  // (50-move, insufficient material, threefold, stalemate)
-  bool isDraw() const;
+  // (stalemate, 50-move, insufficient material, threefold)
+  bool isDraw() const {
+    return ChessRules::isDraw(board_, currentTurn_, state_, positionHistory_, positionHistoryCount_);
+  }
 
   // Is the given square attacked by pieces of the specified color?
   // "byColor" is the attacking side: 'w' or 'b'.
@@ -128,7 +137,9 @@ class ChessBoard {
   // type: uppercase piece letter ('P','N','B','R','Q','K').
   // color: 'w' or 'b'.
   // Returns count; fills positions[][2] with [row, col] pairs.
-  int findPiece(char type, char color, int positions[][2], int maxPositions) const;
+  int findPiece(char type, char color, int positions[][2], int maxPositions) const {
+    return ChessIterator::findPiece(board_, type, color, positions, maxPositions);
+  }
 
   // Format the board as a human-readable text block.
   std::string boardToText() const { return ChessUtils::boardToText(board_); }
@@ -171,8 +182,6 @@ class ChessBoard {
   mutable bool evalDirty_;
   void invalidateCache();
 
-  bool hasInsufficientMaterialInternal() const;
-
   // Zobrist hashing
   static inline int pieceToZobristIndex(char piece) {
     const char* pieces = "PNBRQKpnbrqk";
@@ -185,7 +194,6 @@ class ChessBoard {
   // Pure chess logic extracted from GameMode::applyMove / updateGameStatus
   void applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result);
   void advanceTurn();
-  GameResult detectGameEnd(char& winner);
 };
 
 #endif  // CORE_CHESS_BOARD_H

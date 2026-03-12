@@ -2,10 +2,10 @@
 #include "chess_game.h"
 #include <Arduino.h>
 
-PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg) : GameMode(bd, wm, cg) {}
+PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger) : GameMode(bd, wm, cg, logger) {}
 
 void PlayerMode::begin() {
-  Serial.println("=== Starting Chess Moves Mode ===");
+  logger_.info("=== Starting Chess Moves Mode ===");
   if (!tryResumeGame())
     chess_->startNewGame(GameModeId::CHESS_MOVES);
   waitForBoardSetup();

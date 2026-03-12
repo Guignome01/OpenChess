@@ -155,16 +155,12 @@ bool parseCoordinate(const std::string& move,
   char toFile = move[2];
   char toRank = move[3];
 
-  if (fromFile < 'a' || fromFile > 'h' || toFile < 'a' || toFile > 'h') return false;
-  if (fromRank < '1' || fromRank > '8' || toRank < '1' || toRank > '8') return false;
-
   fromCol = ChessUtils::fileIndex(fromFile);
   fromRow = ChessUtils::rankIndex(fromRank);
   toCol = ChessUtils::fileIndex(toFile);
   toRow = ChessUtils::rankIndex(toRank);
 
-  if (fromRow < 0 || fromRow > 7 || fromCol < 0 || fromCol > 7 ||
-      toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7)
+  if (!ChessUtils::isValidSquare(fromRow, fromCol) || !ChessUtils::isValidSquare(toRow, toCol))
     return false;
 
   // From and to squares must differ
@@ -191,17 +187,15 @@ bool parseLAN(const std::string& move,
               char& promotion) {
   if (move.empty()) return false;
 
-  // Handle castling
+  // Handle castling: LAN lacks board context needed to resolve the king's
+  // position, so we return false here.  The auto-detect entry point
+  // parseMove() tries LAN first; when it returns false for castling
+  // notation, it falls through to parseSAN which has board context.
+  // Coordinate-style castling (e.g. e1g1) is handled by parseCoordinate.
   std::string upper;
   for (char c : move) upper += static_cast<char>(toupper(c));
-  if (upper == "O-O" || upper == "0-0") {
-    // Caller doesn't know which side is castling, but we can provide
-    // the king's standard move coordinates (handled by caller with board context).
-    // Return false — castling in LAN should be parsed with board context via parseSAN.
-    // However, coordinate-style castling (e1g1) is handled by parseCoordinate.
-    return false;
-  }
-  if (upper == "O-O-O" || upper == "0-0-0") {
+  if (upper == "O-O" || upper == "0-0" ||
+      upper == "O-O-O" || upper == "0-0-0") {
     return false;
   }
 
@@ -260,22 +254,16 @@ static bool findCastlingMove(const char board[8][8], const PositionState& state,
                              char currentTurn, bool kingSide,
                              int& fromRow, int& fromCol, int& toRow, int& toCol,
                              char& promotion) {
-  for (int r = 0; r < 8; r += 7) {
-    for (int c = 0; c < 8; ++c) {
-      char p = board[r][c];
-      if (toupper(p) == 'K') {
-        char color = ChessUtils::getPieceColor(p);
-        if (color != currentTurn) continue;
-        if (!ChessUtils::hasCastlingRight(state.castlingRights, color, kingSide)) continue;
-        fromRow = r; fromCol = c;
-        toRow = r; toCol = kingSide ? c + 2 : c - 2;
-        promotion = ' ';
-        if (ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state))
-          return true;
-      }
-    }
-  }
-  return false;
+  int row = ChessUtils::homeRow(currentTurn);
+  char king = board[row][4];
+  if (toupper(king) != 'K' || ChessUtils::getPieceColor(king) != currentTurn)
+    return false;
+  if (!ChessUtils::hasCastlingRight(state.castlingRights, currentTurn, kingSide))
+    return false;
+  fromRow = row; fromCol = 4;
+  toRow = row;   toCol = kingSide ? 6 : 2;
+  promotion = ' ';
+  return ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state);
 }
 
 bool parseSAN(const char board[8][8], const PositionState& state,
@@ -392,8 +380,7 @@ static bool looksLikeCoordinate(const std::string& move) {
   if (move[2] < 'a' || move[2] > 'h') return false;
   if (move[3] < '1' || move[3] > '8') return false;
   if (len == 5) {
-    char p = tolower(move[4]);
-    if (p != 'q' && p != 'r' && p != 'b' && p != 'n') return false;
+    if (!ChessUtils::isValidPromotionChar(move[4])) return false;
   }
   return true;
 }

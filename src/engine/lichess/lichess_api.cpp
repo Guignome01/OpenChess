@@ -3,34 +3,19 @@
 #include <WiFiClientSecure.h>
 #include <atomic>
 
-// Static member initialization
-String LichessAPI::apiToken = "";
-
-void LichessAPI::setToken(const String& token) {
-  apiToken = token;
-}
-
-String LichessAPI::getToken() {
-  return apiToken;
-}
-
-bool LichessAPI::hasToken() {
-  return apiToken.length() > 0;
-}
-
 String LichessAPI::makeHttpRequest(const String& method, const String& path, const String& body) {
   WiFiClientSecure client;
   client.setInsecure();
 
   if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
-    Serial.println("Lichess API: Connection failed");
+    logger_.error("Lichess API: Connection failed");
     return "";
   }
 
   // Build HTTP request
   String request = method + " " + path + " HTTP/1.1\r\n";
   request += "Host: " LICHESS_API_HOST "\r\n";
-  request += "Authorization: Bearer " + apiToken + "\r\n";
+  request += "Authorization: Bearer " + config_.apiToken + "\r\n";
   request += "Accept: application/json\r\n";
 
   if (body.length() > 0) {
@@ -50,7 +35,7 @@ String LichessAPI::makeHttpRequest(const String& method, const String& path, con
   unsigned long timeout = millis() + 10000;
   while (client.connected() && !client.available()) {
     if (millis() > timeout) {
-      Serial.println("Lichess API: Request timeout");
+      logger_.error("Lichess API: Request timeout");
       client.stop();
       return "";
     }
@@ -82,7 +67,7 @@ String LichessAPI::makeHttpRequest(const String& method, const String& path, con
   client.stop();
 
   if (httpStatus >= 400) {
-    Serial.printf("Lichess API: HTTP %d on %s\n", httpStatus, path.c_str());
+    logger_.errorf("Lichess API: HTTP %d on %s", httpStatus, path.c_str());
     return "";
   }
 
@@ -98,13 +83,13 @@ bool LichessAPI::verifyToken(String& username) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, response);
   if (error) {
-    Serial.println("Lichess API: JSON parse error in verifyToken");
+    logger_.error("Lichess API: JSON parse error in verifyToken");
     return false;
   }
 
   if (!doc["username"].isNull()) {
     username = doc["username"].as<String>();
-    Serial.println("Lichess API: Verified token for user: " + username);
+    logger_.infof("Lichess API: Verified token for user: %s", username.c_str());
     return true;
   }
 
@@ -130,7 +115,7 @@ bool LichessAPI::pollForGameEvent(LichessEvent& event) {
     String color = game["color"].as<String>();
     event.myColor = (color == "white") ? 'w' : 'b';
 
-    Serial.println("Lichess: Found active game: " + event.gameId);
+    logger_.infof("Lichess: Found active game: %s", event.gameId.c_str());
     return true;
   }
 
@@ -181,7 +166,7 @@ bool LichessAPI::parseGameFullEvent(const String& json, LichessGameState& state)
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, json);
   if (error) {
-    Serial.println("Lichess: JSON parse error in parseGameFullEvent");
+    logger_.error("Lichess: JSON parse error in parseGameFullEvent");
     return false;
   }
 
@@ -258,11 +243,11 @@ bool LichessAPI::makeMove(const String& gameId, const String& move) {
   }
 
   if (!doc["ok"].isNull() && doc["ok"].as<bool>()) {
-    Serial.println("Lichess: Move sent successfully: " + move);
+    logger_.infof("Lichess: Move sent successfully: %s", move.c_str());
     return true;
   }
 
-  Serial.println("Lichess: Move failed: " + response);
+  logger_.errorf("Lichess: Move failed: %s", response.c_str());
   return false;
 }
 
@@ -291,14 +276,14 @@ bool LichessAPI::connectGameStream(WiFiClientSecure& client, const String& gameI
   client.setInsecure();
 
   if (!client.connect(LICHESS_API_HOST, LICHESS_API_PORT)) {
-    Serial.println("Lichess stream: connection failed");
+    logger_.error("Lichess stream: connection failed");
     return false;
   }
 
   // Request with keep-alive — Lichess streams use chunked transfer encoding
   String request = "GET /api/board/game/stream/" + gameId + " HTTP/1.1\r\n";
   request += "Host: " LICHESS_API_HOST "\r\n";
-  request += "Authorization: Bearer " + apiToken + "\r\n";
+  request += "Authorization: Bearer " + config_.apiToken + "\r\n";
   request += "Accept: application/x-ndjson\r\n";
   request += "Connection: keep-alive\r\n\r\n";
 
@@ -308,7 +293,7 @@ bool LichessAPI::connectGameStream(WiFiClientSecure& client, const String& gameI
   unsigned long timeout = millis() + 15000;
   while (client.connected()) {
     if (millis() > timeout) {
-      Serial.println("Lichess stream: header timeout");
+      logger_.error("Lichess stream: header timeout");
       client.stop();
       return false;
     }
@@ -321,11 +306,11 @@ bool LichessAPI::connectGameStream(WiFiClientSecure& client, const String& gameI
   }
 
   if (!client.connected()) {
-    Serial.println("Lichess stream: disconnected during headers");
+    logger_.error("Lichess stream: disconnected during headers");
     return false;
   }
 
-  Serial.println("Lichess stream: connected, headers consumed");
+  logger_.info("Lichess stream: connected, headers consumed");
   return true;
 }
 
@@ -357,13 +342,13 @@ bool LichessAPI::readStreamEvent(WiFiClientSecure& client, LichessGameState& sta
     // Must start with '{' to be valid JSON
     if (line[0] != '{') continue;
 
-    Serial.println("Lichess stream event: " + line.substring(0, min((size_t)200, line.length())));
+    logger_.infof("Lichess stream event: %.200s", line.c_str());
 
     // Try gameFull first, then gameState
     if (parseGameFullEvent(line, state)) return true;
     if (parseGameStateEvent(line, state)) return true;
 
-    Serial.println("Lichess stream: unrecognized event, skipping");
+    logger_.info("Lichess stream: unrecognized event, skipping");
   }
 
   // Connection dropped

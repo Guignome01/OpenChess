@@ -18,6 +18,9 @@ Providers are composed into `BotMode` via pointer injection (`BotMode` owns the 
 3. `checkResult(result)` — polls for task completion. Non-blocking. Returns `true` when result is ready.
 4. `cancelRequest()` — sets `cancel` flag, waits up to 2s for task to finish, then deletes context.
 
+### Logger
+`EngineProvider` accepts an optional `ILogger*` via constructor. The logger is stored as `logger_` (`Log` proxy, protected) and automatically propagated to `BaseTaskContext::logger` in `spawnTask()`. FreeRTOS tasks use `ctx->logger` for thread-safe logging. The `Log` proxy handles null internally — no manual null guards needed.
+
 ### FreeRTOS Task Helpers (protected)
 - `spawnTask(ctx, name, taskFn, stackSize)` — cancels any running task, stores context, creates FreeRTOS task.
 - `pollResult(result)` — checks `ready` flag, copies result, **deletes** context. Use when no extra fields needed.
@@ -31,21 +34,21 @@ Providers are composed into `BotMode` via pointer injection (`BotMode` owns the 
 
 ## StockfishProvider
 
-One-shot HTTP provider. Each `requestMove()` spawns a FreeRTOS task that calls the Stockfish API, parses the JSON response, and stores the best move + centipawn evaluation. `checkResult()` uses `pollResult()` (no extra fields beyond base). `initialize()` always succeeds (no server handshake needed).
+One-shot HTTP provider. Constructor: `StockfishProvider(settings, playerColor, logger)`. Forwards `logger` to `EngineProvider`. Each `requestMove()` spawns a FreeRTOS task that calls the Stockfish API, parses the JSON response, and stores the best move + centipawn evaluation. `checkResult()` uses `pollResult()` (no extra fields beyond base). `initialize()` always succeeds (no server handshake needed).
 
 Configuration via `StockfishSettings` — `depth` (1–15), `timeoutMs`, `maxRetries`. Has 8 named presets (`beginner` through `master`) and a `fromLevel(1–8)` factory.
 
 ## LichessProvider
 
-Streaming provider. `initialize()` blocks during game discovery (token verification + active game search). `requestMove()` spawns a persistent NDJSON streaming task that reads opponent moves and game-end events. `checkResult()` uses `peekResult()` + `finishTask()` to read extra fields from the derived context. `onPlayerMoveApplied()` sends moves to Lichess via HTTP POST.
+Streaming provider. Constructor: `LichessProvider(config, logger)`. Forwards `logger` to `EngineProvider`. Holds a `LichessAPI api_` instance member for main-thread calls. `initialize()` blocks during game discovery (token verification + active game search). `requestMove()` spawns a persistent NDJSON streaming task that reads opponent moves and game-end events. The `TaskContext` carries a `LichessConfig` copy by value; the task creates a local `LichessAPI(ctx->config, ctx->logger)` instance for thread-safe stream operations. `checkResult()` uses `peekResult()` + `finishTask()` to read extra fields from the derived context. `onPlayerMoveApplied()` sends moves to Lichess via HTTP POST.
 
 Configuration via `LichessConfig` — just an OAuth `apiToken`.
 
 ## API Layer
 
 Each provider has a companion API module in its subdirectory:
-- `stockfish/stockfish_api.h/.cpp` — HTTP wrapper for the Stockfish API.
-- `lichess/lichess_api.h/.cpp` — HTTP wrappers for Lichess endpoints (game stream, move submission, resign, game discovery).
+- `stockfish/stockfish_api.h/.cpp` — static utility class. Pure parsing (builds request URLs, parses JSON responses). No state, no logging, no network I/O.
+- `lichess/lichess_api.h/.cpp` — instance class. Constructor: `LichessAPI(config, logger)`. Holds a `const LichessConfig&` and `ILogger*`. Handles all Lichess HTTP requests (game stream, move submission, resign, game discovery) using `config_.apiToken` for auth. Token management (set/get/has) was removed — the token lives solely in `LichessConfig`.
 
 API modules handle raw HTTP + TLS. Providers handle chess-domain logic and FreeRTOS lifecycle.
 

@@ -10,7 +10,7 @@ applyTo: "src/game_mode/**"
 
 ## GameMode (base)
 
-Central fields injected via constructor: `boardDriver_`, `wifiManager_`, `chess_` (ChessGame orchestrator).
+Central fields injected via constructor: `boardDriver_`, `wifiManager_`, `chess_` (ChessGame orchestrator), `logger_` (`Log` proxy, wraps optional `ILogger*`). All log output uses `logger_.info/infof/error/errorf(...)` directly — the `Log` proxy handles null internally. No direct `Serial` calls.
 
 ### Lifecycle
 - `begin()` — pure virtual. Subclasses set up the game (resume or new), then call `waitForBoardSetup()`.
@@ -20,7 +20,7 @@ Central fields injected via constructor: `boardDriver_`, `wifiManager_`, `chess_
 
 ### Core Move Flow
 1. `tryPlayerMove(playerColor, ...)` — scans sensor deltas for a piece lift, shows legal-move highlights (white = empty, red = capture, purple = en-passant pawn), waits for placement. Returns `true` with from/to coords when a valid destination is chosen.
-2. `applyMove(from, to, promotion, isRemoteMove)` — calls `chess_->makeMove()`, logs to Serial, drives hardware feedback (capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks).
+2. `applyMove(from, to, promotion, isRemoteMove)` — calls `chess_->makeMove()` (which handles all move/game-end/check logging), then drives hardware feedback (capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks).
 3. `applyMove(string)` — coordinate-string overload, parses then delegates with `isRemoteMove = true`.
 
 ### Resume Support
@@ -71,7 +71,7 @@ Composes an `EngineProvider*` (strategy pattern, owned — deleted in destructor
 
 - **`tryPlayerMove()` is blocking within a non-blocking loop** — once a piece is lifted, `tryPlayerMove()` enters a blocking wait for placement. This is intentional: the sensor state during piece-in-hand requires continuous polling for the target square. The outer `update()` loop remains non-blocking because `tryPlayerMove()` returns `false` (no lift detected) on most ticks.
 
-- **`applyMove()` handles all feedback in one place** — capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks are all in `GameMode::applyMove()`. Subclasses don't override this. This centralizes the complex hardware interaction sequence so adding a new game mode only requires implementing `begin()` and `update()`.
+- **`applyMove()` handles all hardware feedback in one place** — capture animation, castling rook guidance, promotion animation, check blink, game-end fireworks are all in `GameMode::applyMove()`. Game-end and check/turn *logging* is handled by `ChessGame` (not duplicated here). Subclasses don't override this. This centralizes the complex hardware interaction sequence so adding a new game mode only requires implementing `begin()` and `update()`.
 
 - **Remote moves use LED guidance** — when BotMode applies an engine move, `waitForRemoteMoveCompletion()` blocks with LED cues (cyan = pick up, green = place here) until the player physically executes the move. This bridges the gap between software state (already applied) and physical board state (player must move the piece).
 

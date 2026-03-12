@@ -15,7 +15,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, Zobrist history |
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessUtils` | Piece queries, coordinate helpers, color-derived helpers, castling/EP analysis | Stateless namespace |
+| `ChessUtils` | Piece queries, coordinate helpers, color-derived helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
@@ -27,8 +27,9 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `IGameStorage` | Persistence: live game files, FEN tables, finalize/discard | `LittleFSStorage` |
 | `IGameObserver` | Board-state notification: `onBoardStateChanged(fen, evaluation)` | `WiFiManagerESP32` |
 | `ILogger` | Diagnostic output: `info()`, `error()`, formatted helpers | `SerialLogger` |
+| `Log` | Null-safe logger proxy (value type wrapping `ILogger*`) | Defined in `logger.h` |
 
-All nullable — core classes guard with `if (ptr_)`.
+All nullable — core classes use `Log` proxy members instead of raw `ILogger*` pointers, eliminating manual null guards.
 
 ## Data Flow: How a Move Works
 
@@ -40,14 +41,16 @@ Understanding this flow prevents bugs where steps get skipped or reordered:
    - Applies the move (piece movement, captures, castling rook, en passant removal, promotion)
    - Updates `PositionState` (castling rights, EP target, halfmove/fullmove clocks)
    - Updates Zobrist hash + position history
-   - Runs `detectGameEnd()` → sets `MoveResult.gameResult` if checkmate/stalemate/draw
+   - Runs `ChessRules::isGameOver()` → sets `MoveResult.gameResult` if checkmate/stalemate/draw
    - Invalidates FEN/eval caches
-3. **ChessGame** records the move in `ChessHistory` (which auto-persists if recording)
-4. **ChessGame** checks threefold repetition (Zobrist comparison), auto-ends game if detected
-5. **ChessGame** notifies `IGameObserver` with updated FEN + evaluation
-6. **ChessGame** auto-saves recording if the game just ended
+3. **ChessGame** logs the move description via `ILogger` (piece, type, from/to square, promotion)
+4. **ChessGame** records the move in `ChessHistory` (which auto-persists if recording)
+5. **ChessGame** checks threefold repetition (Zobrist comparison), auto-ends game if detected
+6. **ChessGame** logs game-end events via `ILogger` (in `endGame()`), or logs check/turn if game continues (in `makeMove()`)
+7. **ChessGame** notifies `IGameObserver` with updated FEN + evaluation
+8. **ChessGame** auto-saves recording if the game just ended
 
-**Key invariant**: Steps 2–6 are atomic from the caller's perspective. A valid `makeMove()` always completes all steps.
+**Key invariant**: Steps 2–8 are atomic from the caller's perspective. A valid `makeMove()` always completes all steps.
 
 ## Design Decisions
 
@@ -77,7 +80,7 @@ These explain *why* the architecture is the way it is — constraints that code 
 
 - **Dirty-flag caching**: `ChessBoard` caches FEN and evaluation, recomputes only when `fenDirty_`/`evalDirty_` are set by mutations.
 - **Composition over inheritance**: `ChessGame` composes `ChessBoard` + `ChessHistory`. No inheritance hierarchy.
-- **Nullable DI**: Storage, observer, and logger are pointer-injected. All nullable with `if (ptr_)` guards.
+- **Nullable DI**: Storage, observer, and logger are pointer-injected. All nullable — storage and observer guard with `if (ptr_)`, logger uses `Log` proxy (no manual guards).
 - **Compact 2-byte move encoding**: `encodeMove()`/`decodeMove()` — bits 15..10 = from (row*8+col), bits 9..4 = to, bits 3..0 = promo code. Used for binary storage.
 - **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `opponentColor()`, `makePiece()` — use these instead of inline ternaries for color-dependent values.
 - **Castling bit mapping**: `castlingCharToBit()` is the single source of truth for K/Q/k/q → bitmask. `hasCastlingRight()` wraps it with color+side semantics. All castling rights logic should use these.

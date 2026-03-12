@@ -384,17 +384,17 @@ void initializeSelectedMode(AppMode mode) {
   switch (mode) {
     case AppMode::CHESS_MOVES:
       Serial.println("Starting 'Chess Moves'...");
-      activeGame = new PlayerMode(&boardDriver, &wifiManager, &chess);
+      activeGame = new PlayerMode(&boardDriver, &wifiManager, &chess, &logger);
       activeGame->begin();
       break;
     case AppMode::BOT:
       Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new StockfishProvider(stockfishSettings, playerColor));
+      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new StockfishProvider(stockfishSettings, playerColor, &logger), &logger);
       activeGame->begin();
       break;
     case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
-      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new LichessProvider(lichessConfig));
+      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new LichessProvider(lichessConfig, &logger), &logger);
       activeGame->begin();
       break;
     case AppMode::SENSOR_TEST:

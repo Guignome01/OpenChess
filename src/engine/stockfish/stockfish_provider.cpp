@@ -3,12 +3,13 @@
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 
-StockfishProvider::StockfishProvider(const StockfishSettings& settings, char playerColor)
-    : settings_(settings), playerColor_(playerColor) {}
+StockfishProvider::StockfishProvider(const StockfishSettings& settings, char playerColor,
+                                     ILogger* logger)
+    : EngineProvider(logger), settings_(settings), playerColor_(playerColor) {}
 
 bool StockfishProvider::initialize(EngineInitResult& result) {
-  Serial.printf("StockfishProvider: depth=%d, timeout=%dms, retries=%d\n",
-                settings_.depth, settings_.timeoutMs, settings_.maxRetries);
+  logger_.infof("StockfishProvider: depth=%d, timeout=%dms, retries=%d",
+                              settings_.depth, settings_.timeoutMs, settings_.maxRetries);
   result.playerColor = playerColor_;
   result.fen = "";  // Starting position
   result.gameModeId = GameModeId::BOT;
@@ -49,7 +50,7 @@ void StockfishProvider::taskFunction(void* param) {
   client.setInsecure();
 
   String path = StockfishAPI::buildRequestURL(String(ctx->fen.c_str()), ctx->depth);
-  Serial.println("Stockfish request: " STOCKFISH_API_URL + path);
+  ctx->logger.infof("Stockfish request: %s%s", STOCKFISH_API_URL, path.c_str());
 
   String response;
   bool gotResponse = false;
@@ -58,12 +59,12 @@ void StockfishProvider::taskFunction(void* param) {
     if (ctx->cancel.load()) break;
 
     if (attempt > 1) {
-      Serial.printf("Stockfish: attempt %d/%d\n", attempt, ctx->maxRetries);
+      ctx->logger.infof("Stockfish: attempt %d/%d", attempt, ctx->maxRetries);
       delay(500);
     }
 
     if (!client.connect(STOCKFISH_API_URL, STOCKFISH_API_PORT)) {
-      Serial.println("Stockfish: connection failed");
+      ctx->logger.error("Stockfish: connection failed");
       continue;
     }
 
@@ -85,7 +86,7 @@ void StockfishProvider::taskFunction(void* param) {
     client.stop();
 
     if (gotResponse) break;
-    Serial.println("Stockfish: timeout or empty response");
+    ctx->logger.error("Stockfish: timeout or empty response");
   }
 
   if (ctx->cancel.load()) {
@@ -95,7 +96,7 @@ void StockfishProvider::taskFunction(void* param) {
   }
 
   if (!gotResponse || response.length() == 0) {
-    Serial.println("Stockfish: all attempts failed");
+    ctx->logger.error("Stockfish: all attempts failed");
     ctx->ready.store(true);
     vTaskDelete(nullptr);
     return;
@@ -112,10 +113,10 @@ void StockfishProvider::taskFunction(void* param) {
     else
       ctx->result.evaluation = sfResp.evaluation;
 
-    Serial.printf("Stockfish: bestMove=%s, eval=%.2f\n",
-                  sfResp.bestMove.c_str(), ctx->result.evaluation);
+    ctx->logger.infof("Stockfish: bestMove=%s, eval=%.2f",
+                                         sfResp.bestMove.c_str(), ctx->result.evaluation);
   } else {
-    Serial.printf("Stockfish: parse failed: %s\n", sfResp.errorMessage.c_str());
+    ctx->logger.errorf("Stockfish: parse failed: %s", sfResp.errorMessage.c_str());
   }
 
   ctx->ready.store(true);

@@ -18,7 +18,7 @@
 // All chess-state mutations (makeMove, loadFEN, endGame) flow through this class.
 // It handles move history recording, observer notification, and batching.
 // All end-condition detection (including threefold repetition) is handled
-// uniformly inside ChessBoard::detectGameEnd().
+// uniformly via ChessRules::isGameOver().
 //
 // Recording is automatic: if IGameStorage is provided, ChessGame calls
 // history_.setHeader() / history_.save() at game lifecycle boundaries,
@@ -151,6 +151,8 @@ class ChessGame {
   bool isStalemate() const { return board_.isStalemate(); }
   bool isInsufficientMaterial() const { return board_.isInsufficientMaterial(); }
   bool isFiftyMoves() const { return board_.isFiftyMoves(); }
+  bool isDraw() const { return board_.isDraw(); }
+  bool isThreefoldRepetition() const { return board_.isThreefoldRepetition(); }
 
   bool isAttacked(int row, int col, char byColor) const {
     return board_.isAttacked(row, col, byColor);
@@ -189,14 +191,6 @@ class ChessGame {
     return board_.checkCastling(fromRow, fromCol, toRow, toCol);
   }
 
-  // --- Draw queries (delegated to board) ---
-
-  // Is the position a draw (50-move, threefold repetition, or insufficient material)?
-  bool isDraw() const;
-
-  // Has the current position occurred three or more times?
-  bool isThreefoldRepetition() const;
-
   // --- History ---
 
   // Access the in-game move/position history.
@@ -215,6 +209,7 @@ class ChessGame {
   ChessBoard board_;
   ChessHistory history_;
   IGameObserver* observer_;
+  Log logger_;
   int batchDepth_;
   bool batchDirty_;
   std::string startFen_;  // initial FEN for SAN/LAN replay in getHistory()

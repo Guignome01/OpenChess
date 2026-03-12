@@ -3,6 +3,7 @@
 
 #include "board_driver.h"
 #include "led_colors.h"
+#include "logger.h"
 #include "types.h"
 #include <Arduino.h>
 
@@ -18,6 +19,7 @@ class GameMode {
   BoardDriver* boardDriver_;
   WiFiManagerESP32* wifiManager_;
   ChessGame* chess_;
+  Log logger_;
 
   // --- Resign ---
   static constexpr unsigned long RESIGN_HOLD_MS = 3000;       // Duration king must stay off its square to initiate resign
@@ -25,7 +27,7 @@ class GameMode {
   bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
-  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg);
+  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger = nullptr);
 
   // Common initialization and game flow methods
   void waitForBoardSetup();

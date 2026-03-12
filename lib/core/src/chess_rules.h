@@ -24,12 +24,10 @@ class ChessRules {
 
   static bool isSquareOccupiedByOpponent(const char board[8][8], int row, int col, char pieceColor);
   static bool isSquareEmpty(const char board[8][8], int row, int col);
-  static bool isValidSquare(int row, int col);
 
   // Check detection helpers
   static void getPseudoLegalMoves(const char board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling = true);
   static bool leavesInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags);
-  static void applyMove(char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags, char& capturedPiece);
 
  public:
   // En passant legality query (used by ChessBoard for Zobrist hashing)
@@ -50,6 +48,13 @@ class ChessRules {
   static bool hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags);
   static bool isCheckmate(const char board[8][8], char kingColor, const PositionState& flags);
   static bool isStalemate(const char board[8][8], char colorToMove, const PositionState& flags);
+  static bool isInsufficientMaterial(const char board[8][8]);
+  static bool isThreefoldRepetition(const uint64_t* positionHistory, int positionHistoryCount);
+  static bool isFiftyMoveRule(const PositionState& state);
+  static bool isDraw(const char board[8][8], char colorToMove, const PositionState& state,
+                     const uint64_t* positionHistory, int positionHistoryCount);
+  static GameResult isGameOver(const char board[8][8], char colorToMove, const PositionState& state,
+                               const uint64_t* positionHistory, int positionHistoryCount, char& winner);
 };
 
 #endif  // CORE_CHESS_RULES_H

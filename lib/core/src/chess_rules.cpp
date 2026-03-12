@@ -10,7 +10,7 @@
 
 bool ChessRules::hasLegalEnPassantCapture(const char board[8][8], char sideToMove, const PositionState& flags) {
   if (flags.epRow < 0 || flags.epCol < 0) return false;
-  int capturerRow = (sideToMove == 'w') ? flags.epRow + 1 : flags.epRow - 1;
+  int capturerRow = flags.epRow - ChessUtils::pawnDirection(sideToMove);
   char capturerPawn = ChessUtils::makePiece('P', sideToMove);
   if (flags.epCol > 0 && board[capturerRow][flags.epCol - 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol - 1, flags.epRow, flags.epCol, flags))
     return true;
@@ -76,13 +76,13 @@ void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pie
   int direction = ChessUtils::pawnDirection(pieceColor);
 
   // One square forward
-  if (isValidSquare(row + direction, col) && isSquareEmpty(board, row + direction, col)) {
+  if (ChessUtils::isValidSquare(row + direction, col) && isSquareEmpty(board, row + direction, col)) {
     moves[moveCount][0] = row + direction;
     moves[moveCount][1] = col;
     moveCount++;
 
     // Initial two-square move
-    if ((pieceColor == 'w' && row == 6) || (pieceColor == 'b' && row == 1))
+    if (row == ChessUtils::homeRow(pieceColor) + direction)
       if (isSquareEmpty(board, row + 2 * direction, col)) {
         moves[moveCount][0] = row + 2 * direction;
         moves[moveCount][1] = col;
@@ -96,7 +96,7 @@ void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pie
     int captureRow = row + direction;
     int captureCol = captureColumns[i];
 
-    if (isValidSquare(captureRow, captureCol) &&
+    if (ChessUtils::isValidSquare(captureRow, captureCol) &&
         isSquareOccupiedByOpponent(board, captureRow, captureCol, pieceColor)) {
       moves[moveCount][0] = captureRow;
       moves[moveCount][1] = captureCol;
@@ -105,15 +105,13 @@ void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pie
   }
 
   // En passant captures
-  if (flags.epRow >= 0 && flags.epCol >= 0) {
-    if ((pieceColor == 'w' && row == 3) || (pieceColor == 'b' && row == 4)) {
-      for (int i = 0; i < 2; i++) {
-        int captureCol = captureColumns[i];
-        if (captureCol == flags.epCol && row + direction == flags.epRow) {
-          moves[moveCount][0] = flags.epRow;
-          moves[moveCount][1] = flags.epCol;
-          moveCount++;
-        }
+  if (flags.epRow >= 0 && flags.epCol >= 0 && row == flags.epRow - direction) {
+    for (int i = 0; i < 2; i++) {
+      int captureCol = captureColumns[i];
+      if (captureCol == flags.epCol) {
+        moves[moveCount][0] = flags.epRow;
+        moves[moveCount][1] = flags.epCol;
+        moveCount++;
       }
     }
   }
@@ -126,7 +124,7 @@ void ChessRules::addSlidingMoves(const char board[8][8], int row, int col, char 
       int newRow = row + step * directions[d][0];
       int newCol = col + step * directions[d][1];
 
-      if (!isValidSquare(newRow, newCol))
+      if (!ChessUtils::isValidSquare(newRow, newCol))
         break;
 
       if (isSquareEmpty(board, newRow, newCol)) {
@@ -158,7 +156,7 @@ void ChessRules::addKnightMoves(const char board[8][8], int row, int col, char p
     int newRow = row + knightMoves[i][0];
     int newCol = col + knightMoves[i][1];
 
-    if (isValidSquare(newRow, newCol))
+    if (ChessUtils::isValidSquare(newRow, newCol))
       if (isSquareEmpty(board, newRow, newCol) ||
           isSquareOccupiedByOpponent(board, newRow, newCol, pieceColor)) {
         moves[moveCount][0] = newRow;
@@ -188,7 +186,7 @@ void ChessRules::addKingMoves(const char board[8][8], int row, int col, char pie
     int newRow = row + kingMoves[i][0];
     int newCol = col + kingMoves[i][1];
 
-    if (isValidSquare(newRow, newCol))
+    if (ChessUtils::isValidSquare(newRow, newCol))
       if (isSquareEmpty(board, newRow, newCol) ||
           isSquareOccupiedByOpponent(board, newRow, newCol, pieceColor)) {
         moves[moveCount][0] = newRow;
@@ -245,10 +243,6 @@ bool ChessRules::isSquareEmpty(const char board[8][8], int row, int col) {
   return board[row][col] == ' ';
 }
 
-bool ChessRules::isValidSquare(int row, int col) {
-  return ChessUtils::isValidSquare(row, col);
-}
-
 // Move validation
 bool ChessRules::isValidMove(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
   int moveCount = 0;
@@ -267,11 +261,8 @@ bool ChessRules::isValidMove(const char board[8][8], int fromRow, int fromCol, i
 
 // Check if a pawn move results in promotion
 bool ChessRules::isPromotion(char piece, int targetRow) {
-  if (piece == 'P' && targetRow == 0)
-    return true;
-  if (piece == 'p' && targetRow == 7)
-    return true;
-  return false;
+  if (toupper(piece) != 'P') return false;
+  return targetRow == ChessUtils::homeRow(ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
 }
 
 // ---------------------------
@@ -308,32 +299,6 @@ bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, c
   });
 }
 
-// Apply a temporary move on a board copy (for check detection)
-void ChessRules::applyMove(char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags, char& capturedPiece) {
-  capturedPiece = board[toRow][toCol];
-  char movingPiece = board[fromRow][fromCol];
-
-  board[toRow][toCol] = movingPiece;
-  board[fromRow][fromCol] = ' ';
-
-  // Handle castling as a compound move (move rook too)
-  auto ci = ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol, movingPiece);
-  if (ci.isCastling) {
-    char rookPiece = ChessUtils::makePiece('R', ChessUtils::getPieceColor(movingPiece));
-    if (board[toRow][ci.rookFromCol] == rookPiece) {
-      board[toRow][ci.rookToCol] = rookPiece;
-      board[toRow][ci.rookFromCol] = ' ';
-    }
-  }
-
-  // Handle en passant capture
-  auto ei = ChessUtils::checkEnPassant(fromRow, fromCol, toRow, toCol, movingPiece, capturedPiece);
-  if (ei.isCapture) {
-    capturedPiece = board[ei.capturedPawnRow][toCol];
-    board[ei.capturedPawnRow][toCol] = ' ';
-  }
-}
-
 bool ChessRules::leavesInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
   char testBoard[8][8];
   memcpy(testBoard, board, sizeof(testBoard));
@@ -342,7 +307,7 @@ bool ChessRules::leavesInCheck(const char board[8][8], int fromRow, int fromCol,
   char movingColor = ChessUtils::getPieceColor(movingPiece);
 
   char capturedPiece;
-  applyMove(testBoard, fromRow, fromCol, toRow, toCol, flags, capturedPiece);
+  ChessUtils::applyBoardTransform(testBoard, fromRow, fromCol, toRow, toCol, flags, capturedPiece);
 
   int kingPos[1][2];
   if (ChessIterator::findPiece(testBoard, 'K', movingColor, kingPos, 1) == 0)
@@ -375,4 +340,106 @@ bool ChessRules::isCheckmate(const char board[8][8], char kingColor, const Posit
 
 bool ChessRules::isStalemate(const char board[8][8], char colorToMove, const PositionState& flags) {
   return !isCheck(board, colorToMove) && !hasAnyLegalMove(board, colorToMove, flags);
+}
+
+bool ChessRules::isInsufficientMaterial(const char board[8][8]) {
+  int whiteMinorCount = 0, blackMinorCount = 0;
+  int whiteBishopSquareColor = -1, blackBishopSquareColor = -1;
+
+  for (int r = 0; r < 8; r++) {
+    for (int c = 0; c < 8; c++) {
+      char piece = board[r][c];
+      if (piece == ' ' || piece == 'K' || piece == 'k') continue;
+
+      // Any pawn, rook, or queen means sufficient material
+      if (piece == 'P' || piece == 'p' ||
+          piece == 'R' || piece == 'r' ||
+          piece == 'Q' || piece == 'q')
+        return false;
+
+      int squareColor = (r + c) % 2;
+      if (piece == 'N' || piece == 'B') {
+        whiteMinorCount++;
+        if (piece == 'B') whiteBishopSquareColor = squareColor;
+      } else { // 'n' or 'b'
+        blackMinorCount++;
+        if (piece == 'b') blackBishopSquareColor = squareColor;
+      }
+
+      // Two minor pieces on the same side is sufficient (K+B+N, K+N+N, etc.)
+      if (whiteMinorCount > 1 || blackMinorCount > 1) return false;
+    }
+  }
+
+  // K vs K
+  if (whiteMinorCount == 0 && blackMinorCount == 0) return true;
+
+  // K+B vs K  or  K+N vs K
+  if ((whiteMinorCount == 1 && blackMinorCount == 0) ||
+      (whiteMinorCount == 0 && blackMinorCount == 1))
+    return true;
+
+  // K+B vs K+B with same-color bishops
+  if (whiteMinorCount == 1 && blackMinorCount == 1 &&
+      whiteBishopSquareColor >= 0 && blackBishopSquareColor >= 0 &&
+      whiteBishopSquareColor == blackBishopSquareColor)
+    return true;
+
+  return false;
+}
+
+bool ChessRules::isThreefoldRepetition(const uint64_t* positionHistory, int positionHistoryCount) {
+  // Minimum 5 half-moves for 3 occurrences of the same position
+  if (positionHistoryCount < 5) return false;
+
+  uint64_t current = positionHistory[positionHistoryCount - 1];
+  int count = 1;  // current position counts as 1
+
+  // Scan backwards, skipping every other entry (only same side-to-move
+  // can match). Backwards scan finds recent repetitions faster.
+  for (int i = positionHistoryCount - 3; i >= 0; i -= 2) {
+    if (positionHistory[i] == current) {
+      count++;
+      if (count >= 3) return true;
+    }
+  }
+  return false;
+}
+
+bool ChessRules::isFiftyMoveRule(const PositionState& state) {
+  return state.halfmoveClock >= 100;
+}
+
+bool ChessRules::isDraw(const char board[8][8], char colorToMove, const PositionState& state,
+                        const uint64_t* positionHistory, int positionHistoryCount) {
+  return isStalemate(board, colorToMove, state)
+      || isFiftyMoveRule(state)
+      || isInsufficientMaterial(board)
+      || isThreefoldRepetition(positionHistory, positionHistoryCount);
+}
+
+GameResult ChessRules::isGameOver(const char board[8][8], char colorToMove, const PositionState& state,
+                                  const uint64_t* positionHistory, int positionHistoryCount, char& winner) {
+  if (isCheckmate(board, colorToMove, state)) {
+    winner = ChessUtils::opponentColor(colorToMove);
+    return GameResult::CHECKMATE;
+  }
+  if (isStalemate(board, colorToMove, state)) {
+    winner = 'd';
+    return GameResult::STALEMATE;
+  }
+  if (isFiftyMoveRule(state)) {
+    winner = 'd';
+    return GameResult::DRAW_50;
+  }
+  if (isInsufficientMaterial(board)) {
+    winner = 'd';
+    return GameResult::DRAW_INSUFFICIENT;
+  }
+  if (isThreefoldRepetition(positionHistory, positionHistoryCount)) {
+    winner = 'd';
+    return GameResult::DRAW_3FOLD;
+  }
+  winner = ' ';
+  return GameResult::IN_PROGRESS;
 }

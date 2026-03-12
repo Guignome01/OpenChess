@@ -97,7 +97,7 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
       col = 0;
     } else if (c >= '1' && c <= '8') {
       col += c - '0';
-    } else if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
+    } else if (ChessUtils::isWhitePiece(c) || ChessUtils::isBlackPiece(c)) {
       if (ChessUtils::isValidSquare(row, col)) {
         board[row][col] = c;
         col++;

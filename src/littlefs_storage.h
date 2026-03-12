@@ -41,7 +41,7 @@ class LittleFSStorage : public IGameStorage {
   static bool quietExists(const char* path);
 
  private:
-  ILogger* logger_;
+  Log logger_;
 
   static constexpr const char* GAMES_DIR = "/games";
   static constexpr const char* LIVE_MOVES_PATH = "/games/live.bin";

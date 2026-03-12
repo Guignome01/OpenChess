@@ -188,7 +188,7 @@ class ChessHistory {
 
   // Recording (persistent storage)
   IGameStorage* storage_;
-  ILogger* logger_;
+  Log logger_;
   GameHeader header_;
   bool recordingActive_;
   bool headerInitialized_;   // true after first setHeader in this session

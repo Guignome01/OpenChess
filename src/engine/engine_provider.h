@@ -1,6 +1,7 @@
 #ifndef ENGINE_PROVIDER_H
 #define ENGINE_PROVIDER_H
 
+#include "logger.h"
 #include "types.h"
 #include <Arduino.h>
 #include <atomic>
@@ -32,6 +33,7 @@ struct BaseTaskContext {
   std::atomic<bool> cancel{false};
   std::atomic<bool> ready{false};
   EngineResult result;
+  Log logger;
 };
 
 // Base class for chess engine providers.
@@ -40,6 +42,7 @@ struct BaseTaskContext {
 // they never touch ChessGame, BoardDriver, or any hardware.
 class EngineProvider {
  public:
+  explicit EngineProvider(ILogger* logger = nullptr) : logger_(logger) {}
   virtual ~EngineProvider() { cancelRequest(); }
 
   // Lifecycle — called once during BotMode::begin(). May block (HTTP calls).
@@ -75,15 +78,17 @@ class EngineProvider {
   virtual float getEvaluation() { return 0.0f; }
 
  protected:
+  Log logger_;
   BaseTaskContext* activeTask_ = nullptr;
 
   // Spawn a FreeRTOS task with the given context. Cancels any running task first.
   void spawnTask(BaseTaskContext* ctx, const char* name,
                  TaskFunction_t taskFn, uint32_t stackSize = 8192) {
     if (activeTask_) cancelRequest();
+    ctx->logger = logger_;
     activeTask_ = ctx;
     if (xTaskCreate(taskFn, name, stackSize, ctx, 1, nullptr) != pdPASS) {
-      Serial.println("EngineProvider: xTaskCreate failed (OOM?)");
+      logger_.error("EngineProvider: xTaskCreate failed (OOM?)");
       delete activeTask_;
       activeTask_ = nullptr;
     }

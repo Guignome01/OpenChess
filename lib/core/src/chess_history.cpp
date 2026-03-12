@@ -127,7 +127,7 @@ void ChessHistory::setHeader(const GameHeader& header) {
   headerInitialized_ = true;
   movesSinceFlush_ = 0;
 
-  if (logger_) logger_->info("ChessHistory: new recording started");
+  logger_.info("ChessHistory: new recording started");
 }
 
 void ChessHistory::snapshotPosition(const std::string& fen) {
@@ -157,8 +157,7 @@ void ChessHistory::save(GameResult result, char winnerColor) {
   storage_->finalizeGame(header_);
   storage_->enforceStorageLimits();
 
-  if (logger_)
-    logger_->infof("ChessHistory: recording saved (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
+  logger_.infof("ChessHistory: recording saved (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
 }
 
 void ChessHistory::discard() {
@@ -200,11 +199,11 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   GameHeader hdr;
   if (!storage_->readHeader(hdr)) return false;
   if (hdr.version != FORMAT_VERSION) {
-    if (logger_) logger_->error("ChessHistory: incompatible format version");
+    logger_.error("ChessHistory: incompatible format version");
     return false;
   }
   if (hdr.fenEntryCnt == 0) {
-    if (logger_) logger_->error("ChessHistory: no FEN in live game, cannot resume");
+    logger_.error("ChessHistory: no FEN in live game, cannot resume");
     return false;
   }
 
@@ -217,7 +216,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   // Read last FEN
   std::string lastFen;
   if (!storage_->readFenAt(hdr.lastFenOffset, lastFen) || lastFen.empty()) {
-    if (logger_) logger_->error("ChessHistory: failed to read last FEN");
+    logger_.error("ChessHistory: failed to read last FEN");
     return false;
   }
 
@@ -232,15 +231,15 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   }
 
   if (lastFenIdx < 0) {
-    if (logger_) logger_->error("ChessHistory: FEN marker not found in moves");
+    logger_.error("ChessHistory: FEN marker not found in moves");
     return false;
   }
 
-  if (logger_) logger_->infof("ChessHistory: resuming from FEN: %s", lastFen.c_str());
+  logger_.infof("ChessHistory: resuming from FEN: %s", lastFen.c_str());
 
   // Load FEN into board, then replay subsequent moves
   if (!board.loadFEN(lastFen)) {
-    if (logger_) logger_->error("ChessHistory: invalid FEN in recording");
+    logger_.error("ChessHistory: invalid FEN in recording");
     return false;
   }
 
@@ -264,7 +263,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
 
     MoveResult moveResult = board.makeMove(fromRow, fromCol, toRow, toCol, promotion);
     if (!moveResult.valid) {
-      if (logger_) logger_->errorf("ChessHistory: invalid move at entry %d during replay", i);
+      logger_.errorf("ChessHistory: invalid move at entry %d during replay", i);
       return false;
     }
 
@@ -285,8 +284,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   recordingActive_ = true;
   headerInitialized_ = true;
 
-  if (logger_)
-    logger_->infof("ChessHistory: replayed %d moves from last FEN marker, game resumed", replayed);
+  logger_.infof("ChessHistory: replayed %d moves from last FEN marker, game resumed", replayed);
 
   return true;
 }

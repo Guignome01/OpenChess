@@ -3,11 +3,10 @@
 #include <cstring>
 
 #include "chess_notation.h"
-#include "chess_rules.h"
 
 ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
-    : history_(storage, logger), observer_(observer), batchDepth_(0), batchDirty_(false),
-      gameOver_(false), gameResult_(GameResult::IN_PROGRESS), winnerColor_(' ') {}
+    : history_(storage, logger), observer_(observer), logger_(logger), batchDepth_(0),
+      batchDirty_(false), gameOver_(false), gameResult_(GameResult::IN_PROGRESS), winnerColor_(' ') {}
 
 static const char* STANDARD_START_FEN =
     "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -48,6 +47,13 @@ void ChessGame::endGame(GameResult result, char winnerColor) {
   gameOver_ = true;
   gameResult_ = result;
   winnerColor_ = winnerColor;
+
+  if (winnerColor == ' ' || winnerColor == 'd')
+    logger_.infof("Game over: %s", ChessUtils::gameResultName(result));
+  else
+    logger_.infof("Game over: %s \xe2\x80\x94 %s wins!",
+                   ChessUtils::gameResultName(result), ChessUtils::colorName(winnerColor));
+
   history_.save(result, winnerColor);  // no-op if not recording
   notifyObserver();
 }
@@ -73,16 +79,32 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   MoveResult result = board_.makeMove(fromRow, fromCol, toRow, toCol, promotion);
   if (!result.valid) return result;
 
+  // --- Logging ---
+  const char* moveType = result.isCastling    ? "castling"
+                         : result.isEnPassant ? "en passant"
+                         : result.isCapture   ? "capture"
+                                              : "move";
+  logger_.infof("%s: %c %s -> %s", moveType, piece,
+                 ChessUtils::squareName(fromRow, fromCol).c_str(),
+                 ChessUtils::squareName(toRow, toCol).c_str());
+  if (result.isPromotion)
+    logger_.infof("Pawn promoted to %c", result.promotedTo);
+
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
   MoveEntry entry = buildMoveEntry(fromRow, fromCol, toRow, toCol, piece, targetPiece, result, prevState);
   history_.addMove(entry);
 
   // Auto-end game on checkmate/stalemate/draw
-  if (result.gameResult != GameResult::IN_PROGRESS)
+  if (result.gameResult != GameResult::IN_PROGRESS) {
     endGame(result.gameResult, result.winnerColor);  // calls notifyObserver()
-  else
+  } else {
+    if (result.isCheck) {
+      logger_.infof("%s is in check!", ChessUtils::colorName(board_.currentTurn()));
+    }
+    logger_.infof("It's %s's turn", ChessUtils::colorName(board_.currentTurn()));
     notifyObserver();
+  }
 
   return result;
 }
@@ -244,18 +266,6 @@ bool ChessGame::hasActiveGame() {
 
 bool ChessGame::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
   return history_.getActiveGameInfo(mode, playerColor, botDepth);
-}
-
-// ---------------------------------------------------------------------------
-// Draw queries
-// ---------------------------------------------------------------------------
-
-bool ChessGame::isDraw() const {
-  return board_.isDraw();
-}
-
-bool ChessGame::isThreefoldRepetition() const {
-  return board_.isThreefoldRepetition();
 }
 
 // ---------------------------------------------------------------------------

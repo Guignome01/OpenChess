@@ -1,5 +1,4 @@
 #include "lichess_provider.h"
-#include "engine/lichess/lichess_api.h"
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 
@@ -21,8 +20,8 @@ static char lichessWinnerToColor(const String& winner) {
   return 'd';
 }
 
-LichessProvider::LichessProvider(const LichessConfig& config)
-    : config_(config) {}
+LichessProvider::LichessProvider(const LichessConfig& config, ILogger* logger)
+    : EngineProvider(logger), config_(config), api_(config_, logger) {}
 
 // ---------------------------------------------------------------
 // initialize() — blocking game discovery (BotMode wraps with animation)
@@ -30,29 +29,27 @@ LichessProvider::LichessProvider(const LichessConfig& config)
 
 bool LichessProvider::initialize(EngineInitResult& result) {
   if (config_.apiToken.length() == 0) {
-    Serial.println("LichessProvider: no API token configured");
+    logger_.error("LichessProvider: no API token configured");
     return false;
   }
-
-  LichessAPI::setToken(config_.apiToken);
 
   String username;
-  if (!LichessAPI::verifyToken(username)) {
-    Serial.println("LichessProvider: invalid API token");
+  if (!api_.verifyToken(username)) {
+    logger_.error("LichessProvider: invalid API token");
     return false;
   }
-  Serial.println("Lichess: logged in as " + username);
-  Serial.println("Waiting for a Lichess game...");
+  logger_.infof("Lichess: logged in as %s", username.c_str());
+  logger_.info("Waiting for a Lichess game...");
 
   // Poll for a game start event (timeout after 3 minutes)
   LichessEvent event;
   event.type = LichessEventType::UNKNOWN;
   unsigned long initDeadline = millis() + 180000;
   while (event.type != LichessEventType::GAME_START) {
-    if (LichessAPI::pollForGameEvent(event) && event.type == LichessEventType::GAME_START)
+    if (api_.pollForGameEvent(event) && event.type == LichessEventType::GAME_START)
       break;
     if (millis() > initDeadline) {
-      Serial.println("LichessProvider: timed out waiting for game");
+      logger_.error("LichessProvider: timed out waiting for game");
       return false;
     }
     delay(2000);
@@ -61,8 +58,8 @@ bool LichessProvider::initialize(EngineInitResult& result) {
   currentGameId_ = event.gameId;
   playerColor_ = event.myColor;
 
-  Serial.println("Game found! ID: " + currentGameId_);
-  Serial.printf("Playing as: %s\n", playerColor_ == 'w' ? "White" : "Black");
+  logger_.infof("Game found! ID: %s", currentGameId_.c_str());
+  logger_.infof("Playing as: %s", playerColor_ == 'w' ? "White" : "Black");
 
   // Get full game state
   LichessGameState state;
@@ -70,8 +67,8 @@ bool LichessProvider::initialize(EngineInitResult& result) {
   state.gameId = currentGameId_;
   state.fen = event.fen;
 
-  if (!LichessAPI::pollGameStream(currentGameId_, state)) {
-    Serial.println("Warning: could not get full game state, using initial event data");
+  if (!api_.pollGameStream(currentGameId_, state)) {
+    logger_.info("Warning: could not get full game state, using initial event data");
     state.gameStarted = true;
     state.gameEnded = false;
     state.lastMove = "";
@@ -98,6 +95,7 @@ bool LichessProvider::initialize(EngineInitResult& result) {
 
 void LichessProvider::requestMove(const std::string& /*fen*/) {
   auto* ctx = new TaskContext();
+  ctx->config = config_;
   ctx->gameId = currentGameId_;
   ctx->playerColor = playerColor_;
   ctx->lastKnownMoveCount = lastKnownMoveCount_;
@@ -119,24 +117,24 @@ bool LichessProvider::checkResult(EngineResult& result) {
 
 bool LichessProvider::onPlayerMoveApplied(const std::string& moveCoord) {
   String coord = String(moveCoord.c_str());
-  Serial.println("Sending move to Lichess: " + coord);
+  logger_.infof("Sending move to Lichess: %s", coord.c_str());
   lastSentMove_ = coord;
 
   const int maxRetries = 3;
   for (int attempt = 0; attempt < maxRetries; attempt++) {
-    if (LichessAPI::makeMove(currentGameId_, coord)) return true;
-    Serial.printf("LichessProvider: send failed, attempt %d/%d\n", attempt + 1, maxRetries);
+    if (api_.makeMove(currentGameId_, coord)) return true;
+    logger_.errorf("LichessProvider: send failed, attempt %d/%d", attempt + 1, maxRetries);
     delay(500);
   }
 
-  Serial.println("LichessProvider: all send attempts failed");
+  logger_.error("LichessProvider: all send attempts failed");
   lastSentMove_ = "";
   return false;
 }
 
 void LichessProvider::onResignConfirmed() {
-  Serial.println("Sending resign to Lichess...");
-  LichessAPI::resignGame(currentGameId_);
+  logger_.info("Sending resign to Lichess...");
+  api_.resignGame(currentGameId_);
 }
 
 // ---------------------------------------------------------------
@@ -147,6 +145,10 @@ void LichessProvider::onResignConfirmed() {
 
 void LichessProvider::taskFunction(void* param) {
   auto* ctx = static_cast<TaskContext*>(param);
+  Log log = ctx->logger;
+
+  // Thread-local API instance — safe for FreeRTOS task (config copied by value)
+  LichessAPI api(ctx->config, log);
 
   static constexpr int MAX_RECONNECT_ATTEMPTS = 5;
   static constexpr unsigned long INITIAL_BACKOFF_MS = 1000;
@@ -161,10 +163,10 @@ void LichessProvider::taskFunction(void* param) {
   while (!ctx->cancel.load()) {
     WiFiClientSecure client;
 
-    if (!LichessAPI::connectGameStream(client, ctx->gameId)) {
+    if (!api.connectGameStream(client, ctx->gameId)) {
       reconnectAttempts++;
       if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-        Serial.println("Lichess stream: all reconnect attempts exhausted, aborting");
+        log.error("Lichess stream: all reconnect attempts exhausted, aborting");
         ctx->result.type = EngineResult::GAME_ENDED;
         ctx->result.gameResult = GameResult::ABORTED;
         ctx->result.winnerColor = ' ';
@@ -172,8 +174,8 @@ void LichessProvider::taskFunction(void* param) {
         vTaskDelete(nullptr);
         return;
       }
-      Serial.printf("Lichess stream: reconnect attempt %d/%d in %lums\n",
-                     reconnectAttempts, MAX_RECONNECT_ATTEMPTS, backoffMs);
+      log.infof("Lichess stream: reconnect attempt %d/%d in %lums",
+                           reconnectAttempts, MAX_RECONNECT_ATTEMPTS, backoffMs);
       delay(backoffMs);
       backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS);
       continue;
@@ -189,9 +191,9 @@ void LichessProvider::taskFunction(void* param) {
       state.myColor = ctx->playerColor;
       state.gameId = ctx->gameId;
 
-      if (!LichessAPI::readStreamEvent(client, state, ctx->cancel, STREAM_READ_TIMEOUT_MS)) {
+      if (!api.readStreamEvent(client, state, ctx->cancel, STREAM_READ_TIMEOUT_MS)) {
         // Connection dropped or timed out — break to reconnect loop
-        Serial.println("Lichess stream: connection lost, will reconnect...");
+        log.info("Lichess stream: connection lost, will reconnect...");
         client.stop();
         break;
       }
@@ -204,7 +206,7 @@ void LichessProvider::taskFunction(void* param) {
           continue;
         }
 
-        Serial.println("Lichess move received: " + state.lastMove);
+        log.infof("Lichess move received: %s", state.lastMove.c_str());
         ctx->lastKnownMoveCount = state.moveCount;
         ctx->result.type = EngineResult::MOVE;
         ctx->result.move = std::string(state.lastMove.c_str());
@@ -216,7 +218,7 @@ void LichessProvider::taskFunction(void* param) {
 
       // External game-end?
       if (state.gameEnded) {
-        Serial.println("Lichess game ended: " + state.status);
+        log.infof("Lichess game ended: %s", state.status.c_str());
         ctx->result.type = EngineResult::GAME_ENDED;
         ctx->result.gameResult = lichessStatusToResult(state.status);
         ctx->result.winnerColor = lichessWinnerToColor(state.winner);

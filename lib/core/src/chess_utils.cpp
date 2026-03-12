@@ -7,6 +7,32 @@
 
 namespace ChessUtils {
 
+void applyBoardTransform(char board[8][8], int fromRow, int fromCol,
+                         int toRow, int toCol,
+                         const PositionState& state, char& capturedPiece) {
+  char piece = board[fromRow][fromCol];
+  capturedPiece = board[toRow][toCol];
+
+  // En passant capture — remove the captured pawn
+  auto ep = checkEnPassant(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
+  if (ep.isCapture) {
+    capturedPiece = board[ep.capturedPawnRow][toCol];
+    board[ep.capturedPawnRow][toCol] = ' ';
+  }
+
+  // Move the piece
+  board[toRow][toCol] = piece;
+  board[fromRow][fromCol] = ' ';
+
+  // Castling — move the rook
+  auto castle = checkCastling(fromRow, fromCol, toRow, toCol, piece);
+  if (castle.isCastling) {
+    char rook = makePiece('R', getPieceColor(piece));
+    board[toRow][castle.rookToCol] = rook;
+    board[toRow][castle.rookFromCol] = ' ';
+  }
+}
+
 float evaluatePosition(const char board[8][8]) {
   // Simple material evaluation
   // Positive = White advantage, negative = Black advantage
@@ -38,14 +64,14 @@ std::string boardToText(const char board[8][8]) {
   std::string result = "====== BOARD ======\n";
   ChessIterator::forEachSquare(board, [&](int row, int col, char piece) {
     if (col == 0) {
-      result += static_cast<char>('0' + (8 - row));
+      result += rankChar(row);
       result += ' ';
     }
     result += (piece == ' ') ? '.' : piece;
     result += ' ';
     if (col == 7) {
       result += ' ';
-      result += static_cast<char>('0' + (8 - row));
+      result += rankChar(row);
       result += '\n';
     }
   });
