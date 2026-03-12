@@ -1,57 +1,45 @@
 #include "chess_utils.h"
 
-#include <cctype>
 #include <string>
 
 #include "chess_iterator.h"
 
 namespace ChessUtils {
 
-void applyBoardTransform(char board[8][8], int fromRow, int fromCol,
+void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
                          int toRow, int toCol,
-                         const PositionState& state, char& capturedPiece) {
-  char piece = board[fromRow][fromCol];
+                         const PositionState& state, Piece& capturedPiece) {
+  Piece piece = board[fromRow][fromCol];
   capturedPiece = board[toRow][toCol];
 
   // En passant capture — remove the captured pawn
   auto ep = checkEnPassant(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   if (ep.isCapture) {
     capturedPiece = board[ep.capturedPawnRow][toCol];
-    board[ep.capturedPawnRow][toCol] = ' ';
+    board[ep.capturedPawnRow][toCol] = Piece::NONE;
   }
 
   // Move the piece
   board[toRow][toCol] = piece;
-  board[fromRow][fromCol] = ' ';
+  board[fromRow][fromCol] = Piece::NONE;
 
   // Castling — move the rook
   auto castle = checkCastling(fromRow, fromCol, toRow, toCol, piece);
   if (castle.isCastling) {
-    char rook = makePiece('R', getPieceColor(piece));
+    Piece rook = ChessPiece::makePiece(ChessPiece::pieceColor(piece), PieceType::ROOK);
     board[toRow][castle.rookToCol] = rook;
-    board[toRow][castle.rookFromCol] = ' ';
+    board[toRow][castle.rookFromCol] = Piece::NONE;
   }
 }
 
-float evaluatePosition(const char board[8][8]) {
-  // Simple material evaluation
-  // Positive = White advantage, negative = Black advantage
+float evaluatePosition(const Piece board[8][8]) {
   float evaluation = 0.0f;
 
-  ChessIterator::forEachPiece(board, [&](int, int, char piece) {
-    float value = 0.0f;
+  ChessIterator::forEachPiece(board, [&](int, int, Piece piece) {
+    float value = ChessPiece::pieceValue(piece);
+    if (value == 0.0f) return;  // King or unknown
 
-    switch (tolower(piece)) {
-      case 'p': value = 1.0f; break;
-      case 'n': value = 3.0f; break;
-      case 'b': value = 3.0f; break;
-      case 'r': value = 5.0f; break;
-      case 'q': value = 9.0f; break;
-      case 'k': return;  // King has no material value
-      default: return;
-    }
-
-    if (isWhitePiece(piece))
+    if (ChessPiece::isWhite(piece))
       evaluation += value;
     else
       evaluation -= value;
@@ -60,14 +48,15 @@ float evaluatePosition(const char board[8][8]) {
   return evaluation;
 }
 
-std::string boardToText(const char board[8][8]) {
+std::string boardToText(const Piece board[8][8]) {
   std::string result = "====== BOARD ======\n";
-  ChessIterator::forEachSquare(board, [&](int row, int col, char piece) {
+  ChessIterator::forEachSquare(board, [&](int row, int col, Piece piece) {
     if (col == 0) {
       result += rankChar(row);
       result += ' ';
     }
-    result += (piece == ' ') ? '.' : piece;
+    char c = ChessPiece::pieceToChar(piece);
+    result += (c == ' ') ? '.' : c;
     result += ' ';
     if (col == 7) {
       result += ' ';

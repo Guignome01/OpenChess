@@ -56,38 +56,15 @@ struct Keys {
 static constexpr Keys KEYS PROGMEM = Keys();
 
 // ---------------------------------------------------------------------------
-// Piece-to-index lookup (constexpr, O(1))
-// ---------------------------------------------------------------------------
-
-constexpr int pieceIndex(char piece) {
-  // P=0 N=1 B=2 R=3 Q=4 K=5 p=6 n=7 b=8 r=9 q=10 k=11
-  switch (piece) {
-    case 'P': return 0;
-    case 'N': return 1;
-    case 'B': return 2;
-    case 'R': return 3;
-    case 'Q': return 4;
-    case 'K': return 5;
-    case 'p': return 6;
-    case 'n': return 7;
-    case 'b': return 8;
-    case 'r': return 9;
-    case 'q': return 10;
-    case 'k': return 11;
-    default:  return -1;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Hash computation
 // ---------------------------------------------------------------------------
 
-inline uint64_t computeHash(const char board[8][8], char turn,
+inline uint64_t computeHash(const Piece board[8][8], Color turn,
                             const PositionState& state) {
   uint64_t hash = 0;
 
-  ChessIterator::forEachPiece(board, [&](int row, int col, char piece) {
-    int idx = pieceIndex(piece);
+  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
+    int idx = ChessPiece::pieceZobristIndex(piece);
     hash ^= KEYS.pieces[idx][row * 8 + col];
   });
 
@@ -97,7 +74,7 @@ inline uint64_t computeHash(const char board[8][8], char turn,
     hash ^= KEYS.enPassant[state.epCol];
   }
 
-  if (turn == 'b') hash ^= KEYS.sideToMove;
+  if (turn == Color::BLACK) hash ^= KEYS.sideToMove;
 
   return hash;
 }

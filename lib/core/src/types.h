@@ -3,6 +3,8 @@
 
 #include <cstdint>
 
+#include "chess_piece.h"
+
 // Complete position state for chess operations.
 // ChessRules is stateless; the caller supplies a PositionState for
 // position-dependent queries (castling rights, en passant target).
@@ -45,7 +47,7 @@ struct MoveResult {
   int epCapturedRow;    // Row of captured en passant pawn (-1 if N/A)
   bool isCastling;      // Castling move
   bool isPromotion;     // Pawn promotion occurred
-  char promotedTo;      // Piece the pawn became (or ' ')
+  Piece promotedTo;     // Piece the pawn became (Piece::NONE if N/A)
   bool isCheck;         // Move puts opponent in check
   GameResult gameResult; // GameResult::IN_PROGRESS if game continues
   char winnerColor;     // 'w', 'b', 'd' (draw), ' ' (in progress)
@@ -53,7 +55,7 @@ struct MoveResult {
 
 // Factory for an invalid (rejected) MoveResult.
 constexpr MoveResult invalidMoveResult() {
-  return {false, false, false, -1, false, false, ' ', false, GameResult::IN_PROGRESS, ' '};
+  return {false, false, false, -1, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
 }
 
 // ---------------------------------------------------------------------------

@@ -1,11 +1,9 @@
 #include "chess_history.h"
 
-#include <cctype>
 #include <cstring>
 #include <vector>
 
 #include "chess_board.h"
-#include "chess_utils.h"
 
 // --- Compact 2-byte move encoding ---
 
@@ -257,8 +255,8 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     decodeMove(moves[i], fromRow, fromCol, toRow, toCol, promotion);
 
     // Capture pre-move state for the MoveEntry
-    char piece = board.getSquare(fromRow, fromCol);
-    char targetPiece = board.getSquare(toRow, toCol);
+    Piece piece = board.getSquare(fromRow, fromCol);
+    Piece targetPiece = board.getSquare(toRow, toCol);
     PositionState prevState = board.positionState();
 
     MoveResult moveResult = board.makeMove(fromRow, fromCol, toRow, toCol, promotion);
@@ -294,7 +292,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
 // ---------------------------------------------------------------------------
 
 void ChessHistory::persistMove(const MoveEntry& entry) {
-  char promo = entry.isPromotion ? entry.promotion : ' ';
+  char promo = entry.isPromotion ? ChessPiece::pieceToChar(entry.promotion) : ' ';
   uint16_t encoded = encodeMove(entry.fromRow, entry.fromCol,
                                 entry.toRow, entry.toCol, promo);
   storage_->appendMoveData(reinterpret_cast<const uint8_t*>(&encoded), 2);

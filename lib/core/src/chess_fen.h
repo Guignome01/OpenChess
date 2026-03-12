@@ -9,13 +9,13 @@ namespace ChessFEN {
 
 // Convert board state to FEN notation.
 // board: 8x8 array (row 0 = rank 8, col 0 = file a).
-// currentTurn: 'w' or 'b'.
+// currentTurn: Color::WHITE or Color::BLACK.
 // state: optional PositionState for castling, en passant, clocks.
-std::string boardToFEN(const char board[8][8], char currentTurn, const PositionState* state = nullptr);
+std::string boardToFEN(const Piece board[8][8], Color currentTurn, const PositionState* state = nullptr);
 
 // Parse FEN notation and populate board, turn, and state.
 // Lenient parser — does not reject invalid FEN. Use validateFEN() first for untrusted input.
-void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, PositionState* state = nullptr);
+void fenToBoard(const std::string& fen, Piece board[8][8], Color& currentTurn, PositionState* state = nullptr);
 
 // Validate FEN string format.
 // Checks: non-empty, 7 slashes, each rank sums to 8, valid piece chars,

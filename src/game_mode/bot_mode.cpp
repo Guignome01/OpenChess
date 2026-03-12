@@ -2,7 +2,6 @@
 #include "chess_game.h"
 #include "led_colors.h"
 #include "system_utils.h"
-#include "chess_utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
@@ -41,8 +40,8 @@ void BotMode::begin() {
 
   playerColor_ = initResult.playerColor;
   logger_.infof("Player: %s, Engine: %s",
-                              playerColor_ == 'w' ? "White" : "Black",
-                              playerColor_ == 'w' ? "Black" : "White");
+                              ChessPiece::colorName(playerColor()),
+                              ChessPiece::colorName(~playerColor()));
 
   if (initResult.canResume && tryResumeGame()) {
     // Resumed from flash — skip new game
@@ -55,7 +54,7 @@ void BotMode::begin() {
   waitForBoardSetup();
 
   // If it's the engine's turn after setup, start requesting immediately
-  if (chess_->currentTurn() != playerColor_) {
+  if (chess_->currentTurn() != playerColor()) {
     startThinking();
     provider_->requestMove(chess_->getFen());
     botState_ = BotState::ENGINE_THINKING;
@@ -81,18 +80,18 @@ void BotMode::update() {
 
   if (botState_ == BotState::PLAYER_TURN) {
     int fromRow, fromCol, toRow, toCol;
-    if (tryPlayerMove(playerColor_, fromRow, fromCol, toRow, toCol)) {
+    if (tryPlayerMove(playerColor(), fromRow, fromCol, toRow, toCol)) {
       MoveResult result = applyMove(fromRow, fromCol, toRow, toCol);
 
       // Notify provider (Lichess sends the move to the server)
-      std::string coord = ChessGame::toCoordinate(fromRow, fromCol, toRow, toCol, result.promotedTo);
+      std::string coord = ChessGame::toCoordinate(fromRow, fromCol, toRow, toCol, ChessPiece::pieceToChar(result.promotedTo));
       if (!provider_->onPlayerMoveApplied(coord)) {
         abortWithError("Failed to send move to server");
         return;
       }
 
       // If the game didn't end and it's now the engine's turn, start engine
-      if (!chess_->isGameOver() && chess_->currentTurn() != playerColor_) {
+      if (!chess_->isGameOver() && chess_->currentTurn() != playerColor()) {
         engineRetryCount_ = 0;
         startThinking();
         provider_->requestMove(chess_->getFen());
@@ -140,12 +139,12 @@ void BotMode::applyEngineMove(const std::string& move) {
   }
 
   // Verify the move is from the correct color piece
-  char piece = chess_->getSquare(fromRow, fromCol);
-  char engineColor = ChessUtils::opponentColor(playerColor_);
+  Piece piece = chess_->getSquare(fromRow, fromCol);
+  Color engineColor = ~playerColor();
 
-  if (piece == ' ' || ChessUtils::getPieceColor(piece) != engineColor) {
+  if (ChessPiece::isEmpty(piece) || ChessPiece::pieceColor(piece) != engineColor) {
     logger_.errorf("BotMode: engine move from invalid square (%d,%d) piece='%c'",
-                                 fromRow, fromCol, piece);
+                                 fromRow, fromCol, ChessPiece::pieceToChar(piece));
     return;
   }
 
@@ -156,7 +155,7 @@ void BotMode::applyEngineMove(const std::string& move) {
 void BotMode::handleRemoteGameEnd(const EngineResult& result) {
   LedRGB color = (result.winnerColor == 'd')
                      ? LedColors::Cyan
-                     : SystemUtils::colorLed(result.winnerColor);
+                     : SystemUtils::colorLed(result.winnerColor == 'w' ? Color::WHITE : Color::BLACK);
   boardDriver_->fireworkAnimation(color);
   chess_->endGame(result.gameResult, result.winnerColor);
 }
@@ -180,14 +179,14 @@ void BotMode::onBeforeResignConfirm() {
 }
 
 void BotMode::onResignCancelled() {
-  if (wasThinkingBeforeResign_ && chess_->currentTurn() != playerColor_ && !chess_->isGameOver()) {
+  if (wasThinkingBeforeResign_ && chess_->currentTurn() != playerColor() && !chess_->isGameOver()) {
     startThinking();
     provider_->requestMove(chess_->getFen());
     botState_ = BotState::ENGINE_THINKING;
   }
 }
 
-void BotMode::onResignConfirmed(char resignColor) {
+void BotMode::onResignConfirmed(Color resignColor) {
   provider_->onResignConfirmed();
 }
 

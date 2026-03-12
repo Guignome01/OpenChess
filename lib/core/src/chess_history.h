@@ -7,7 +7,6 @@
 #include "game_storage.h"
 #include "logger.h"
 #include "types.h"
-#include "chess_utils.h"
 
 class ChessBoard;  // forward declaration for replayInto()
 
@@ -17,12 +16,12 @@ class ChessBoard;  // forward declaration for replayInto()
 struct MoveEntry {
   int fromRow, fromCol;
   int toRow, toCol;
-  char piece;           // piece that moved (original, before any promotion)
-  char captured;        // piece captured (' ' if none)
-  char promotion;       // piece promoted to (' ' if not a promotion)
+  Piece piece;           // piece that moved (original, before any promotion)
+  Piece captured;        // piece captured (Piece::NONE if none)
+  Piece promotion;       // piece promoted to (Piece::NONE if not a promotion)
   bool isCapture;
   bool isEnPassant;
-  int epCapturedRow;    // en passant captured pawn row (-1 if N/A)
+  int epCapturedRow;     // en passant captured pawn row (-1 if N/A)
   bool isCastling;
   bool isPromotion;
   bool isCheck;
@@ -32,12 +31,12 @@ struct MoveEntry {
 // Build a MoveEntry from move coordinates and result.
 // Encapsulates captured-piece determination and all field assignments.
 inline MoveEntry buildMoveEntry(int fromRow, int fromCol, int toRow, int toCol,
-                                char piece, char targetPiece,
+                                Piece piece, Piece targetPiece,
                                 const MoveResult& result,
                                 const PositionState& prevState) {
-  char captured = ' ';
+  Piece captured = Piece::NONE;
   if (result.isEnPassant)
-    captured = ChessUtils::makePiece('P', ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
+    captured = ChessPiece::makePiece(~ChessPiece::pieceColor(piece), PieceType::PAWN);
   else if (result.isCapture)
     captured = targetPiece;
 
@@ -48,7 +47,7 @@ inline MoveEntry buildMoveEntry(int fromRow, int fromCol, int toRow, int toCol,
   entry.toCol = toCol;
   entry.piece = piece;
   entry.captured = captured;
-  entry.promotion = result.isPromotion ? result.promotedTo : ' ';
+  entry.promotion = result.isPromotion ? result.promotedTo : Piece::NONE;
   entry.isCapture = result.isCapture;
   entry.isEnPassant = result.isEnPassant;
   entry.epCapturedRow = result.epCapturedRow;

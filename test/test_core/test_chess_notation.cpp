@@ -2,7 +2,7 @@
 
 #include "../test_helpers.h"
 
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ===========================================================================
@@ -102,7 +102,7 @@ void test_toSAN_pawn_push(void) {
   // Standard initial position: e2-e4
   ChessBoard b;
   b.newGame();
-  MoveEntry m = makeEntry(6, 4, 4, 4, 'P');
+  MoveEntry m = makeEntry(6, 4, 4, 4, Piece::W_PAWN);
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("e4", san.c_str());
 }
@@ -110,7 +110,7 @@ void test_toSAN_pawn_push(void) {
 void test_toSAN_knight_move(void) {
   ChessBoard b;
   b.newGame();
-  MoveEntry m = makeEntry(7, 6, 5, 5, 'N');  // Ng1-f3
+  MoveEntry m = makeEntry(7, 6, 5, 5, Piece::W_KNIGHT);  // Ng1-f3
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Nf3", san.c_str());
 }
@@ -119,7 +119,7 @@ void test_toSAN_pawn_capture(void) {
   // Position where white pawn on e4 captures black pawn on d5
   ChessBoard b;
   b.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
-  MoveEntry m = makeEntry(4, 4, 3, 3, 'P', 'p');
+  MoveEntry m = makeEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN);
   m.isCapture = true;
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("exd5", san.c_str());
@@ -128,7 +128,7 @@ void test_toSAN_pawn_capture(void) {
 void test_toSAN_kingside_castling(void) {
   ChessBoard b;
   b.loadFEN("r1bqk1nr/ppppbppp/2n5/4p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4");
-  MoveEntry m = makeEntry(7, 4, 7, 6, 'K');
+  MoveEntry m = makeEntry(7, 4, 7, 6, Piece::W_KING);
   m.isCastling = true;
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("O-O", san.c_str());
@@ -137,7 +137,7 @@ void test_toSAN_kingside_castling(void) {
 void test_toSAN_queenside_castling(void) {
   ChessBoard b;
   b.loadFEN("r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 5");
-  MoveEntry m = makeEntry(7, 4, 7, 2, 'K');
+  MoveEntry m = makeEntry(7, 4, 7, 2, Piece::W_KING);
   m.isCastling = true;
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("O-O-O", san.c_str());
@@ -146,7 +146,7 @@ void test_toSAN_queenside_castling(void) {
 void test_toSAN_promotion(void) {
   ChessBoard b;
   b.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
-  MoveEntry m = makeEntry(1, 4, 0, 4, 'P', ' ', 'Q');
+  MoveEntry m = makeEntry(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, Piece::W_QUEEN);
   m.isPromotion = true;
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("e8=Q", san.c_str());
@@ -161,7 +161,7 @@ void test_toSAN_knight_disambiguation_by_file(void) {
   // Actually neither can reach the same square. Let's set up:
   // Knights on c3 and g3, both can reach e4
   b.loadFEN("4k3/8/8/8/8/2N3N1/8/4K3 w - - 0 1");
-  MoveEntry m = makeEntry(5, 2, 4, 4, 'N');  // Nc3-e4
+  MoveEntry m = makeEntry(5, 2, 4, 4, Piece::W_KNIGHT);  // Nc3-e4
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Nce4", san.c_str());
 }
@@ -170,7 +170,7 @@ void test_toSAN_knight_disambiguation_by_rank(void) {
   // Two knights on e2 and e6, both can reach d4
   ChessBoard b;
   b.loadFEN("4k3/8/4N3/8/8/8/4N3/4K3 w - - 0 1");
-  MoveEntry m = makeEntry(6, 4, 4, 3, 'N');  // Ne2-d4
+  MoveEntry m = makeEntry(6, 4, 4, 3, Piece::W_KNIGHT);  // Ne2-d4
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("N2d4", san.c_str());
 }
@@ -178,7 +178,7 @@ void test_toSAN_knight_disambiguation_by_rank(void) {
 void test_toSAN_rook_capture(void) {
   ChessBoard b;
   b.loadFEN("4k3/8/8/4p3/8/8/8/4K2R w K - 0 1");
-  MoveEntry m = makeEntry(7, 7, 3, 4, 'R', 'p');
+  MoveEntry m = makeEntry(7, 7, 3, 4, Piece::W_ROOK, Piece::B_PAWN);
   m.isCapture = true;
   std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Rxe5", san.c_str());
@@ -189,47 +189,47 @@ void test_toSAN_rook_capture(void) {
 // ===========================================================================
 
 void test_toLAN_pawn_push(void) {
-  MoveEntry m = makeEntry(6, 4, 4, 4, 'P');
+  MoveEntry m = makeEntry(6, 4, 4, 4, Piece::W_PAWN);
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("e2-e4", lan.c_str());
 }
 
 void test_toLAN_knight_move(void) {
-  MoveEntry m = makeEntry(7, 6, 5, 5, 'N');
+  MoveEntry m = makeEntry(7, 6, 5, 5, Piece::W_KNIGHT);
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("Ng1-f3", lan.c_str());
 }
 
 void test_toLAN_capture(void) {
-  MoveEntry m = makeEntry(5, 5, 3, 4, 'N', 'p');
+  MoveEntry m = makeEntry(5, 5, 3, 4, Piece::W_KNIGHT, Piece::B_PAWN);
   m.isCapture = true;
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("Nf3xe5", lan.c_str());
 }
 
 void test_toLAN_kingside_castling(void) {
-  MoveEntry m = makeEntry(7, 4, 7, 6, 'K');
+  MoveEntry m = makeEntry(7, 4, 7, 6, Piece::W_KING);
   m.isCastling = true;
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("O-O", lan.c_str());
 }
 
 void test_toLAN_queenside_castling(void) {
-  MoveEntry m = makeEntry(7, 4, 7, 2, 'K');
+  MoveEntry m = makeEntry(7, 4, 7, 2, Piece::W_KING);
   m.isCastling = true;
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("O-O-O", lan.c_str());
 }
 
 void test_toLAN_promotion(void) {
-  MoveEntry m = makeEntry(1, 4, 0, 4, 'P', ' ', 'Q');
+  MoveEntry m = makeEntry(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, Piece::W_QUEEN);
   m.isPromotion = true;
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("e7-e8=Q", lan.c_str());
 }
 
 void test_toLAN_pawn_capture(void) {
-  MoveEntry m = makeEntry(4, 4, 3, 3, 'P', 'p');
+  MoveEntry m = makeEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN);
   m.isCapture = true;
   std::string lan = ChessNotation::toLAN(m);
   TEST_ASSERT_EQUAL_STRING("e4xd5", lan.c_str());
@@ -511,21 +511,21 @@ void test_roundtrip_san_scholar_mate(void) {
 
   struct Step {
     int fr, fc, tr, tc;
-    char captured;
-    char promo;
+    Piece captured;
+    Piece promo;
     bool castle;
     bool ep;
     const char* expectedSAN;
   };
 
   Step steps[] = {
-      {6, 4, 4, 4, ' ', ' ', false, false, "e4"},      // 1. e4
-      {1, 4, 3, 4, ' ', ' ', false, false, "e5"},      // 1... e5
-      {7, 5, 4, 2, ' ', ' ', false, false, "Bc4"},     // 2. Bc4
-      {0, 1, 2, 2, ' ', ' ', false, false, "Nc6"},     // 2... Nc6
-      {7, 3, 3, 7, ' ', ' ', false, false, "Qh5"},     // 3. Qh5
-      {0, 6, 2, 5, ' ', ' ', false, false, "Nf6"},     // 3... Nf6
-      {3, 7, 1, 5, 'p', ' ', false, false, "Qxf7"},    // 4. Qxf7 (checkmate — suffix added by caller)
+      {6, 4, 4, 4, Piece::NONE, Piece::NONE, false, false, "e4"},      // 1. e4
+      {1, 4, 3, 4, Piece::NONE, Piece::NONE, false, false, "e5"},      // 1... e5
+      {7, 5, 4, 2, Piece::NONE, Piece::NONE, false, false, "Bc4"},     // 2. Bc4
+      {0, 1, 2, 2, Piece::NONE, Piece::NONE, false, false, "Nc6"},     // 2... Nc6
+      {7, 3, 3, 7, Piece::NONE, Piece::NONE, false, false, "Qh5"},     // 3. Qh5
+      {0, 6, 2, 5, Piece::NONE, Piece::NONE, false, false, "Nf6"},     // 3... Nf6
+      {3, 7, 1, 5, Piece::B_PAWN, Piece::NONE, false, false, "Qxf7"},    // 4. Qxf7 (checkmate — suffix added by caller)
   };
 
   for (int i = 0; i < 7; ++i) {
@@ -547,7 +547,8 @@ void test_roundtrip_san_scholar_mate(void) {
     TEST_ASSERT_EQUAL_INT(s.tc, ptc);
 
     // Apply the move to advance the board
-    b.makeMove(s.fr, s.fc, s.tr, s.tc, s.promo);
+    char promoChar = ChessPiece::pieceToChar(s.promo);
+    b.makeMove(s.fr, s.fc, s.tr, s.tc, promoChar);
   }
 }
 

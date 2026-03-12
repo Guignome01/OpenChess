@@ -33,7 +33,7 @@ class GameMode {
   void waitForBoardSetup();
   MoveResult applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion = ' ', bool isRemoteMove = false);
   MoveResult applyMove(const std::string& move);
-  bool tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
+  bool tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
 
   /// Try to resume a live game from ChessGame. Returns true if resumed.
   /// If no live game exists, returns false (caller should start a new game).
@@ -48,7 +48,7 @@ class GameMode {
   /// Handle resign confirmation and game-end sequence.
   /// Uses virtual hooks so subclasses can customize behavior without
   /// duplicating the flow.
-  bool handleResign(char resignColor);
+  bool handleResign(Color resignColor);
 
   // --- Resign hooks (override in subclasses) ---
 
@@ -60,12 +60,12 @@ class GameMode {
   /// Called when the user cancels the resign (e.g. restart thinking).
   virtual void onResignCancelled() {}
   /// Called after resign is confirmed, before endGame (e.g. API calls).
-  virtual void onResignConfirmed(char resignColor) {}
+  virtual void onResignConfirmed(Color resignColor) {}
 
  private:
   /// Blocking loop for the 2 quick lifts after the initial king return.
   /// Called inline from tryPlayerMove(). Returns true if resign was confirmed.
-  bool continueResignGesture(int row, int col, char color);
+  bool continueResignGesture(int row, int col, Color color);
   /// Show scaled orange resign indicator on a square (level 0–3 maps to RESIGN_BRIGHTNESS_LEVELS).
   /// If clearFirst is true, clears all LEDs before setting the indicator.
   void showResignProgress(int row, int col, int level, bool clearFirst = false);
@@ -73,7 +73,7 @@ class GameMode {
   void clearResignFeedback(int row, int col);
 
   // Hardware-only castling interactions (board already updated by ChessBoard)
-  void applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion = false);
+  void applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, Piece kingPiece, bool waitForKingCompletion = false);
   void confirmSquareCompletion(int row, int col);
 
   // Virtual hooks for remote move handling (overridden in subclasses)

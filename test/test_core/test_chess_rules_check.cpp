@@ -2,7 +2,7 @@
 
 #include "../test_helpers.h"
 
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -11,51 +11,51 @@ extern bool needsDefaultKings;
 
 void test_king_not_in_check_initial(void) {
   setupInitialBoard(board);
-  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'w'));
-  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::WHITE));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::BLACK));
 }
 
 void test_king_in_check_by_rook(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "e8"); // rook on same file
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8"); // rook on same file
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_king_in_check_by_bishop(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'b', "h4"); // bishop on diagonal
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_BISHOP, "h4"); // bishop on diagonal
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_king_in_check_by_knight(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'n', "f3"); // knight checks
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_KNIGHT, "f3"); // knight checks
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_king_in_check_by_pawn(void) {
-  placePiece(board, 'K', "e4");
-  placePiece(board, 'p', "d5"); // black pawn attacks e4 from d5
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e4");
+  placePiece(board, Piece::B_PAWN, "d5"); // black pawn attacks e4 from d5
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_king_in_check_by_queen(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'q', "e8"); // queen on same file
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_QUEEN, "e8"); // queen on same file
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_king_not_in_check_blocked(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "e8");
-  placePiece(board, 'P', "e2"); // own pawn blocks rook
-  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'w'));
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8");
+  placePiece(board, Piece::W_PAWN, "e2"); // own pawn blocks rook
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::WHITE));
 }
 
 void test_black_king_in_check(void) {
-  placePiece(board, 'k', "e8");
-  placePiece(board, 'R', "e1"); // white rook attacks
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
+  placePiece(board, Piece::B_KING, "e8");
+  placePiece(board, Piece::W_ROOK, "e1"); // white rook attacks
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::BLACK));
 }
 
 // ---------------------------------------------------------------------------
@@ -64,45 +64,45 @@ void test_black_king_in_check(void) {
 
 void test_back_rank_mate(void) {
   // Classic back-rank mate: Black king on g8, pawns on f7/g7/h7, White rook on e8
-  placePiece(board, 'k', "g8");
-  placePiece(board, 'p', "f7");
-  placePiece(board, 'p', "g7");
-  placePiece(board, 'p', "h7");
-  placePiece(board, 'R', "e8"); // delivers mate
+  placePiece(board, Piece::B_KING, "g8");
+  placePiece(board, Piece::B_PAWN, "f7");
+  placePiece(board, Piece::B_PAWN, "g7");
+  placePiece(board, Piece::B_PAWN, "h7");
+  placePiece(board, Piece::W_ROOK, "e8"); // delivers mate
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', flags));
+  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, Color::BLACK, flags));
 }
 
 void test_scholars_mate(void) {
   // Scholar's mate position: White queen on f7 delivers checkmate
   PositionState state;
-  ChessFEN::fenToBoard("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR", board, *(new char('b')), &state);
-  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', state));
+  ChessFEN::fenToBoard("r1bqkb1r/pppp1Qpp/2n2n2/4p3/2B1P3/8/PPPP1PPP/RNB1K1NR", board, *(new Color(Color::BLACK)), &state);
+  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, Color::BLACK, state));
 }
 
 void test_not_checkmate_can_block(void) {
   // King in check but can block
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'R', "d1"); // own rook can block/interpose
-  placePiece(board, 'r', "e8"); // attacking rook
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_ROOK, "d1"); // own rook can block/interpose
+  placePiece(board, Piece::B_ROOK, "e8"); // attacking rook
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
+  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, Color::WHITE, flags));
 }
 
 void test_not_checkmate_can_escape(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "e8"); // rook checks
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8"); // rook checks
   // King can escape to d1, d2, f1, f2
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
+  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, Color::WHITE, flags));
 }
 
 void test_not_checkmate_can_capture_attacker(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "e2"); // rook checks from e2
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e2"); // rook checks from e2
   // King can capture the rook (assuming no support)
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, 'w', flags));
+  TEST_ASSERT_FALSE(ChessRules::isCheckmate(board, Color::WHITE, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -111,21 +111,21 @@ void test_not_checkmate_can_capture_attacker(void) {
 
 void test_stalemate_king_only(void) {
   // Classic stalemate: Black king on a8, White queen on b6, White king on c6
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'Q', "b6");
-  placePiece(board, 'K', "c6");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_QUEEN, "b6");
+  placePiece(board, Piece::W_KING, "c6");
   PositionState flags{0x00, -1, -1, 0, 1};
   // Black to move — king has no legal moves, not in check
-  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
-  TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::BLACK));
+  TEST_ASSERT_TRUE(ChessRules::isStalemate(board, Color::BLACK, flags));
 }
 
 void test_not_stalemate_has_move(void) {
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'K', "c6");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_KING, "c6");
   PositionState flags{0x00, -1, -1, 0, 1};
   // Black king can move to b8, b7, a7
-  TEST_ASSERT_FALSE(ChessRules::isStalemate(board, 'b', flags));
+  TEST_ASSERT_FALSE(ChessRules::isStalemate(board, Color::BLACK, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -133,8 +133,8 @@ void test_not_stalemate_has_move(void) {
 // ---------------------------------------------------------------------------
 
 void test_king_cannot_move_into_check(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "f8"); // rook controls f-file
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "f8"); // rook controls f-file
   int r, c;
   sq("e1", r, c);
   int tr, tc;
@@ -145,9 +145,9 @@ void test_king_cannot_move_into_check(void) {
 
 void test_pinned_piece_cannot_move(void) {
   // Bishop pinned to its own king
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'B', "e2"); // bishop on same file, between king and rook
-  placePiece(board, 'r', "e8"); // enemy rook pins bishop
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_BISHOP, "e2"); // bishop on same file, between king and rook
+  placePiece(board, Piece::B_ROOK, "e8"); // enemy rook pins bishop
   int r, c;
   sq("e2", r, c);
   int tr, tc;
@@ -159,9 +159,9 @@ void test_pinned_piece_cannot_move(void) {
 
 void test_pinned_piece_can_move_along_pin(void) {
   // Rook pinned along file — can move along that file
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'R', "e4"); // own rook on same file
-  placePiece(board, 'r', "e8"); // enemy rook pins
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_ROOK, "e4"); // own rook on same file
+  placePiece(board, Piece::B_ROOK, "e8"); // enemy rook pins
   int r, c;
   sq("e4", r, c);
   int tr, tc;
@@ -176,23 +176,23 @@ void test_pinned_piece_can_move_along_pin(void) {
 
 void test_hasLegalEnPassantCapture_true(void) {
   // White pawn on e5, black pawn on d5, EP target d6
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'P', "e5");
-  placePiece(board, 'p', "d5");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_PAWN, "e5");
+  placePiece(board, Piece::B_PAWN, "d5");
   int epR, epC;
   sq("d6", epR, epC);
   PositionState flags{0x00, epR, epC, 0, 1};
-  TEST_ASSERT_TRUE(ChessRules::hasLegalEnPassantCapture(board, 'w', flags));
+  TEST_ASSERT_TRUE(ChessRules::hasLegalEnPassantCapture(board, Color::WHITE, flags));
 }
 
 void test_hasLegalEnPassantCapture_false_no_target(void) {
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'P', "e5");
-  placePiece(board, 'p', "d5");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_PAWN, "e5");
+  placePiece(board, Piece::B_PAWN, "d5");
   PositionState flags{0x00, -1, -1, 0, 1}; // no EP target
-  TEST_ASSERT_FALSE(ChessRules::hasLegalEnPassantCapture(board, 'w', flags));
+  TEST_ASSERT_FALSE(ChessRules::hasLegalEnPassantCapture(board, Color::WHITE, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -200,31 +200,31 @@ void test_hasLegalEnPassantCapture_false_no_target(void) {
 // ---------------------------------------------------------------------------
 
 void test_isSquareUnderAttack_by_pawn(void) {
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'p', "d5");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::B_PAWN, "d5");
   int r, c;
   sq("e4", r, c);
   // e4 is attacked by black pawn from d5 (defending color = white → attacker = black)
-  TEST_ASSERT_TRUE(ChessRules::isSquareUnderAttack(board, r, c, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isSquareUnderAttack(board, r, c, Color::WHITE));
 }
 
 void test_isSquareUnderAttack_by_knight(void) {
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'n', "f3");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::B_KNIGHT, "f3");
   int r, c;
   sq("e1", r, c);
-  TEST_ASSERT_TRUE(ChessRules::isSquareUnderAttack(board, r, c, 'w'));
+  TEST_ASSERT_TRUE(ChessRules::isSquareUnderAttack(board, r, c, Color::WHITE));
 }
 
 void test_isSquareUnderAttack_not_attacked(void) {
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'n', "f3");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::B_KNIGHT, "f3");
   int r, c;
   sq("a4", r, c);
-  TEST_ASSERT_FALSE(ChessRules::isSquareUnderAttack(board, r, c, 'w'));
+  TEST_ASSERT_FALSE(ChessRules::isSquareUnderAttack(board, r, c, Color::WHITE));
 }
 
 // ---------------------------------------------------------------------------
@@ -234,10 +234,10 @@ void test_isSquareUnderAttack_not_attacked(void) {
 void test_discovered_check(void) {
   // White bishop on c1 blocks white rook on a1 from checking black king on h1.
   // Move the bishop away to reveal the rook check.
-  placePiece(board, 'k', "h1");
-  placePiece(board, 'K', "a8");
-  placePiece(board, 'R', "a1"); // rook on a1
-  placePiece(board, 'B', "d1"); // bishop blocks rank 1
+  placePiece(board, Piece::B_KING, "h1");
+  placePiece(board, Piece::W_KING, "a8");
+  placePiece(board, Piece::W_ROOK, "a1"); // rook on a1
+  placePiece(board, Piece::W_BISHOP, "d1"); // bishop blocks rank 1
   // After bishop moves to e2 (off rank 1), rook gives check along rank 1
   // Verify the bishop CAN move (it would reveal check on opponent's king)
   int r, c;
@@ -251,15 +251,15 @@ void test_discovered_check(void) {
 void test_double_check_only_king_can_move(void) {
   // Black king in double check from white rook and bishop.
   // Only king moves should be legal — no blocks or captures by other pieces.
-  placePiece(board, 'k', "e8");
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'R', "e1"); // rook checks along e-file
-  placePiece(board, 'B', "b5"); // bishop checks along b5-e8 diagonal
-  placePiece(board, 'n', "d6"); // black knight could theoretically block/capture
+  placePiece(board, Piece::B_KING, "e8");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::W_ROOK, "e1"); // rook checks along e-file
+  placePiece(board, Piece::W_BISHOP, "b5"); // bishop checks along b5-e8 diagonal
+  placePiece(board, Piece::B_KNIGHT, "d6"); // black knight could theoretically block/capture
 
   PositionState flags{0x00, -1, -1, 0, 1};
   // King is in check
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::BLACK));
   // Knight on d6 cannot resolve double check (even though it attacks both e4 and b5)
   int moveCount = 0;
   int moves[28][2];
@@ -271,36 +271,36 @@ void test_double_check_only_king_can_move(void) {
 
 void test_smothered_mate(void) {
   // Philidor's smothered mate: Kh8, Rg8, g7/h7 pawns, white Nf7#
-  placePiece(board, 'k', "h8");
-  placePiece(board, 'r', "g8"); // own rook blocks g8
-  placePiece(board, 'p', "g7");
-  placePiece(board, 'p', "h7");
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'N', "f7"); // knight checks h8, blocks via g8/g7/h7
+  placePiece(board, Piece::B_KING, "h8");
+  placePiece(board, Piece::B_ROOK, "g8"); // own rook blocks g8
+  placePiece(board, Piece::B_PAWN, "g7");
+  placePiece(board, Piece::B_PAWN, "h7");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::W_KNIGHT, "f7"); // knight checks h8, blocks via g8/g7/h7
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_TRUE(ChessRules::isCheck(board, 'b'));
-  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, 'b', flags));
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::BLACK));
+  TEST_ASSERT_TRUE(ChessRules::isCheckmate(board, Color::BLACK, flags));
 }
 
 void test_stalemate_with_blocked_pawns(void) {
   // Black king on a8, black pawn on a7 blocked by white pawn on a6.
   // White king on c7 controls b8, b7, c8, d8, d7.
   // Black has no legal moves: king surrounded, pawn blocked.
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'p', "a7");
-  placePiece(board, 'P', "a6"); // blocks the pawn
-  placePiece(board, 'K', "c7"); // controls b8, b7, c8, d8, d7
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::B_PAWN, "a7");
+  placePiece(board, Piece::W_PAWN, "a6"); // blocks the pawn
+  placePiece(board, Piece::W_KING, "c7"); // controls b8, b7, c8, d8, d7
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::isCheck(board, 'b'));
-  TEST_ASSERT_TRUE(ChessRules::isStalemate(board, 'b', flags));
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::BLACK));
+  TEST_ASSERT_TRUE(ChessRules::isStalemate(board, Color::BLACK, flags));
 }
 
 void test_diagonal_pin(void) {
   // Black pawn on d4 pinned to black king on g7 by white bishop on a1
-  placePiece(board, 'k', "g7");
-  placePiece(board, 'K', "a8");
-  placePiece(board, 'p', "d4");
-  placePiece(board, 'B', "a1"); // pins d4 to g7 along diagonal
+  placePiece(board, Piece::B_KING, "g7");
+  placePiece(board, Piece::W_KING, "a8");
+  placePiece(board, Piece::B_PAWN, "d4");
+  placePiece(board, Piece::W_BISHOP, "a1"); // pins d4 to g7 along diagonal
   int r, c;
   sq("d4", r, c);
   PositionState flags{0x00, -1, -1, 0, 1};

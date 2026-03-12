@@ -1,17 +1,16 @@
 #include "chess_rules.h"
 #include "chess_iterator.h"
 #include "chess_utils.h"
-#include <cctype>
 #include <cstring>
 
 // ---------------------------
 // ChessRules Implementation (stateless)
 // ---------------------------
 
-bool ChessRules::hasLegalEnPassantCapture(const char board[8][8], char sideToMove, const PositionState& flags) {
+bool ChessRules::hasLegalEnPassantCapture(const Piece board[8][8], Color sideToMove, const PositionState& flags) {
   if (flags.epRow < 0 || flags.epCol < 0) return false;
-  int capturerRow = flags.epRow - ChessUtils::pawnDirection(sideToMove);
-  char capturerPawn = ChessUtils::makePiece('P', sideToMove);
+  int capturerRow = flags.epRow - ChessPiece::pawnDirection(sideToMove);
+  Piece capturerPawn = ChessPiece::makePiece(sideToMove, PieceType::PAWN);
   if (flags.epCol > 0 && board[capturerRow][flags.epCol - 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol - 1, flags.epRow, flags.epCol, flags))
     return true;
   if (flags.epCol < 7 && board[capturerRow][flags.epCol + 1] == capturerPawn && !leavesInCheck(board, capturerRow, flags.epCol + 1, flags.epRow, flags.epCol, flags))
@@ -20,39 +19,41 @@ bool ChessRules::hasLegalEnPassantCapture(const char board[8][8], char sideToMov
 }
 
 // Generate pseudo-legal moves (without check filtering)
-void ChessRules::getPseudoLegalMoves(const char board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling) {
+void ChessRules::getPseudoLegalMoves(const Piece board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling) {
   moveCount = 0;
-  char piece = board[row][col];
+  Piece piece = board[row][col];
 
-  if (piece == ' ')
+  if (piece == Piece::NONE)
     return;
 
-  char pieceColor = ChessUtils::getPieceColor(piece);
+  Color pieceColor = ChessPiece::pieceColor(piece);
 
-  switch (toupper(piece)) {
-    case 'P':
+  switch (ChessPiece::pieceType(piece)) {
+    case PieceType::PAWN:
       addPawnMoves(board, row, col, pieceColor, flags, moveCount, moves);
       break;
-    case 'R':
+    case PieceType::ROOK:
       addRookMoves(board, row, col, pieceColor, moveCount, moves);
       break;
-    case 'N':
+    case PieceType::KNIGHT:
       addKnightMoves(board, row, col, pieceColor, moveCount, moves);
       break;
-    case 'B':
+    case PieceType::BISHOP:
       addBishopMoves(board, row, col, pieceColor, moveCount, moves);
       break;
-    case 'Q':
+    case PieceType::QUEEN:
       addQueenMoves(board, row, col, pieceColor, moveCount, moves);
       break;
-    case 'K':
+    case PieceType::KING:
       addKingMoves(board, row, col, pieceColor, flags, moveCount, moves, includeCastling);
+      break;
+    default:
       break;
   }
 }
 
 // Main move generation function (returns only legal moves)
-void ChessRules::getPossibleMoves(const char board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2]) {
+void ChessRules::getPossibleMoves(const Piece board[8][8], int row, int col, const PositionState& flags, int& moveCount, int moves[][2]) {
   int pseudoMoves[MAX_MOVES_PER_PIECE][2];
   int pseudoMoveCount = 0;
 
@@ -72,8 +73,8 @@ void ChessRules::getPossibleMoves(const char board[8][8], int row, int col, cons
 }
 
 // Pawn move generation
-void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pieceColor, const PositionState& flags, int& moveCount, int moves[][2]) {
-  int direction = ChessUtils::pawnDirection(pieceColor);
+void ChessRules::addPawnMoves(const Piece board[8][8], int row, int col, Color pieceColor, const PositionState& flags, int& moveCount, int moves[][2]) {
+  int direction = ChessPiece::pawnDirection(pieceColor);
 
   // One square forward
   if (ChessUtils::isValidSquare(row + direction, col) && isSquareEmpty(board, row + direction, col)) {
@@ -82,7 +83,7 @@ void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pie
     moveCount++;
 
     // Initial two-square move
-    if (row == ChessUtils::homeRow(pieceColor) + direction)
+    if (row == ChessPiece::homeRow(pieceColor) + direction)
       if (isSquareEmpty(board, row + 2 * direction, col)) {
         moves[moveCount][0] = row + 2 * direction;
         moves[moveCount][1] = col;
@@ -118,7 +119,7 @@ void ChessRules::addPawnMoves(const char board[8][8], int row, int col, char pie
 }
 
 // Sliding piece move generation (shared by rook, bishop, queen)
-void ChessRules::addSlidingMoves(const char board[8][8], int row, int col, char pieceColor, const int directions[][2], int dirCount, int& moveCount, int moves[][2]) {
+void ChessRules::addSlidingMoves(const Piece board[8][8], int row, int col, Color pieceColor, const int directions[][2], int dirCount, int& moveCount, int moves[][2]) {
   for (int d = 0; d < dirCount; d++)
     for (int step = 1; step < 8; step++) {
       int newRow = row + step * directions[d][0];
@@ -143,13 +144,13 @@ void ChessRules::addSlidingMoves(const char board[8][8], int row, int col, char 
 }
 
 // Rook move generation
-void ChessRules::addRookMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]) {
+void ChessRules::addRookMoves(const Piece board[8][8], int row, int col, Color pieceColor, int& moveCount, int moves[][2]) {
   static const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
   addSlidingMoves(board, row, col, pieceColor, directions, 4, moveCount, moves);
 }
 
 // Knight move generation
-void ChessRules::addKnightMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]) {
+void ChessRules::addKnightMoves(const Piece board[8][8], int row, int col, Color pieceColor, int& moveCount, int moves[][2]) {
   int knightMoves[8][2] = {{2, 1}, {1, 2}, {-1, 2}, {-2, 1}, {-2, -1}, {-1, -2}, {1, -2}, {2, -1}};
 
   for (int i = 0; i < 8; i++) {
@@ -167,19 +168,19 @@ void ChessRules::addKnightMoves(const char board[8][8], int row, int col, char p
 }
 
 // Bishop move generation
-void ChessRules::addBishopMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]) {
+void ChessRules::addBishopMoves(const Piece board[8][8], int row, int col, Color pieceColor, int& moveCount, int moves[][2]) {
   static const int directions[4][2] = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
   addSlidingMoves(board, row, col, pieceColor, directions, 4, moveCount, moves);
 }
 
 // Queen move generation (combination of rook and bishop)
-void ChessRules::addQueenMoves(const char board[8][8], int row, int col, char pieceColor, int& moveCount, int moves[][2]) {
+void ChessRules::addQueenMoves(const Piece board[8][8], int row, int col, Color pieceColor, int& moveCount, int moves[][2]) {
   addRookMoves(board, row, col, pieceColor, moveCount, moves);
   addBishopMoves(board, row, col, pieceColor, moveCount, moves);
 }
 
 // King move generation
-void ChessRules::addKingMoves(const char board[8][8], int row, int col, char pieceColor, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling) {
+void ChessRules::addKingMoves(const Piece board[8][8], int row, int col, Color pieceColor, const PositionState& flags, int& moveCount, int moves[][2], bool includeCastling) {
   int kingMoves[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
   for (int i = 0; i < 8; i++) {
@@ -199,10 +200,10 @@ void ChessRules::addKingMoves(const char board[8][8], int row, int col, char pie
     addCastlingMoves(board, row, col, pieceColor, flags.castlingRights, moveCount, moves);
 }
 
-void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char pieceColor, uint8_t castlingRights, int& moveCount, int moves[][2]) {
-  int homeRow = ChessUtils::homeRow(pieceColor);
-  char kingPiece = ChessUtils::makePiece('K', pieceColor);
-  char rookPiece = ChessUtils::makePiece('R', pieceColor);
+void ChessRules::addCastlingMoves(const Piece board[8][8], int row, int col, Color pieceColor, uint8_t castlingRights, int& moveCount, int moves[][2]) {
+  int homeRow = ChessPiece::homeRow(pieceColor);
+  Piece kingPiece = ChessPiece::makePiece(pieceColor, PieceType::KING);
+  Piece rookPiece = ChessPiece::makePiece(pieceColor, PieceType::ROOK);
 
   if (row != homeRow || col != 4) return;
   if (board[row][col] != kingPiece) return;
@@ -212,7 +213,7 @@ void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char
 
   // King-side castling (e -> g)
   if (ChessUtils::hasCastlingRight(castlingRights, pieceColor, true))
-    if (board[homeRow][5] == ' ' && board[homeRow][6] == ' ' && board[homeRow][7] == rookPiece)
+    if (board[homeRow][5] == Piece::NONE && board[homeRow][6] == Piece::NONE && board[homeRow][7] == rookPiece)
       if (!isSquareUnderAttack(board, homeRow, 5, pieceColor) && !isSquareUnderAttack(board, homeRow, 6, pieceColor)) {
         moves[moveCount][0] = homeRow;
         moves[moveCount][1] = 6;
@@ -221,7 +222,7 @@ void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char
 
   // Queen-side castling (e -> c)
   if (ChessUtils::hasCastlingRight(castlingRights, pieceColor, false))
-    if (board[homeRow][3] == ' ' && board[homeRow][2] == ' ' && board[homeRow][1] == ' ' && board[homeRow][0] == rookPiece)
+    if (board[homeRow][3] == Piece::NONE && board[homeRow][2] == Piece::NONE && board[homeRow][1] == Piece::NONE && board[homeRow][0] == rookPiece)
       if (!isSquareUnderAttack(board, homeRow, 3, pieceColor) && !isSquareUnderAttack(board, homeRow, 2, pieceColor)) {
         moves[moveCount][0] = homeRow;
         moves[moveCount][1] = 2;
@@ -230,26 +231,21 @@ void ChessRules::addCastlingMoves(const char board[8][8], int row, int col, char
 }
 
 // Helper functions
-bool ChessRules::isSquareOccupiedByOpponent(const char board[8][8], int row, int col, char pieceColor) {
-  char targetPiece = board[row][col];
-  if (targetPiece == ' ')
-    return false;
-
-  char targetColor = ChessUtils::getPieceColor(targetPiece);
-  return targetColor != pieceColor;
+bool ChessRules::isSquareOccupiedByOpponent(const Piece board[8][8], int row, int col, Color pieceColor) {
+  Piece target = board[row][col];
+  if (target == Piece::NONE) return false;
+  return ChessPiece::pieceColor(target) != pieceColor;
 }
 
-bool ChessRules::isSquareEmpty(const char board[8][8], int row, int col) {
-  return board[row][col] == ' ';
+bool ChessRules::isSquareEmpty(const Piece board[8][8], int row, int col) {
+  return board[row][col] == Piece::NONE;
 }
 
 // Move validation
-bool ChessRules::isValidMove(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
+bool ChessRules::isValidMove(const Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
   int moveCount = 0;
   int moves[MAX_MOVES_PER_PIECE][2];
 
-  // getPossibleMoves already filters out moves that leave the king in check,
-  // so we only need to check if the target square is in the legal move list.
   getPossibleMoves(board, fromRow, fromCol, flags, moveCount, moves);
 
   for (int i = 0; i < moveCount; i++)
@@ -260,30 +256,27 @@ bool ChessRules::isValidMove(const char board[8][8], int fromRow, int fromCol, i
 }
 
 // Check if a pawn move results in promotion
-bool ChessRules::isPromotion(char piece, int targetRow) {
-  if (toupper(piece) != 'P') return false;
-  return targetRow == ChessUtils::homeRow(ChessUtils::opponentColor(ChessUtils::getPieceColor(piece)));
+bool ChessRules::isPromotion(Piece piece, int targetRow) {
+  if (ChessPiece::pieceType(piece) != PieceType::PAWN) return false;
+  return targetRow == ChessPiece::promotionRow(ChessPiece::pieceColor(piece));
 }
 
 // ---------------------------
 // Check Detection Functions
 // ---------------------------
 
-bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, char defendingColor) {
-  char attackingColor = ChessUtils::opponentColor(defendingColor);
+bool ChessRules::isSquareUnderAttack(const Piece board[8][8], int row, int col, Color defendingColor) {
+  Color attackingColor = ~defendingColor;
 
   // Empty flags — attack detection doesn't need castling or en passant.
-  // Pawns are handled separately (attack pattern only, not en passant).
-  // Non-pawn pieces don't use castling in attack mode (includeCastling=false).
   PositionState emptyFlags{0, -1, -1, 0, 0};
 
-  return ChessIterator::somePiece(board, [&](int r, int c, char piece) {
-    char pieceColor = ChessUtils::getPieceColor(piece);
-    if (pieceColor != attackingColor) return false;
+  return ChessIterator::somePiece(board, [&](int r, int c, Piece piece) {
+    if (ChessPiece::pieceColor(piece) != attackingColor) return false;
 
     // Pawns are special: their attack pattern differs from their move pattern.
-    if (toupper(piece) == 'P') {
-      int direction = ChessUtils::pawnDirection(pieceColor);
+    if (ChessPiece::pieceType(piece) == PieceType::PAWN) {
+      int direction = ChessPiece::pawnDirection(attackingColor);
       return (r + direction == row && (c - 1 == col || c + 1 == col));
     }
 
@@ -299,34 +292,36 @@ bool ChessRules::isSquareUnderAttack(const char board[8][8], int row, int col, c
   });
 }
 
-bool ChessRules::leavesInCheck(const char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
-  char testBoard[8][8];
+bool ChessRules::leavesInCheck(const Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags) {
+  Piece testBoard[8][8];
   memcpy(testBoard, board, sizeof(testBoard));
 
-  char movingPiece = testBoard[fromRow][fromCol];
-  char movingColor = ChessUtils::getPieceColor(movingPiece);
+  Piece movingPiece = testBoard[fromRow][fromCol];
+  Color movingColor = ChessPiece::pieceColor(movingPiece);
 
-  char capturedPiece;
+  Piece capturedPiece;
   ChessUtils::applyBoardTransform(testBoard, fromRow, fromCol, toRow, toCol, flags, capturedPiece);
 
+  Piece king = ChessPiece::makePiece(movingColor, PieceType::KING);
   int kingPos[1][2];
-  if (ChessIterator::findPiece(testBoard, 'K', movingColor, kingPos, 1) == 0)
+  if (ChessIterator::findPiece(testBoard, king, kingPos, 1) == 0)
     return true;
 
   return isSquareUnderAttack(testBoard, kingPos[0][0], kingPos[0][1], movingColor);
 }
 
-bool ChessRules::isCheck(const char board[8][8], char kingColor) {
+bool ChessRules::isCheck(const Piece board[8][8], Color kingColor) {
+  Piece king = ChessPiece::makePiece(kingColor, PieceType::KING);
   int kingPos[1][2];
-  if (ChessIterator::findPiece(board, 'K', kingColor, kingPos, 1) == 0)
+  if (ChessIterator::findPiece(board, king, kingPos, 1) == 0)
     return false;
 
   return isSquareUnderAttack(board, kingPos[0][0], kingPos[0][1], kingColor);
 }
 
-bool ChessRules::hasAnyLegalMove(const char board[8][8], char color, const PositionState& flags) {
-  return ChessIterator::somePiece(board, [&](int r, int c, char piece) {
-    if (ChessUtils::getPieceColor(piece) != color) return false;
+bool ChessRules::hasAnyLegalMove(const Piece board[8][8], Color color, const PositionState& flags) {
+  return ChessIterator::somePiece(board, [&](int r, int c, Piece piece) {
+    if (ChessPiece::pieceColor(piece) != color) return false;
     int moveCount = 0;
     int moves[MAX_MOVES_PER_PIECE][2];
     getPossibleMoves(board, r, c, flags, moveCount, moves);
@@ -334,36 +329,37 @@ bool ChessRules::hasAnyLegalMove(const char board[8][8], char color, const Posit
   });
 }
 
-bool ChessRules::isCheckmate(const char board[8][8], char kingColor, const PositionState& flags) {
+bool ChessRules::isCheckmate(const Piece board[8][8], Color kingColor, const PositionState& flags) {
   return isCheck(board, kingColor) && !hasAnyLegalMove(board, kingColor, flags);
 }
 
-bool ChessRules::isStalemate(const char board[8][8], char colorToMove, const PositionState& flags) {
+bool ChessRules::isStalemate(const Piece board[8][8], Color colorToMove, const PositionState& flags) {
   return !isCheck(board, colorToMove) && !hasAnyLegalMove(board, colorToMove, flags);
 }
 
-bool ChessRules::isInsufficientMaterial(const char board[8][8]) {
+bool ChessRules::isInsufficientMaterial(const Piece board[8][8]) {
   int whiteMinorCount = 0, blackMinorCount = 0;
   int whiteBishopSquareColor = -1, blackBishopSquareColor = -1;
 
   for (int r = 0; r < 8; r++) {
     for (int c = 0; c < 8; c++) {
-      char piece = board[r][c];
-      if (piece == ' ' || piece == 'K' || piece == 'k') continue;
+      Piece piece = board[r][c];
+      if (piece == Piece::NONE) continue;
+
+      PieceType type = ChessPiece::pieceType(piece);
+      if (type == PieceType::KING) continue;
 
       // Any pawn, rook, or queen means sufficient material
-      if (piece == 'P' || piece == 'p' ||
-          piece == 'R' || piece == 'r' ||
-          piece == 'Q' || piece == 'q')
+      if (type == PieceType::PAWN || type == PieceType::ROOK || type == PieceType::QUEEN)
         return false;
 
       int squareColor = (r + c) % 2;
-      if (piece == 'N' || piece == 'B') {
+      if (ChessPiece::isWhite(piece)) {
         whiteMinorCount++;
-        if (piece == 'B') whiteBishopSquareColor = squareColor;
-      } else { // 'n' or 'b'
+        if (type == PieceType::BISHOP) whiteBishopSquareColor = squareColor;
+      } else {
         blackMinorCount++;
-        if (piece == 'b') blackBishopSquareColor = squareColor;
+        if (type == PieceType::BISHOP) blackBishopSquareColor = squareColor;
       }
 
       // Two minor pieces on the same side is sufficient (K+B+N, K+N+N, etc.)
@@ -389,14 +385,11 @@ bool ChessRules::isInsufficientMaterial(const char board[8][8]) {
 }
 
 bool ChessRules::isThreefoldRepetition(const uint64_t* positionHistory, int positionHistoryCount) {
-  // Minimum 5 half-moves for 3 occurrences of the same position
   if (positionHistoryCount < 5) return false;
 
   uint64_t current = positionHistory[positionHistoryCount - 1];
-  int count = 1;  // current position counts as 1
+  int count = 1;
 
-  // Scan backwards, skipping every other entry (only same side-to-move
-  // can match). Backwards scan finds recent repetitions faster.
   for (int i = positionHistoryCount - 3; i >= 0; i -= 2) {
     if (positionHistory[i] == current) {
       count++;
@@ -410,7 +403,7 @@ bool ChessRules::isFiftyMoveRule(const PositionState& state) {
   return state.halfmoveClock >= 100;
 }
 
-bool ChessRules::isDraw(const char board[8][8], char colorToMove, const PositionState& state,
+bool ChessRules::isDraw(const Piece board[8][8], Color colorToMove, const PositionState& state,
                         const uint64_t* positionHistory, int positionHistoryCount) {
   return isStalemate(board, colorToMove, state)
       || isFiftyMoveRule(state)
@@ -418,10 +411,10 @@ bool ChessRules::isDraw(const char board[8][8], char colorToMove, const Position
       || isThreefoldRepetition(positionHistory, positionHistoryCount);
 }
 
-GameResult ChessRules::isGameOver(const char board[8][8], char colorToMove, const PositionState& state,
+GameResult ChessRules::isGameOver(const Piece board[8][8], Color colorToMove, const PositionState& state,
                                   const uint64_t* positionHistory, int positionHistoryCount, char& winner) {
   if (isCheckmate(board, colorToMove, state)) {
-    winner = ChessUtils::opponentColor(colorToMove);
+    winner = ChessPiece::colorToChar(~colorToMove);
     return GameResult::CHECKMATE;
   }
   if (isStalemate(board, colorToMove, state)) {

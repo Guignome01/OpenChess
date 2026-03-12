@@ -6,7 +6,7 @@
 #include <types.h>
 
 // Shared globals from test_core.cpp
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 static ChessBoard cb;
@@ -23,13 +23,13 @@ static void setUpBoard(void) {
 
 void test_board_new_game_board(void) {
   setUpBoard();
-  const char (&b)[8][8] = cb.getBoard();
-  TEST_ASSERT_EQUAL_MEMORY(ChessBoard::INITIAL_BOARD, b, 64);
+  const Piece (&b)[8][8] = cb.getBoard();
+  TEST_ASSERT_EQUAL_MEMORY(ChessBoard::INITIAL_BOARD, b, sizeof(ChessBoard::INITIAL_BOARD));
 }
 
 void test_board_new_game_turn(void) {
   setUpBoard();
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_new_game_not_over(void) {
@@ -62,16 +62,16 @@ void test_board_e2e4(void) {
   TEST_ASSERT_FALSE(r.isCastling);
   TEST_ASSERT_FALSE(r.isEnPassant);
   TEST_ASSERT_FALSE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('b', cb.currentTurn());
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[6][4]); // e2 empty
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getBoard()[4][4]); // e4 has pawn
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[6][4]); // e2 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[4][4]); // e4 has pawn
 }
 
 void test_board_illegal_move_rejected(void) {
   setUpBoard();
   MoveResult r = cb.makeMove(6, 4, 3, 4); // e2e5 — not legal
   TEST_ASSERT_FALSE(r.valid);
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn()); // turn unchanged
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn()); // turn unchanged
 }
 
 void test_board_wrong_turn_rejected(void) {
@@ -115,9 +115,9 @@ void test_board_move_after_game_over_rejected(void) {
 
 void test_board_getSquare_returns_piece(void) {
   setUpBoard();
-  TEST_ASSERT_EQUAL_CHAR('R', cb.getSquare(7, 0)); // a1
-  TEST_ASSERT_EQUAL_CHAR('k', cb.getSquare(0, 4)); // e8
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(4, 4)); // e4 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getSquare(7, 0)); // a1
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getSquare(0, 4)); // e8
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(4, 4)); // e4 empty
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ void test_board_invalidMoveResult_fields(void) {
   TEST_ASSERT_EQUAL_INT(-1, r.epCapturedRow);
   TEST_ASSERT_FALSE(r.isCastling);
   TEST_ASSERT_FALSE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR(' ', r.promotedTo);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, r.promotedTo);
   TEST_ASSERT_FALSE(r.isCheck);
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, r.gameResult);
   TEST_ASSERT_EQUAL_CHAR(' ', r.winnerColor);
@@ -149,7 +149,7 @@ void test_board_simple_capture(void) {
   MoveResult r = cb.makeMove(4, 3, 3, 4); // d4xe5
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCapture);
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getBoard()[3][4]); // e5 now has white pawn
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[3][4]); // e5 now has white pawn
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +165,8 @@ void test_board_en_passant_white(void) {
   TEST_ASSERT_TRUE(r.isEnPassant);
   TEST_ASSERT_TRUE(r.isCapture);
   TEST_ASSERT_EQUAL_INT(3, r.epCapturedRow); // captured pawn was on row 3, col 3
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[3][3]); // d5 cleared
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getBoard()[2][3]); // d6 has white pawn
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[3][3]); // d5 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[2][3]); // d6 has white pawn
 }
 
 void test_board_en_passant_black(void) {
@@ -176,8 +176,8 @@ void test_board_en_passant_black(void) {
   MoveResult r = cb.makeMove(4, 3, 5, 4); // d4xe3 en passant
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isEnPassant);
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[4][4]); // e4 cleared
-  TEST_ASSERT_EQUAL_CHAR('p', cb.getBoard()[5][4]); // e3 has black pawn
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[4][4]); // e4 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, cb.getBoard()[5][4]); // e3 has black pawn
 }
 
 void test_board_ep_target_set_after_double_push(void) {
@@ -207,10 +207,10 @@ void test_board_white_kingside_castle(void) {
   MoveResult r = cb.makeMove(7, 4, 7, 6); // e1g1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_EQUAL_CHAR('K', cb.getBoard()[7][6]); // king on g1
-  TEST_ASSERT_EQUAL_CHAR('R', cb.getBoard()[7][5]); // rook on f1
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[7][4]); // e1 empty
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[7][7]); // h1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getBoard()[7][6]); // king on g1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getBoard()[7][5]); // rook on f1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][4]); // e1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][7]); // h1 empty
 }
 
 void test_board_white_queenside_castle(void) {
@@ -219,9 +219,9 @@ void test_board_white_queenside_castle(void) {
   MoveResult r = cb.makeMove(7, 4, 7, 2); // e1c1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_EQUAL_CHAR('K', cb.getBoard()[7][2]); // king on c1
-  TEST_ASSERT_EQUAL_CHAR('R', cb.getBoard()[7][3]); // rook on d1
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[7][0]); // a1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getBoard()[7][2]); // king on c1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getBoard()[7][3]); // rook on d1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][0]); // a1 empty
 }
 
 void test_board_black_kingside_castle(void) {
@@ -230,8 +230,8 @@ void test_board_black_kingside_castle(void) {
   MoveResult r = cb.makeMove(0, 4, 0, 6); // e8g8
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_EQUAL_CHAR('k', cb.getBoard()[0][6]); // king on g8
-  TEST_ASSERT_EQUAL_CHAR('r', cb.getBoard()[0][5]); // rook on f8
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getBoard()[0][6]); // king on g8
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getBoard()[0][5]); // rook on f8
 }
 
 void test_board_castling_revokes_rights(void) {
@@ -259,9 +259,9 @@ void test_board_black_queenside_castle(void) {
   MoveResult r = cb.makeMove(0, 4, 0, 2); // e8c8
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_EQUAL_CHAR('k', cb.getBoard()[0][2]); // king on c8
-  TEST_ASSERT_EQUAL_CHAR('r', cb.getBoard()[0][3]); // rook on d8
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getBoard()[0][0]); // a8 empty
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getBoard()[0][2]); // king on c8
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getBoard()[0][3]); // rook on d8
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[0][0]); // a8 empty
 }
 
 void test_board_rook_captured_revokes_castling(void) {
@@ -284,8 +284,8 @@ void test_board_auto_queen_promotion(void) {
   MoveResult r = cb.makeMove(1, 4, 0, 4); // e7e8 — auto-queen
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
-  TEST_ASSERT_EQUAL_CHAR('Q', cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, r.promotedTo);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getBoard()[0][4]);
 }
 
 void test_board_knight_promotion(void) {
@@ -294,8 +294,8 @@ void test_board_knight_promotion(void) {
   MoveResult r = cb.makeMove(1, 4, 0, 4, 'n'); // e7e8n
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('N', r.promotedTo); // uppercase for white
-  TEST_ASSERT_EQUAL_CHAR('N', cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, r.promotedTo); // uppercase for white
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, cb.getBoard()[0][4]);
 }
 
 void test_board_black_promotion(void) {
@@ -304,7 +304,7 @@ void test_board_black_promotion(void) {
   MoveResult r = cb.makeMove(6, 4, 7, 4); // e2e1 — auto-queen
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('q', r.promotedTo); // lowercase for black
+  TEST_ASSERT_ENUM_EQ(Piece::B_QUEEN, r.promotedTo); // lowercase for black
 }
 
 void test_board_promotion_with_capture(void) {
@@ -315,8 +315,8 @@ void test_board_promotion_with_capture(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCapture);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
-  TEST_ASSERT_EQUAL_CHAR('Q', cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, r.promotedTo);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getBoard()[0][4]);
 }
 
 // ---------------------------------------------------------------------------
@@ -483,7 +483,7 @@ void test_board_sufficient_material_kp_vs_k(void) {
 void test_board_load_fen_sets_turn(void) {
   setUpBoard();
   cb.loadFEN("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
-  TEST_ASSERT_EQUAL_CHAR('b', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, cb.currentTurn());
 }
 
 void test_board_load_fen_resets_game_over(void) {
@@ -513,13 +513,13 @@ void test_board_load_fen_complex(void) {
   setUpBoard();
   std::string fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4";
   cb.loadFEN(fen);
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
   TEST_ASSERT_EQUAL_UINT8(0x0F, cb.getCastlingRights()); // KQkq
   TEST_ASSERT_EQUAL_INT(-1, cb.positionState().epRow);     // no EP
   TEST_ASSERT_EQUAL_INT(4, cb.positionState().halfmoveClock);
   TEST_ASSERT_EQUAL_INT(4, cb.positionState().fullmoveClock);
-  TEST_ASSERT_EQUAL_CHAR('B', cb.getSquare(4, 2)); // Bc4
-  TEST_ASSERT_EQUAL_CHAR('n', cb.getSquare(2, 2)); // Nc6
+  TEST_ASSERT_ENUM_EQ(Piece::W_BISHOP, cb.getSquare(4, 2)); // Bc4
+  TEST_ASSERT_ENUM_EQ(Piece::B_KNIGHT, cb.getSquare(2, 2)); // Nc6
   TEST_ASSERT_EQUAL_STRING(fen.c_str(), cb.getFen().c_str());
 }
 
@@ -702,7 +702,7 @@ void test_board_fullmove_increments_after_black(void) {
 void test_board_find_piece_kings_initial(void) {
   setUpBoard();
   int positions[2][2];
-  int count = cb.findPiece('K', 'w', positions, 2);
+  int count = cb.findPiece(Piece::W_KING, positions, 2);
   TEST_ASSERT_EQUAL_INT(1, count);
   TEST_ASSERT_EQUAL_INT(7, positions[0][0]); // row 7 = rank 1
   TEST_ASSERT_EQUAL_INT(4, positions[0][1]); // col 4 = file e
@@ -711,7 +711,7 @@ void test_board_find_piece_kings_initial(void) {
 void test_board_find_piece_black_pawns_initial(void) {
   setUpBoard();
   int positions[8][2];
-  int count = cb.findPiece('P', 'b', positions, 8);
+  int count = cb.findPiece(Piece::B_PAWN, positions, 8);
   TEST_ASSERT_EQUAL_INT(8, count);
   // All should be on row 1 (rank 7)
   for (int i = 0; i < count; i++) {
@@ -723,7 +723,7 @@ void test_board_find_piece_not_found(void) {
   setUpBoard();
   cb.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
   int positions[8][2];
-  int count = cb.findPiece('Q', 'w', positions, 8);
+  int count = cb.findPiece(Piece::W_QUEEN, positions, 8);
   TEST_ASSERT_EQUAL_INT(0, count);
 }
 
@@ -731,7 +731,7 @@ void test_board_find_piece_multiple_bishops(void) {
   setUpBoard();
   cb.loadFEN("4k3/8/8/8/8/2B1B3/8/4K3 w - - 0 1");
   int positions[4][2];
-  int count = cb.findPiece('B', 'w', positions, 4);
+  int count = cb.findPiece(Piece::W_BISHOP, positions, 4);
   TEST_ASSERT_EQUAL_INT(2, count);
 }
 
@@ -739,7 +739,7 @@ void test_board_find_piece_max_limit(void) {
   setUpBoard();
   // 8 white pawns, but limit to 3
   int positions[3][2];
-  int count = cb.findPiece('P', 'w', positions, 3);
+  int count = cb.findPiece(Piece::W_PAWN, positions, 3);
   TEST_ASSERT_EQUAL_INT(3, count);
 }
 
@@ -814,25 +814,25 @@ void test_board_is_attacked_by_white(void) {
   setUpBoard();
   // White pawn on e4 attacks d5 and f5
   cb.loadFEN("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1");
-  TEST_ASSERT_TRUE(cb.isAttacked(3, 3, 'w'));  // d5 attacked by white
-  TEST_ASSERT_TRUE(cb.isAttacked(3, 5, 'w'));  // f5 attacked by white
-  TEST_ASSERT_FALSE(cb.isAttacked(3, 4, 'w')); // e5 not attacked by white pawn
+  TEST_ASSERT_TRUE(cb.isAttacked(3, 3, Color::WHITE));  // d5 attacked by white
+  TEST_ASSERT_TRUE(cb.isAttacked(3, 5, Color::WHITE));  // f5 attacked by white
+  TEST_ASSERT_FALSE(cb.isAttacked(3, 4, Color::WHITE)); // e5 not attacked by white pawn
 }
 
 void test_board_is_attacked_by_black(void) {
   setUpBoard();
   // Black knight on f6 attacks e4, g4, d5, h5, d7, h7, e8, g8
   cb.loadFEN("4k3/8/5n2/8/8/8/8/4K3 w - - 0 1");
-  TEST_ASSERT_TRUE(cb.isAttacked(4, 4, 'b'));  // e4 attacked by black knight
-  TEST_ASSERT_TRUE(cb.isAttacked(4, 6, 'b'));  // g4 attacked by black knight
-  TEST_ASSERT_FALSE(cb.isAttacked(4, 5, 'b')); // f4 not attacked by black knight
+  TEST_ASSERT_TRUE(cb.isAttacked(4, 4, Color::BLACK));  // e4 attacked by black knight
+  TEST_ASSERT_TRUE(cb.isAttacked(4, 6, Color::BLACK));  // g4 attacked by black knight
+  TEST_ASSERT_FALSE(cb.isAttacked(4, 5, Color::BLACK)); // f4 not attacked by black knight
 }
 
 void test_board_is_attacked_empty_square(void) {
   setUpBoard();
   // Empty square can be attacked
   cb.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
-  TEST_ASSERT_TRUE(cb.isAttacked(0, 0, 'w')); // a8 attacked by Ra1 along file
+  TEST_ASSERT_TRUE(cb.isAttacked(0, 0, Color::WHITE)); // a8 attacked by Ra1 along file
 }
 
 // ---------------------------------------------------------------------------
@@ -954,18 +954,18 @@ void test_board_position_history_reset_on_pawn_move(void) {
 // ---------------------------------------------------------------------------
 
 // Helper: build a MoveEntry from scratch
-static MoveEntry makeBoardEntry(int fr, int fc, int tr, int tc, char piece,
-                                char captured, const PositionState& prev,
-                                char promo = ' ', bool ep = false,
+static MoveEntry makeBoardEntry(int fr, int fc, int tr, int tc, Piece piece,
+                                Piece captured, const PositionState& prev,
+                                Piece promo = Piece::NONE, bool ep = false,
                                 int epRow = -1, bool castle = false,
                                 bool check = false) {
   MoveEntry e = {};
   e.fromRow = fr; e.fromCol = fc; e.toRow = tr; e.toCol = tc;
   e.piece = piece; e.captured = captured; e.promotion = promo;
-  e.isCapture = (captured != ' ');
+  e.isCapture = (captured != Piece::NONE);
   e.isEnPassant = ep; e.epCapturedRow = epRow;
   e.isCastling = castle;
-  e.isPromotion = (promo != ' ');
+  e.isPromotion = (promo != Piece::NONE);
   e.isCheck = check;
   e.prevState = prev;
   return e;
@@ -976,14 +976,14 @@ void test_board_reverse_move_simple(void) {
   PositionState before = cb.positionState();
   MoveResult r = cb.makeMove(6, 4, 4, 4);  // e2-e4
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_CHAR('b', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, cb.currentTurn());
 
-  MoveEntry e = makeBoardEntry(6, 4, 4, 4, 'P', ' ', before);
+  MoveEntry e = makeBoardEntry(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE, before);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getSquare(6, 4));  // pawn back on e2
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(4, 4));  // e4 empty
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(6, 4));  // pawn back on e2
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(4, 4));  // e4 empty
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_reverse_move_capture(void) {
@@ -995,12 +995,12 @@ void test_board_reverse_move_capture(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCapture);
 
-  MoveEntry e = makeBoardEntry(4, 4, 3, 3, 'P', 'p', before);
+  MoveEntry e = makeBoardEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN, before);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getSquare(4, 4));  // pawn back on e5
-  TEST_ASSERT_EQUAL_CHAR('p', cb.getSquare(3, 3));  // black pawn restored on d5
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(4, 4));  // pawn back on e5
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, cb.getSquare(3, 3));  // black pawn restored on d5
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_reverse_move_en_passant(void) {
@@ -1014,13 +1014,13 @@ void test_board_reverse_move_en_passant(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isEnPassant);
 
-  MoveEntry e = makeBoardEntry(3, 4, 2, 3, 'P', 'p', before, ' ', true, 3);
+  MoveEntry e = makeBoardEntry(3, 4, 2, 3, Piece::W_PAWN, Piece::B_PAWN, before, Piece::NONE, true, 3);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getSquare(3, 4));  // pawn back on e5
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(2, 3));  // d6 empty
-  TEST_ASSERT_EQUAL_CHAR('p', cb.getSquare(3, 3));  // black pawn restored on d5
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(3, 4));  // pawn back on e5
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(2, 3));  // d6 empty
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, cb.getSquare(3, 3));  // black pawn restored on d5
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_reverse_move_castling(void) {
@@ -1031,14 +1031,14 @@ void test_board_reverse_move_castling(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
 
-  MoveEntry e = makeBoardEntry(7, 4, 7, 6, 'K', ' ', before, ' ', false, -1, true);
+  MoveEntry e = makeBoardEntry(7, 4, 7, 6, Piece::W_KING, Piece::NONE, before, Piece::NONE, false, -1, true);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_CHAR('K', cb.getSquare(7, 4));  // king back on e1
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(7, 6));  // g1 empty
-  TEST_ASSERT_EQUAL_CHAR('R', cb.getSquare(7, 7));  // rook back on h1
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(7, 5));  // f1 empty
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getSquare(7, 4));  // king back on e1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(7, 6));  // g1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getSquare(7, 7));  // rook back on h1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(7, 5));  // f1 empty
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
   // Castling rights should be restored
   TEST_ASSERT_EQUAL(0x0F, cb.positionState().castlingRights);
 }
@@ -1050,14 +1050,14 @@ void test_board_reverse_move_promotion(void) {
   MoveResult r = cb.makeMove(1, 0, 0, 0, 'q');  // a7-a8=Q
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', cb.getSquare(0, 0));
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getSquare(0, 0));
 
-  MoveEntry e = makeBoardEntry(1, 0, 0, 0, 'P', ' ', before, 'Q');
+  MoveEntry e = makeBoardEntry(1, 0, 0, 0, Piece::W_PAWN, Piece::NONE, before, Piece::W_QUEEN);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getSquare(1, 0));  // pawn back on a7
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(0, 0));  // a8 empty
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(1, 0));  // pawn back on a7
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(0, 0));  // a8 empty
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_reverse_move_clears_game_over(void) {
@@ -1073,35 +1073,35 @@ void test_board_reverse_move_clears_game_over(void) {
   MoveResult r = cb.makeMove(3, 7, 1, 5);  // Qxf7#
   TEST_ASSERT_TRUE(cb.isCheckmate());
 
-  MoveEntry e = makeBoardEntry(3, 7, 1, 5, 'Q', 'p', before, ' ', false, -1, false, true);
+  MoveEntry e = makeBoardEntry(3, 7, 1, 5, Piece::W_QUEEN, Piece::B_PAWN, before, Piece::NONE, false, -1, false, true);
   cb.reverseMove(e);
 
   TEST_ASSERT_FALSE(cb.isCheckmate());
-  TEST_ASSERT_EQUAL_CHAR('w', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, cb.currentTurn());
 }
 
 void test_board_apply_move_entry(void) {
   setUpBoard();
   PositionState before = cb.positionState();
-  MoveEntry e = makeBoardEntry(6, 4, 4, 4, 'P', ' ', before);
+  MoveEntry e = makeBoardEntry(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE, before);
 
   MoveResult r = cb.applyMoveEntry(e);
   TEST_ASSERT_TRUE(r.valid);
-  TEST_ASSERT_EQUAL_CHAR('P', cb.getSquare(4, 4));
-  TEST_ASSERT_EQUAL_CHAR(' ', cb.getSquare(6, 4));
-  TEST_ASSERT_EQUAL_CHAR('b', cb.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(4, 4));
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(6, 4));
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, cb.currentTurn());
 }
 
 void test_board_apply_move_entry_promotion(void) {
   setUpBoard();
   cb.loadFEN("8/P4k2/8/8/8/8/5K2/8 w - - 0 1");
   PositionState before = cb.positionState();
-  MoveEntry e = makeBoardEntry(1, 0, 0, 0, 'P', ' ', before, 'Q');
+  MoveEntry e = makeBoardEntry(1, 0, 0, 0, Piece::W_PAWN, Piece::NONE, before, Piece::W_QUEEN);
 
   MoveResult r = cb.applyMoveEntry(e);
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', cb.getSquare(0, 0));
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getSquare(0, 0));
 }
 
 // ---------------------------------------------------------------------------

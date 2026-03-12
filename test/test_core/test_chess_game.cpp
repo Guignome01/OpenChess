@@ -6,7 +6,7 @@
 #include <types.h>
 
 // Shared globals from test_core.cpp
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 static ChessGame game;
@@ -203,8 +203,8 @@ void test_game_history_correct_fields(void) {
   TEST_ASSERT_EQUAL(4, m.fromCol);
   TEST_ASSERT_EQUAL(4, m.toRow);
   TEST_ASSERT_EQUAL(4, m.toCol);
-  TEST_ASSERT_EQUAL('P', m.piece);
-  TEST_ASSERT_EQUAL(' ', m.captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, m.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, m.captured);
   TEST_ASSERT_FALSE(m.isCapture);
   TEST_ASSERT_FALSE(m.isEnPassant);
   TEST_ASSERT_FALSE(m.isCastling);
@@ -220,8 +220,8 @@ void test_game_history_capture_recorded(void) {
 
   const MoveEntry& m = game.history().getMove(2);
   TEST_ASSERT_TRUE(m.isCapture);
-  TEST_ASSERT_EQUAL('p', m.captured);  // captured black pawn
-  TEST_ASSERT_EQUAL('P', m.piece);     // white pawn captured
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, m.captured);  // captured black pawn
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, m.piece);     // white pawn captured
 }
 
 void test_game_history_en_passant_recorded(void) {
@@ -236,7 +236,7 @@ void test_game_history_en_passant_recorded(void) {
   const MoveEntry& m = game.history().getMove(4);
   TEST_ASSERT_TRUE(m.isEnPassant);
   TEST_ASSERT_TRUE(m.isCapture);
-  TEST_ASSERT_EQUAL('p', m.captured);  // captured black pawn
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, m.captured);  // captured black pawn
   TEST_ASSERT_EQUAL(3, m.epCapturedRow);
 }
 
@@ -248,7 +248,7 @@ void test_game_history_castling_recorded(void) {
 
   const MoveEntry& m = game.history().lastMove();
   TEST_ASSERT_TRUE(m.isCastling);
-  TEST_ASSERT_EQUAL('K', m.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, m.piece);
   TEST_ASSERT_FALSE(m.isCapture);
 }
 
@@ -260,8 +260,8 @@ void test_game_history_promotion_recorded(void) {
 
   const MoveEntry& m = game.history().lastMove();
   TEST_ASSERT_TRUE(m.isPromotion);
-  TEST_ASSERT_EQUAL('Q', m.promotion);
-  TEST_ASSERT_EQUAL('P', m.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, m.promotion);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, m.piece);
 }
 
 void test_game_history_check_recorded(void) {
@@ -321,7 +321,7 @@ void test_game_history_last_move_after_sequence(void) {
 
   TEST_ASSERT_EQUAL(3, game.history().moveCount());
   const MoveEntry& last = game.history().lastMove();
-  TEST_ASSERT_EQUAL('N', last.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, last.piece);
   TEST_ASSERT_EQUAL(7, last.fromRow);
   TEST_ASSERT_EQUAL(6, last.fromCol);
   TEST_ASSERT_EQUAL(5, last.toRow);

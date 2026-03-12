@@ -14,7 +14,7 @@
 #include <vector>
 
 // Shared globals from test_core.cpp
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ void test_recorder_set_header(void) {
 void test_recorder_add_move_persists(void) {
   setupRecorder();
   history.setHeader(makeTestHeader());
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));  // e2e4
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));  // e2e4
   TEST_ASSERT_EQUAL(2, (int)storage.moveData.size());  // 2-byte encoded move
   // Header not flushed yet (turn-based: every 2 half-moves)
   TEST_ASSERT_EQUAL(0, storage.headerUpdateCount);
@@ -193,7 +193,7 @@ void test_recorder_snapshot_position(void) {
 void test_recorder_save(void) {
   setupRecorder();
   history.setHeader(makeTestHeader());
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   history.save(GameResult::CHECKMATE, 'w');
   TEST_ASSERT_FALSE(history.isRecording());
   TEST_ASSERT_TRUE(storage.gameFinalized);
@@ -212,7 +212,7 @@ void test_recorder_discard(void) {
 void test_recorder_not_recording_noop(void) {
   setupRecorder();
   // addMove without setHeader should not persist
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   TEST_ASSERT_EQUAL(0, (int)storage.moveData.size());
   // snapshotPosition without setHeader should not persist
   history.snapshotPosition("some fen");
@@ -253,9 +253,9 @@ void test_recorder_replay_into_board(void) {
   std::string initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   history.snapshotPosition(initialFen);
   // Record e2e4
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   // Record d7d5
-  history.addMove(makeEntry(1, 3, 3, 3, 'p'));
+  history.addMove(makeEntry(1, 3, 3, 3, Piece::B_PAWN));
 
   // Now replay into a fresh ChessBoard
   ChessBoard board;
@@ -264,9 +264,9 @@ void test_recorder_replay_into_board(void) {
   TEST_ASSERT_TRUE(ok);
 
   // Board should have e4 and d5 played
-  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));
-  TEST_ASSERT_EQUAL_CHAR('p', board.getSquare(3, 3));
-  TEST_ASSERT_EQUAL_CHAR('w', board.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board.getSquare(4, 4));
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, board.getSquare(3, 3));
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, board.currentTurn());
 }
 
 void test_recorder_turn_based_header_flush(void) {
@@ -274,10 +274,10 @@ void test_recorder_turn_based_header_flush(void) {
   history.setHeader(makeTestHeader());
   int initial = storage.headerUpdateCount;
 
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));  // e2e4 (1st half-move)
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));  // e2e4 (1st half-move)
   TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);  // Not flushed
 
-  history.addMove(makeEntry(1, 4, 3, 4, 'p'));  // e7e5 (2nd half-move)
+  history.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));  // e7e5 (2nd half-move)
   TEST_ASSERT_EQUAL(initial + 1, storage.headerUpdateCount);  // Flushed!
   TEST_ASSERT_EQUAL_UINT16(2, storage.storedHeader.moveCount);
 }
@@ -287,7 +287,7 @@ void test_recorder_snapshot_always_flushes_header(void) {
   history.setHeader(makeTestHeader());
   int initial = storage.headerUpdateCount;
 
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));  // 1 move, no flush
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));  // 1 move, no flush
   TEST_ASSERT_EQUAL(initial, storage.headerUpdateCount);
 
   history.snapshotPosition("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
@@ -303,7 +303,7 @@ void test_recorder_replay_rejects_invalid_move(void) {
   history.snapshotPosition(initialFen);
 
   // Record valid e2e4
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
 
   // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
   uint16_t illegal = ChessHistory::encodeMove(6, 3, 4, 3, ' ');
@@ -326,7 +326,7 @@ void test_recorder_set_header_lichess_mode(void) {
 void test_recorder_set_header_while_active(void) {
   setupRecorder();
   history.setHeader(makeTestHeader());
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));  // record a move
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));  // record a move
   TEST_ASSERT_TRUE(history.isRecording());
 
   // Set header again — previous game should be discarded
@@ -401,8 +401,8 @@ void test_recorder_replay_empty_after_fen(void) {
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', board.currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', board.getSquare(4, 4));  // e4 has white pawn
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, board.currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board.getSquare(4, 4));  // e4 has white pawn
 }
 
 void test_recorder_replay_with_promotion(void) {
@@ -412,25 +412,25 @@ void test_recorder_replay_with_promotion(void) {
   // Record a position where white can promote
   std::string fen = "8/4P3/8/8/8/8/8/4K2k w - - 0 1";
   history.snapshotPosition(fen);
-  history.addMove(makeEntry(1, 4, 0, 4, 'P', ' ', 'q'));  // e7-e8=Q
+  history.addMove(makeEntry(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, Piece::B_QUEEN));  // e7-e8=Q
 
   // Replay and verify promotion
   ChessBoard board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('Q', board.getSquare(0, 4));  // Queen on e8
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, board.getSquare(0, 4));  // Queen on e8
 }
 
 void test_recorder_branch_truncates_storage(void) {
   setupRecorder();
   history.setHeader(makeTestHeader());
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));  // move 0: 2 bytes
-  history.addMove(makeEntry(1, 4, 3, 4, 'p'));  // move 1: 4 bytes total
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));  // move 0: 2 bytes
+  history.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));  // move 1: 4 bytes total
 
   // Undo move 1 and branch
   history.undoMove();
-  history.addMove(makeEntry(1, 3, 3, 3, 'p'));  // replaces move 1
+  history.addMove(makeEntry(1, 3, 3, 3, Piece::B_PAWN));  // replaces move 1
 
   TEST_ASSERT_EQUAL(1, storage.truncateCount);
   TEST_ASSERT_EQUAL(2u, storage.lastTruncateOffset);  // truncate to 1 move * 2 bytes
@@ -439,14 +439,14 @@ void test_recorder_branch_truncates_storage(void) {
 void test_recorder_branch_at_start_truncates_all(void) {
   setupRecorder();
   history.setHeader(makeTestHeader());
-  history.addMove(makeEntry(6, 4, 4, 4, 'P'));
-  history.addMove(makeEntry(1, 4, 3, 4, 'p'));
+  history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
+  history.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
 
   // Undo both moves
   history.undoMove();
   history.undoMove();
   // Branch: add a totally new first move
-  history.addMove(makeEntry(6, 3, 4, 3, 'P'));  // d2d4
+  history.addMove(makeEntry(6, 3, 4, 3, Piece::W_PAWN));  // d2d4
 
   TEST_ASSERT_EQUAL(1, storage.truncateCount);
   TEST_ASSERT_EQUAL(0u, storage.lastTruncateOffset);
@@ -476,7 +476,7 @@ static void teardownGame() {
 void test_game_new_game(void) {
   setupGame();
   game->newGame();
-  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, game->currentTurn());
   TEST_ASSERT_FALSE(game->isGameOver());
   // Observer should have been notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
@@ -491,7 +491,7 @@ void test_game_make_move(void) {
   MoveResult r = game->makeMove(6, 4, 4, 4);  // e2e4
   // startNewGame records initial FEN (FEN_MARKER 2 bytes) then addMove encodes (2 bytes) = 4
   TEST_ASSERT_EQUAL(4, (int)storage.moveData.size());
-  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, game->currentTurn());
 
   // Observer notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
@@ -547,7 +547,7 @@ void test_game_load_fen(void) {
   std::string fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
   bool ok = game->loadFEN(fen);
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, game->currentTurn());
 
   // Observer notified
   TEST_ASSERT_TRUE(observer.callCount > 0);
@@ -594,8 +594,8 @@ void test_game_pass_throughs(void) {
   game->newGame();
 
   // Verify pass-through methods return correct values
-  TEST_ASSERT_EQUAL_CHAR('R', game->getSquare(7, 0));
-  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, game->getSquare(7, 0));
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, game->currentTurn());
   TEST_ASSERT_FALSE(game->isGameOver());
   TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, game->gameResult());
 
@@ -627,7 +627,7 @@ void test_game_start_new_game(void) {
   setupGame();
   game->startNewGame(GameModeId::BOT, 'w', 5);
 
-  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, game->currentTurn());
   TEST_ASSERT_FALSE(game->isGameOver());
 
   // Should have started recording and initialized board
@@ -652,9 +652,9 @@ void test_game_resume_game(void) {
   ChessGame* game2 = new ChessGame(&storage, &observer, &logger);
   bool ok = game2->resumeGame();
   TEST_ASSERT_TRUE(ok);
-  TEST_ASSERT_EQUAL_CHAR('w', game2->currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('P', game2->getSquare(4, 4));  // e4
-  TEST_ASSERT_EQUAL_CHAR('p', game2->getSquare(3, 4));  // e5
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, game2->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, game2->getSquare(4, 4));  // e4
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, game2->getSquare(3, 4));  // e5
   TEST_ASSERT_TRUE(observer.callCount > 0);  // Observer notified
   delete game2;
   teardownGame();
@@ -695,7 +695,7 @@ void test_game_make_move_records_promotion(void) {
   MoveResult r = game->makeMove(1, 4, 0, 4);  // e7-e8=Q (auto-queen)
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
-  TEST_ASSERT_EQUAL_CHAR('Q', r.promotedTo);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, r.promotedTo);
 
   // Verify the correct promotion type was recorded (compact encoding stores lowercase)
   // moveData: FEN_MARKER(2) + FEN_MARKER(2, from loadFEN) + move(2) = 6 bytes
@@ -720,17 +720,17 @@ void test_game_undo_redo(void) {
 
   // Undo e7-e5
   TEST_ASSERT_TRUE(game->undoMove());
-  TEST_ASSERT_EQUAL_CHAR('b', game->currentTurn());  // black to move again
-  TEST_ASSERT_EQUAL_CHAR(' ', game->getSquare(3, 4));  // e5 empty
-  TEST_ASSERT_EQUAL_CHAR('p', game->getSquare(1, 4));  // pawn back on e7
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, game->currentTurn());  // black to move again
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, game->getSquare(3, 4));  // e5 empty
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, game->getSquare(1, 4));  // pawn back on e7
 
   TEST_ASSERT_TRUE(game->canUndo());
   TEST_ASSERT_TRUE(game->canRedo());
 
   // Redo e7-e5
   TEST_ASSERT_TRUE(game->redoMove());
-  TEST_ASSERT_EQUAL_CHAR('w', game->currentTurn());
-  TEST_ASSERT_EQUAL_CHAR('p', game->getSquare(3, 4));  // e5 has pawn again
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, game->currentTurn());
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, game->getSquare(3, 4));  // e5 has pawn again
 
   TEST_ASSERT_FALSE(game->canRedo());
   teardownGame();

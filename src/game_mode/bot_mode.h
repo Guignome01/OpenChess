@@ -29,6 +29,9 @@ class BotMode : public GameMode {
   std::atomic<bool>* thinkingAnimation_ = nullptr;
   bool wasThinkingBeforeResign_ = false;
 
+  /// Convert stored char playerColor to Color enum.
+  Color playerColor() const { return playerColor_ == 'w' ? Color::WHITE : Color::BLACK; }
+
   // Apply a move string returned by the engine (e.g., "e2e4").
   void applyEngineMove(const std::string& move);
   // Handle a remote game-end event reported by the provider.
@@ -41,10 +44,10 @@ class BotMode : public GameMode {
   void stopThinking();
 
   // --- Resign hooks ---
-  bool isFlipped() const override { return playerColor_ == 'b'; }
+  bool isFlipped() const override { return playerColor() == Color::BLACK; }
   void onBeforeResignConfirm() override;
   void onResignCancelled() override;
-  void onResignConfirmed(char resignColor) override;
+  void onResignConfirmed(Color resignColor) override;
 
   // Remote move guidance (LED + sensor blocking). Shared by all engines.
   void waitForRemoteMoveCompletion(int fromRow, int fromCol, int toRow, int toCol, bool isCapture, bool isEnPassant = false, int enPassantCapturedPawnRow = -1) override;

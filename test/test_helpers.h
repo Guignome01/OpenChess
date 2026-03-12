@@ -11,35 +11,25 @@
 #include <cstring>
 
 /// Set up the standard initial chess position.
-inline void setupInitialBoard(char board[8][8]) {
-  const char initial[8][8] = {
-      {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'},
-      {'p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'},
-      {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
-      {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
-      {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
-      {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '},
-      {'P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'},
-      {'R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'},
-  };
-  memcpy(board, initial, sizeof(initial));
+inline void setupInitialBoard(Piece board[8][8]) {
+  memcpy(board, ChessBoard::INITIAL_BOARD, sizeof(ChessBoard::INITIAL_BOARD));
 }
 
 /// Clear the board (all empty squares).
-inline void clearBoard(char board[8][8]) {
-  memset(board, ' ', 64);
+inline void clearBoard(Piece board[8][8]) {
+  memset(board, 0, 64 * sizeof(Piece));  // Piece::NONE == 0
 }
 
 /// Place a single piece on a cleared board at the given algebraic position.
-/// Example: placePiece(board, 'K', "e1") places a White King on e1.
-inline void placePiece(char board[8][8], char piece, const char* square) {
+/// Example: placePiece(board, Piece::W_KING, "e1")
+inline void placePiece(Piece board[8][8], Piece piece, const char* square) {
   int col = square[0] - 'a';
   int row = 8 - (square[1] - '0');
   board[row][col] = piece;
 }
 
 /// Return whether a given move exists in the rules's possible‐move list.
-inline bool moveExists(char board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags = {}) {
+inline bool moveExists(Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags = {}) {
   int moveCount = 0;
   int moves[28][2];
   ChessRules::getPossibleMoves(board, fromRow, fromCol, flags, moveCount, moves);
@@ -57,14 +47,14 @@ inline void sq(const char* s, int& row, int& col) {
 }
 
 /// Build a MoveEntry for common test moves.
-inline MoveEntry makeEntry(int fr, int fc, int tr, int tc, char piece,
-                           char captured = ' ', char promo = ' ') {
+inline MoveEntry makeEntry(int fr, int fc, int tr, int tc, Piece piece,
+                           Piece captured = Piece::NONE, Piece promo = Piece::NONE) {
   MoveEntry e = {};
   e.fromRow = fr; e.fromCol = fc; e.toRow = tr; e.toCol = tc;
   e.piece = piece; e.captured = captured; e.promotion = promo;
-  e.isCapture = (captured != ' ');
+  e.isCapture = (captured != Piece::NONE);
   e.isEnPassant = false; e.epCapturedRow = -1;
-  e.isCastling = false; e.isPromotion = (promo != ' ');
+  e.isCastling = false; e.isPromotion = (promo != Piece::NONE);
   e.isCheck = false;
   return e;
 }

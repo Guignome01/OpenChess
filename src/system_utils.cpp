@@ -6,8 +6,8 @@ extern "C" {
 #include "nvs_flash.h"
 }
 
-LedRGB SystemUtils::colorLed(char color) {
-  return (color == 'w') ? LedColors::White : ((color == 'b') ? LedColors::Blue : LedColors::Off);
+LedRGB SystemUtils::colorLed(Color color) {
+  return (color == Color::WHITE) ? LedColors::White : LedColors::Blue;
 }
 
 bool SystemUtils::ensureNvsInitialized() {

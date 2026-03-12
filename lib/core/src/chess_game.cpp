@@ -52,7 +52,7 @@ void ChessGame::endGame(GameResult result, char winnerColor) {
     logger_.infof("Game over: %s", ChessUtils::gameResultName(result));
   else
     logger_.infof("Game over: %s \xe2\x80\x94 %s wins!",
-                   ChessUtils::gameResultName(result), ChessUtils::colorName(winnerColor));
+                   ChessUtils::gameResultName(result), ChessPiece::colorName(winnerColor == 'w' ? Color::WHITE : Color::BLACK));
 
   history_.save(result, winnerColor);  // no-op if not recording
   notifyObserver();
@@ -70,8 +70,8 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
   if (gameOver_) return invalidMoveResult();
 
   // Save pre-move state for history
-  char piece = board_.getSquare(fromRow, fromCol);
-  char targetPiece = board_.getSquare(toRow, toCol);
+  Piece piece = board_.getSquare(fromRow, fromCol);
+  Piece targetPiece = board_.getSquare(toRow, toCol);
   PositionState prevState = board_.positionState();
 
   // Delegate move validation, application, and all end-condition detection to board
@@ -84,11 +84,11 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
                          : result.isEnPassant ? "en passant"
                          : result.isCapture   ? "capture"
                                               : "move";
-  logger_.infof("%s: %c %s -> %s", moveType, piece,
+  logger_.infof("%s: %c %s -> %s", moveType, ChessPiece::pieceToChar(piece),
                  ChessUtils::squareName(fromRow, fromCol).c_str(),
                  ChessUtils::squareName(toRow, toCol).c_str());
   if (result.isPromotion)
-    logger_.infof("Pawn promoted to %c", result.promotedTo);
+    logger_.infof("Pawn promoted to %c", ChessPiece::pieceToChar(result.promotedTo));
 
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
@@ -100,9 +100,9 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
     endGame(result.gameResult, result.winnerColor);  // calls notifyObserver()
   } else {
     if (result.isCheck) {
-      logger_.infof("%s is in check!", ChessUtils::colorName(board_.currentTurn()));
+      logger_.infof("%s is in check!", ChessPiece::colorName(board_.currentTurn()));
     }
-    logger_.infof("It's %s's turn", ChessUtils::colorName(board_.currentTurn()));
+    logger_.infof("It's %s's turn", ChessPiece::colorName(board_.currentTurn()));
     notifyObserver();
   }
 
@@ -177,7 +177,7 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
     // Fast path — no board replay needed
     for (int i = 0; i < count; ++i) {
       const MoveEntry& m = history_.getMove(i);
-      char promo = m.isPromotion ? m.promotion : ' ';
+      char promo = m.isPromotion ? ChessPiece::pieceToChar(m.promotion) : ' ';
       out[i] = ChessNotation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
     }
     return count;
@@ -202,7 +202,8 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
     }
 
     // Apply the move to advance the temp board
-    tempBoard.applyMoveEntry(m);
+    char promo = m.isPromotion ? ChessPiece::pieceToChar(m.promotion) : ' ';
+    tempBoard.makeMove(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
 
     // Append check/checkmate suffix
     if (m.isCheck) {

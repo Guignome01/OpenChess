@@ -2,7 +2,7 @@
 
 #include "../test_helpers.h"
 
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -16,18 +16,18 @@ void test_evaluation_initial_is_zero(void) {
 }
 
 void test_evaluation_white_up_queen(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'Q', "d1");
-  placePiece(board, 'k', "e8");
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_QUEEN, "d1");
+  placePiece(board, Piece::B_KING, "e8");
   float eval = ChessUtils::evaluatePosition(board);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 9.0f, eval); // White has +9 for queen
 }
 
 void test_evaluation_equal_material(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'R', "a1");
-  placePiece(board, 'k', "e8");
-  placePiece(board, 'r', "a8");
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_ROOK, "a1");
+  placePiece(board, Piece::B_KING, "e8");
+  placePiece(board, Piece::B_ROOK, "a8");
   float eval = ChessUtils::evaluatePosition(board);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
@@ -37,31 +37,30 @@ void test_evaluation_equal_material(void) {
 // ---------------------------------------------------------------------------
 
 void test_getPieceColor(void) {
-  TEST_ASSERT_EQUAL_CHAR('w', ChessUtils::getPieceColor('K'));
-  TEST_ASSERT_EQUAL_CHAR('w', ChessUtils::getPieceColor('P'));
-  TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::getPieceColor('k'));
-  TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::getPieceColor('p'));
-  TEST_ASSERT_EQUAL_CHAR(' ', ChessUtils::getPieceColor(' '));  // empty square
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, ChessPiece::pieceColor(Piece::W_KING));
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, ChessPiece::pieceColor(Piece::W_PAWN));
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, ChessPiece::pieceColor(Piece::B_KING));
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, ChessPiece::pieceColor(Piece::B_PAWN));
+  // pieceColor on NONE is undefined behavior — only check valid pieces
 }
 
 void test_isWhitePiece(void) {
-  TEST_ASSERT_TRUE(ChessUtils::isWhitePiece('K'));
-  TEST_ASSERT_TRUE(ChessUtils::isWhitePiece('Q'));
-  TEST_ASSERT_FALSE(ChessUtils::isWhitePiece('k'));
-  TEST_ASSERT_FALSE(ChessUtils::isWhitePiece(' '));
+  TEST_ASSERT_TRUE(ChessPiece::isWhite(Piece::W_KING));
+  TEST_ASSERT_TRUE(ChessPiece::isWhite(Piece::W_QUEEN));
+  TEST_ASSERT_FALSE(ChessPiece::isWhite(Piece::B_KING));
+  TEST_ASSERT_FALSE(ChessPiece::isWhite(Piece::NONE));
 }
 
 void test_isBlackPiece(void) {
-  TEST_ASSERT_TRUE(ChessUtils::isBlackPiece('k'));
-  TEST_ASSERT_TRUE(ChessUtils::isBlackPiece('q'));
-  TEST_ASSERT_FALSE(ChessUtils::isBlackPiece('K'));
-  TEST_ASSERT_FALSE(ChessUtils::isBlackPiece(' '));
+  TEST_ASSERT_TRUE(ChessPiece::isBlack(Piece::B_KING));
+  TEST_ASSERT_TRUE(ChessPiece::isBlack(Piece::B_QUEEN));
+  TEST_ASSERT_FALSE(ChessPiece::isBlack(Piece::W_KING));
+  TEST_ASSERT_FALSE(ChessPiece::isBlack(Piece::NONE));
 }
 
 void test_colorName(void) {
-  TEST_ASSERT_EQUAL_STRING("White", ChessUtils::colorName('w'));
-  TEST_ASSERT_EQUAL_STRING("Black", ChessUtils::colorName('b'));
-  TEST_ASSERT_EQUAL_STRING("Unknown", ChessUtils::colorName('x'));
+  TEST_ASSERT_EQUAL_STRING("White", ChessPiece::colorName(Color::WHITE));
+  TEST_ASSERT_EQUAL_STRING("Black", ChessPiece::colorName(Color::BLACK));
 }
 
 // ---------------------------------------------------------------------------
@@ -87,17 +86,17 @@ void test_no_fifty_move_rule(void) {
 void test_has_legal_moves_initial(void) {
   setupInitialBoard(board);
   PositionState flags{0x0F, -1, -1};
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, 'w', flags));
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, 'b', flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::WHITE, flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::BLACK, flags));
 }
 
 void test_no_legal_moves_stalemate(void) {
   // Same stalemate position from check_mechanics
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'Q', "b6");
-  placePiece(board, 'K', "c6");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_QUEEN, "b6");
+  placePiece(board, Piece::W_KING, "c6");
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(board, 'b', flags));
+  TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(board, Color::BLACK, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -105,9 +104,9 @@ void test_no_legal_moves_stalemate(void) {
 // ---------------------------------------------------------------------------
 
 void test_evaluation_black_advantage(void) {
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'k', "e8");
-  placePiece(board, 'q', "d8"); // black queen, no white queen
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_KING, "e8");
+  placePiece(board, Piece::B_QUEEN, "d8"); // black queen, no white queen
   float eval = ChessUtils::evaluatePosition(board);
   TEST_ASSERT_TRUE(eval < 0.0f); // negative = black advantage
 }
@@ -124,11 +123,11 @@ void test_evaluation_empty_board(void) {
 
 void test_hasAnyLegalMove_in_check_with_escape(void) {
   // King in check but can escape
-  placePiece(board, 'K', "e1");
-  placePiece(board, 'r', "e8"); // rook checks
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8"); // rook checks
   PositionState flags{0x00, -1, -1, 0, 1};
   // King can escape to d1, d2, f1, f2
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, 'w', flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::WHITE, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +136,7 @@ void test_hasAnyLegalMove_in_check_with_escape(void) {
 
 void test_checkEnPassant_double_push_sets_target(void) {
   // White pawn e2→e4 (row 6→4): EP target should be e3 (row 5, col 4)
-  auto ep = ChessUtils::checkEnPassant(6, 4, 4, 4, 'P', ' ');
+  auto ep = ChessUtils::checkEnPassant(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE);
   TEST_ASSERT_FALSE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(-1, ep.capturedPawnRow);
   TEST_ASSERT_EQUAL_INT(5, ep.nextEpRow);
@@ -146,7 +145,7 @@ void test_checkEnPassant_double_push_sets_target(void) {
 
 void test_checkEnPassant_single_push_no_target(void) {
   // White pawn e3→e4 (row 5→4): no EP target
-  auto ep = ChessUtils::checkEnPassant(5, 4, 4, 4, 'P', ' ');
+  auto ep = ChessUtils::checkEnPassant(5, 4, 4, 4, Piece::W_PAWN, Piece::NONE);
   TEST_ASSERT_FALSE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(-1, ep.nextEpRow);
   TEST_ASSERT_EQUAL_INT(-1, ep.nextEpCol);
@@ -154,21 +153,21 @@ void test_checkEnPassant_single_push_no_target(void) {
 
 void test_checkEnPassant_capture_detected(void) {
   // White pawn diagonal capture to empty square = EP capture
-  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, 'P', ' ');
+  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, Piece::W_PAWN, Piece::NONE);
   TEST_ASSERT_TRUE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(3, ep.capturedPawnRow); // captured pawn is on same row as from
 }
 
 void test_checkEnPassant_normal_capture_not_ep(void) {
   // White pawn diagonal capture to occupied square = normal capture, not EP
-  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, 'P', 'p');
+  auto ep = ChessUtils::checkEnPassant(3, 4, 2, 5, Piece::W_PAWN, Piece::B_PAWN);
   TEST_ASSERT_FALSE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(-1, ep.capturedPawnRow);
 }
 
 void test_checkEnPassant_black_double_push(void) {
   // Black pawn d7→d5 (row 1→3): EP target should be d6 (row 2, col 3)
-  auto ep = ChessUtils::checkEnPassant(1, 3, 3, 3, 'p', ' ');
+  auto ep = ChessUtils::checkEnPassant(1, 3, 3, 3, Piece::B_PAWN, Piece::NONE);
   TEST_ASSERT_FALSE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(2, ep.nextEpRow);
   TEST_ASSERT_EQUAL_INT(3, ep.nextEpCol);
@@ -176,7 +175,7 @@ void test_checkEnPassant_black_double_push(void) {
 
 void test_checkEnPassant_non_pawn_no_effect(void) {
   // Knight move — should never set EP target or capture
-  auto ep = ChessUtils::checkEnPassant(7, 1, 5, 2, 'N', ' ');
+  auto ep = ChessUtils::checkEnPassant(7, 1, 5, 2, Piece::W_KNIGHT, Piece::NONE);
   TEST_ASSERT_FALSE(ep.isCapture);
   TEST_ASSERT_EQUAL_INT(-1, ep.nextEpRow);
   TEST_ASSERT_EQUAL_INT(-1, ep.nextEpCol);
@@ -187,21 +186,21 @@ void test_checkEnPassant_non_pawn_no_effect(void) {
 // ---------------------------------------------------------------------------
 
 void test_checkCastling_kingside(void) {
-  auto c = ChessUtils::checkCastling(7, 4, 7, 6, 'K');
+  auto c = ChessUtils::checkCastling(7, 4, 7, 6, Piece::W_KING);
   TEST_ASSERT_TRUE(c.isCastling);
   TEST_ASSERT_EQUAL_INT(7, c.rookFromCol);  // h-file
   TEST_ASSERT_EQUAL_INT(5, c.rookToCol);    // f-file
 }
 
 void test_checkCastling_queenside(void) {
-  auto c = ChessUtils::checkCastling(7, 4, 7, 2, 'K');
+  auto c = ChessUtils::checkCastling(7, 4, 7, 2, Piece::W_KING);
   TEST_ASSERT_TRUE(c.isCastling);
   TEST_ASSERT_EQUAL_INT(0, c.rookFromCol);  // a-file
   TEST_ASSERT_EQUAL_INT(3, c.rookToCol);    // d-file
 }
 
 void test_checkCastling_black_kingside(void) {
-  auto c = ChessUtils::checkCastling(0, 4, 0, 6, 'k');
+  auto c = ChessUtils::checkCastling(0, 4, 0, 6, Piece::B_KING);
   TEST_ASSERT_TRUE(c.isCastling);
   TEST_ASSERT_EQUAL_INT(7, c.rookFromCol);
   TEST_ASSERT_EQUAL_INT(5, c.rookToCol);
@@ -209,7 +208,7 @@ void test_checkCastling_black_kingside(void) {
 
 void test_checkCastling_not_king(void) {
   // Rook moving 2 squares is not castling
-  auto c = ChessUtils::checkCastling(7, 0, 7, 2, 'R');
+  auto c = ChessUtils::checkCastling(7, 0, 7, 2, Piece::W_ROOK);
   TEST_ASSERT_FALSE(c.isCastling);
   TEST_ASSERT_EQUAL_INT(-1, c.rookFromCol);
   TEST_ASSERT_EQUAL_INT(-1, c.rookToCol);
@@ -217,7 +216,7 @@ void test_checkCastling_not_king(void) {
 
 void test_checkCastling_king_one_square(void) {
   // King moving one square is not castling
-  auto c = ChessUtils::checkCastling(7, 4, 7, 5, 'K');
+  auto c = ChessUtils::checkCastling(7, 4, 7, 5, Piece::W_KING);
   TEST_ASSERT_FALSE(c.isCastling);
 }
 
@@ -227,39 +226,39 @@ void test_checkCastling_king_one_square(void) {
 
 void test_updateCastlingRights_white_king_moves(void) {
   uint8_t rights = 0x0F;  // KQkq
-  rights = ChessUtils::updateCastlingRights(rights, 7, 4, 7, 5, 'K', ' ');
+  rights = ChessUtils::updateCastlingRights(rights, 7, 4, 7, 5, Piece::W_KING, Piece::NONE);
   TEST_ASSERT_EQUAL_UINT8(0x0C, rights);  // kq only
 }
 
 void test_updateCastlingRights_black_king_moves(void) {
   uint8_t rights = 0x0F;
-  rights = ChessUtils::updateCastlingRights(rights, 0, 4, 0, 5, 'k', ' ');
+  rights = ChessUtils::updateCastlingRights(rights, 0, 4, 0, 5, Piece::B_KING, Piece::NONE);
   TEST_ASSERT_EQUAL_UINT8(0x03, rights);  // KQ only
 }
 
 void test_updateCastlingRights_white_h_rook_moves(void) {
   uint8_t rights = 0x0F;
-  rights = ChessUtils::updateCastlingRights(rights, 7, 7, 5, 7, 'R', ' ');
+  rights = ChessUtils::updateCastlingRights(rights, 7, 7, 5, 7, Piece::W_ROOK, Piece::NONE);
   TEST_ASSERT_EQUAL_UINT8(0x0E, rights);  // Qkq (lost K)
 }
 
 void test_updateCastlingRights_white_a_rook_moves(void) {
   uint8_t rights = 0x0F;
-  rights = ChessUtils::updateCastlingRights(rights, 7, 0, 5, 0, 'R', ' ');
+  rights = ChessUtils::updateCastlingRights(rights, 7, 0, 5, 0, Piece::W_ROOK, Piece::NONE);
   TEST_ASSERT_EQUAL_UINT8(0x0D, rights);  // Kkq (lost Q)
 }
 
 void test_updateCastlingRights_rook_captured(void) {
   uint8_t rights = 0x0F;
   // Black captures white h-rook
-  rights = ChessUtils::updateCastlingRights(rights, 0, 7, 7, 7, 'r', 'R');
+  rights = ChessUtils::updateCastlingRights(rights, 0, 7, 7, 7, Piece::B_ROOK, Piece::W_ROOK);
   // Lost K (rook captured on h1) + lost k (black rook moved from h8)
   TEST_ASSERT_EQUAL_UINT8(0x0A, rights);  // Qq
 }
 
 void test_updateCastlingRights_no_change_on_pawn_move(void) {
   uint8_t rights = 0x0F;
-  rights = ChessUtils::updateCastlingRights(rights, 6, 4, 4, 4, 'P', ' ');
+  rights = ChessUtils::updateCastlingRights(rights, 6, 4, 4, 4, Piece::W_PAWN, Piece::NONE);
   TEST_ASSERT_EQUAL_UINT8(0x0F, rights);  // unchanged
 }
 
@@ -268,11 +267,11 @@ void test_updateCastlingRights_no_change_on_pawn_move(void) {
 // ---------------------------------------------------------------------------
 
 void test_opponentColor_white(void) {
-  TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::opponentColor('w'));
+  TEST_ASSERT_EQUAL_STRING("Black", ChessPiece::colorName(~Color::WHITE));
 }
 
 void test_opponentColor_black(void) {
-  TEST_ASSERT_EQUAL_CHAR('w', ChessUtils::opponentColor('b'));
+  TEST_ASSERT_EQUAL_STRING("White", ChessPiece::colorName(~Color::BLACK));
 }
 
 void test_squareName_corners(void) {
@@ -335,11 +334,11 @@ void test_castling_rights_from_string_invalid(void) {
 // ---------------------------------------------------------------------------
 
 void test_pawnDirection_white(void) {
-  TEST_ASSERT_EQUAL_INT(-1, ChessUtils::pawnDirection('w'));
+  TEST_ASSERT_EQUAL_INT(-1, ChessPiece::pawnDirection(Color::WHITE));
 }
 
 void test_pawnDirection_black(void) {
-  TEST_ASSERT_EQUAL_INT(1, ChessUtils::pawnDirection('b'));
+  TEST_ASSERT_EQUAL_INT(1, ChessPiece::pawnDirection(Color::BLACK));
 }
 
 // ---------------------------------------------------------------------------
@@ -347,11 +346,11 @@ void test_pawnDirection_black(void) {
 // ---------------------------------------------------------------------------
 
 void test_homeRow_white(void) {
-  TEST_ASSERT_EQUAL_INT(7, ChessUtils::homeRow('w'));
+  TEST_ASSERT_EQUAL_INT(7, ChessPiece::homeRow(Color::WHITE));
 }
 
 void test_homeRow_black(void) {
-  TEST_ASSERT_EQUAL_INT(0, ChessUtils::homeRow('b'));
+  TEST_ASSERT_EQUAL_INT(0, ChessPiece::homeRow(Color::BLACK));
 }
 
 // ---------------------------------------------------------------------------
@@ -376,26 +375,26 @@ void test_castlingCharToBit_invalid(void) {
 
 void test_hasCastlingRight_all_rights(void) {
   uint8_t all = 0x0F;
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'w', true));   // K
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'w', false));  // Q
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'b', true));   // k
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, 'b', false));  // q
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, Color::WHITE, true));   // K
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, Color::WHITE, false));  // Q
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, Color::BLACK, true));   // k
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(all, Color::BLACK, false));  // q
 }
 
 void test_hasCastlingRight_no_rights(void) {
   uint8_t none = 0x00;
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'w', true));
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'w', false));
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'b', true));
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, 'b', false));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, Color::WHITE, true));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, Color::WHITE, false));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, Color::BLACK, true));
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(none, Color::BLACK, false));
 }
 
 void test_hasCastlingRight_partial(void) {
   uint8_t wKbq = 0x09;  // K + q
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, 'w', true));   // K set
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, 'w', false)); // Q not set
-  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, 'b', true));  // k not set
-  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, 'b', false));  // q set
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, Color::WHITE, true));   // K set
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, Color::WHITE, false)); // Q not set
+  TEST_ASSERT_FALSE(ChessUtils::hasCastlingRight(wKbq, Color::BLACK, true));  // k not set
+  TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, Color::BLACK, false));  // q set
 }
 
 void register_chess_utils_tests() {

@@ -6,14 +6,14 @@
 #include "../test_helpers.h"
 
 // Shared globals — accessible via extern from other translation units
-char board[8][8];
+Piece board[8][8];
 bool needsDefaultKings = false;
 
 void setUp(void) {
   clearBoard(board);
   if (needsDefaultKings) {
-    placePiece(board, 'K', "h1");
-    placePiece(board, 'k', "h8");
+    placePiece(board, Piece::W_KING, "h1");
+    placePiece(board, Piece::B_KING, "h8");
   }
 }
 
@@ -32,6 +32,7 @@ void register_chess_game_tests();
 void register_chess_notation_tests();
 void register_chess_iterator_tests();
 void register_chess_hash_tests();
+void register_chess_piece_tests();
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
@@ -43,6 +44,7 @@ int main(int argc, char** argv) {
   register_chess_notation_tests();
   register_chess_iterator_tests();
   register_chess_hash_tests();
+  register_chess_piece_tests();
   register_chess_board_tests();
   register_chess_history_tests();
   register_chess_history_recording_tests();

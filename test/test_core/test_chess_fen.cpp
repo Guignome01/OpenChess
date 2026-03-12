@@ -3,7 +3,7 @@
 #include "../test_helpers.h"
 #include <chess_fen.h>
 
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -12,32 +12,32 @@ extern bool needsDefaultKings;
 
 void test_fen_initial_position_roundtrip(void) {
   setupInitialBoard(board);
-  char turn = 'w';
+  Color turn = Color::WHITE;
   PositionState state{0x0F, -1, -1, 0, 1};
 
   std::string fen = ChessFEN::boardToFEN(board, turn, &state);
 
   // Parse back
-  char board2[8][8];
-  char turn2;
+  Piece board2[8][8];
+  Color turn2;
   PositionState state2;
   ChessFEN::fenToBoard(fen, board2, turn2, &state2);
 
   TEST_ASSERT_EQUAL_MEMORY(board, board2, 64);
-  TEST_ASSERT_EQUAL_CHAR('w', turn2);
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, turn2);
   TEST_ASSERT_EQUAL_UINT8(0x0F, state2.castlingRights);
 }
 
 void test_fen_standard_initial_string(void) {
   setupInitialBoard(board);
   PositionState state{0x0F, -1, -1, 0, 1};
-  std::string fen = ChessFEN::boardToFEN(board, 'w', &state);
+  std::string fen = ChessFEN::boardToFEN(board, Color::WHITE, &state);
   TEST_ASSERT_EQUAL_STRING("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", fen.c_str());
 }
 
 void test_fen_custom_position_roundtrip(void) {
   std::string inputFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1";
-  char turn;
+  Color turn;
   PositionState state;
   ChessFEN::fenToBoard(inputFen, board, turn, &state);
 
@@ -47,7 +47,7 @@ void test_fen_custom_position_roundtrip(void) {
 
 void test_fen_en_passant_target(void) {
   std::string inputFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
-  char turn;
+  Color turn;
   PositionState state;
   ChessFEN::fenToBoard(inputFen, board, turn, &state);
 
@@ -61,7 +61,7 @@ void test_fen_en_passant_target(void) {
 
 void test_fen_no_castling_rights(void) {
   std::string inputFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1";
-  char turn;
+  Color turn;
   PositionState state;
   ChessFEN::fenToBoard(inputFen, board, turn, &state);
   TEST_ASSERT_EQUAL_UINT8(0x00, state.castlingRights);
@@ -69,7 +69,7 @@ void test_fen_no_castling_rights(void) {
 
 void test_fen_halfmove_and_fullmove(void) {
   std::string inputFen = "8/8/8/8/8/8/8/4K3 w - - 42 100";
-  char turn;
+  Color turn;
   PositionState state;
   ChessFEN::fenToBoard(inputFen, board, turn, &state);
   TEST_ASSERT_EQUAL_INT(42, state.halfmoveClock);
@@ -78,14 +78,14 @@ void test_fen_halfmove_and_fullmove(void) {
 
 void test_boardToFEN_nullptr_state(void) {
   setupInitialBoard(board);
-  std::string fen = ChessFEN::boardToFEN(board, 'w', nullptr);
+  std::string fen = ChessFEN::boardToFEN(board, Color::WHITE, nullptr);
   // With nullptr state, should use defaults: KQkq, -, 0, 1
   TEST_ASSERT_EQUAL_STRING("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", fen.c_str());
 }
 
 void test_fen_partial_castling_rights_roundtrip(void) {
   std::string inputFen = "r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Kk - 0 1";
-  char turn;
+  Color turn;
   PositionState state;
   ChessFEN::fenToBoard(inputFen, board, turn, &state);
   // Kk = white kingside + black kingside = 0x01 | 0x04 = 0x05

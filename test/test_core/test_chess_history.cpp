@@ -5,7 +5,7 @@
 #include <types.h>
 
 // Shared globals from test_core.cpp
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -29,7 +29,7 @@ void test_history_initial_empty(void) {
 
 void test_history_clear(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   TEST_ASSERT_EQUAL(1, hist.moveCount());
 
   hist.clear();
@@ -40,7 +40,7 @@ void test_history_clear(void) {
 
 void test_history_add_and_get_move(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
 
   TEST_ASSERT_EQUAL(1, hist.moveCount());
   TEST_ASSERT_FALSE(hist.empty());
@@ -49,30 +49,30 @@ void test_history_add_and_get_move(void) {
   TEST_ASSERT_EQUAL(4, got.fromCol);
   TEST_ASSERT_EQUAL(4, got.toRow);
   TEST_ASSERT_EQUAL(4, got.toCol);
-  TEST_ASSERT_EQUAL('P', got.piece);
-  TEST_ASSERT_EQUAL(' ', got.captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, got.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, got.captured);
 }
 
 void test_history_last_move(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
-  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
+  hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
 
   TEST_ASSERT_EQUAL(2, hist.moveCount());
   const MoveEntry& last = hist.lastMove();
   TEST_ASSERT_EQUAL(1, last.fromRow);
-  TEST_ASSERT_EQUAL('p', last.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, last.piece);
 }
 
 void test_history_undo_move(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 0, 4, 0, 'P'));
+  hist.addMove(makeEntry(6, 0, 4, 0, Piece::W_PAWN));
 
   TEST_ASSERT_TRUE(hist.canUndo());
   const MoveEntry* undone = hist.undoMove();
   TEST_ASSERT_NOT_NULL(undone);
   TEST_ASSERT_EQUAL(6, undone->fromRow);
-  TEST_ASSERT_EQUAL('P', undone->piece);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, undone->piece);
   TEST_ASSERT_EQUAL(-1, hist.currentMoveIndex());
   TEST_ASSERT_FALSE(hist.canUndo());
   // Move is still in the log, cursor stepped back
@@ -87,21 +87,21 @@ void test_history_undo_empty(void) {
 
 void test_history_redo_after_undo(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   hist.undoMove();
 
   TEST_ASSERT_TRUE(hist.canRedo());
   const MoveEntry* redone = hist.redoMove();
   TEST_ASSERT_NOT_NULL(redone);
   TEST_ASSERT_EQUAL(6, redone->fromRow);
-  TEST_ASSERT_EQUAL('P', redone->piece);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, redone->piece);
   TEST_ASSERT_EQUAL(0, hist.currentMoveIndex());
   TEST_ASSERT_FALSE(hist.canRedo());
 }
 
 void test_history_redo_at_end(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   // No undo — already at end
   const MoveEntry* result = hist.redoMove();
   TEST_ASSERT_NULL(result);
@@ -109,9 +109,9 @@ void test_history_redo_at_end(void) {
 
 void test_history_undo_redo_sequence(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));   // move 0
-  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));   // move 1
-  hist.addMove(makeEntry(6, 3, 4, 3, 'P'));   // move 2
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));   // move 0
+  hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));   // move 1
+  hist.addMove(makeEntry(6, 3, 4, 3, Piece::W_PAWN));   // move 2
 
   TEST_ASSERT_EQUAL(2, hist.currentMoveIndex());
 
@@ -124,17 +124,17 @@ void test_history_undo_redo_sequence(void) {
   // Redo once
   hist.redoMove();  // cursor → 1
   TEST_ASSERT_EQUAL(1, hist.currentMoveIndex());
-  TEST_ASSERT_EQUAL('p', hist.lastMove().piece);
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, hist.lastMove().piece);
 }
 
 void test_history_branch_wipes_future(void) {
   hist = ChessHistory();
-  hist.addMove(makeEntry(6, 4, 4, 4, 'P'));   // move 0
-  hist.addMove(makeEntry(1, 4, 3, 4, 'p'));   // move 1
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));   // move 0
+  hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));   // move 1
 
   hist.undoMove();  // cursor → 0
   // Add a different move — should wipe move 1
-  hist.addMove(makeEntry(1, 3, 3, 3, 'p'));   // new move 1
+  hist.addMove(makeEntry(1, 3, 3, 3, Piece::B_PAWN));   // new move 1
   TEST_ASSERT_EQUAL(2, hist.moveCount());
   TEST_ASSERT_EQUAL(3, hist.getMove(1).toCol);  // d5, not e5
   TEST_ASSERT_FALSE(hist.canRedo());
@@ -143,7 +143,7 @@ void test_history_branch_wipes_future(void) {
 void test_history_multiple_moves(void) {
   hist = ChessHistory();
   for (int i = 0; i < 10; i++) {
-    hist.addMove(makeEntry(i % 8, i % 8, (i + 1) % 8, (i + 1) % 8, 'N'));
+    hist.addMove(makeEntry(i % 8, i % 8, (i + 1) % 8, (i + 1) % 8, Piece::W_KNIGHT));
   }
   TEST_ASSERT_EQUAL(10, hist.moveCount());
   TEST_ASSERT_EQUAL(0, hist.getMove(0).fromRow);

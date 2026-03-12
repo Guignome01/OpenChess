@@ -3,7 +3,7 @@
 
 #include "../test_helpers.h"
 
-extern char board[8][8];
+extern Piece board[8][8];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -11,45 +11,45 @@ extern bool needsDefaultKings;
 // ---------------------------------------------------------------------------
 
 void test_white_pawn_single_push(void) {
-  placePiece(board, 'P', "e2");
+  placePiece(board, Piece::W_PAWN, "e2");
   int r, c;
   sq("e2", r, c);
   TEST_ASSERT_TRUE(moveExists(board, r, c, r - 1, c)); // e3
 }
 
 void test_white_pawn_double_push_from_start(void) {
-  placePiece(board, 'P', "e2");
+  placePiece(board, Piece::W_PAWN, "e2");
   int r, c;
   sq("e2", r, c);
   TEST_ASSERT_TRUE(moveExists(board, r, c, r - 2, c)); // e4
 }
 
 void test_white_pawn_no_double_push_from_rank3(void) {
-  placePiece(board, 'P', "e3");
+  placePiece(board, Piece::W_PAWN, "e3");
   int r, c;
   sq("e3", r, c);
   TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e5 double push
 }
 
 void test_white_pawn_blocked(void) {
-  placePiece(board, 'P', "e4");
-  placePiece(board, 'p', "e5"); // blocker
+  placePiece(board, Piece::W_PAWN, "e4");
+  placePiece(board, Piece::B_PAWN, "e5"); // blocker
   int r, c;
   sq("e4", r, c);
   TEST_ASSERT_FALSE(moveExists(board, r, c, r - 1, c));
 }
 
 void test_white_pawn_double_push_blocked_on_first_sq(void) {
-  placePiece(board, 'P', "e2");
-  placePiece(board, 'p', "e3"); // block first square
+  placePiece(board, Piece::W_PAWN, "e2");
+  placePiece(board, Piece::B_PAWN, "e3"); // block first square
   int r, c;
   sq("e2", r, c);
   TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e4
 }
 
 void test_white_pawn_capture_diagonal(void) {
-  placePiece(board, 'P', "d4");
-  placePiece(board, 'p', "e5"); // capturable
+  placePiece(board, Piece::W_PAWN, "d4");
+  placePiece(board, Piece::B_PAWN, "e5"); // capturable
   int r, c;
   sq("d4", r, c);
   int tr, tc;
@@ -58,8 +58,8 @@ void test_white_pawn_capture_diagonal(void) {
 }
 
 void test_white_pawn_no_capture_own_piece(void) {
-  placePiece(board, 'P', "d4");
-  placePiece(board, 'N', "e5"); // own piece
+  placePiece(board, Piece::W_PAWN, "d4");
+  placePiece(board, Piece::W_KNIGHT, "e5"); // own piece
   int r, c;
   sq("d4", r, c);
   int tr, tc;
@@ -68,14 +68,14 @@ void test_white_pawn_no_capture_own_piece(void) {
 }
 
 void test_black_pawn_single_push(void) {
-  placePiece(board, 'p', "e7");
+  placePiece(board, Piece::B_PAWN, "e7");
   int r, c;
   sq("e7", r, c);
   TEST_ASSERT_TRUE(moveExists(board, r, c, r + 1, c)); // e6
 }
 
 void test_black_pawn_double_push_from_start(void) {
-  placePiece(board, 'p', "e7");
+  placePiece(board, Piece::B_PAWN, "e7");
   int r, c;
   sq("e7", r, c);
   TEST_ASSERT_TRUE(moveExists(board, r, c, r + 2, c)); // e5
@@ -86,7 +86,7 @@ void test_black_pawn_double_push_from_start(void) {
 // ---------------------------------------------------------------------------
 
 void test_knight_center_moves(void) {
-  placePiece(board, 'N', "d4");
+  placePiece(board, Piece::W_KNIGHT, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -97,7 +97,7 @@ void test_knight_center_moves(void) {
 }
 
 void test_knight_corner_moves(void) {
-  placePiece(board, 'N', "a1");
+  placePiece(board, Piece::W_KNIGHT, "a1");
   int r, c;
   sq("a1", r, c);
 
@@ -108,8 +108,8 @@ void test_knight_corner_moves(void) {
 }
 
 void test_knight_captures_enemy(void) {
-  placePiece(board, 'N', "d4");
-  placePiece(board, 'p', "e6"); // enemy on one of the squares
+  placePiece(board, Piece::W_KNIGHT, "d4");
+  placePiece(board, Piece::B_PAWN, "e6"); // enemy on one of the squares
   int r, c;
   sq("d4", r, c);
   int tr, tc;
@@ -118,8 +118,8 @@ void test_knight_captures_enemy(void) {
 }
 
 void test_knight_blocked_by_own(void) {
-  placePiece(board, 'N', "d4");
-  placePiece(board, 'P', "e6"); // own piece on target
+  placePiece(board, Piece::W_KNIGHT, "d4");
+  placePiece(board, Piece::W_PAWN, "e6"); // own piece on target
   int r, c;
   sq("d4", r, c);
   int tr, tc;
@@ -132,7 +132,7 @@ void test_knight_blocked_by_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_bishop_center_moves(void) {
-  placePiece(board, 'B', "d4");
+  placePiece(board, Piece::W_BISHOP, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -143,9 +143,9 @@ void test_bishop_center_moves(void) {
 }
 
 void test_bishop_blocked_by_own(void) {
-  placePiece(board, 'B', "c1");
-  placePiece(board, 'P', "d2"); // own piece blocks
-  placePiece(board, 'P', "b2"); // own piece blocks
+  placePiece(board, Piece::W_BISHOP, "c1");
+  placePiece(board, Piece::W_PAWN, "d2"); // own piece blocks
+  placePiece(board, Piece::W_PAWN, "b2"); // own piece blocks
   int r, c;
   sq("c1", r, c);
 
@@ -156,8 +156,8 @@ void test_bishop_blocked_by_own(void) {
 }
 
 void test_bishop_captures_and_stops(void) {
-  placePiece(board, 'B', "a1");
-  placePiece(board, 'p', "d4"); // enemy blocks diagonal
+  placePiece(board, Piece::W_BISHOP, "a1");
+  placePiece(board, Piece::B_PAWN, "d4"); // enemy blocks diagonal
   int r, c;
   sq("a1", r, c);
   int tr, tc;
@@ -175,7 +175,7 @@ void test_bishop_captures_and_stops(void) {
 // ---------------------------------------------------------------------------
 
 void test_rook_center_moves(void) {
-  placePiece(board, 'R', "d4");
+  placePiece(board, Piece::W_ROOK, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -186,9 +186,9 @@ void test_rook_center_moves(void) {
 }
 
 void test_rook_blocked_by_own(void) {
-  placePiece(board, 'R', "a1");
-  placePiece(board, 'P', "a2"); // above
-  placePiece(board, 'P', "b1"); // right
+  placePiece(board, Piece::W_ROOK, "a1");
+  placePiece(board, Piece::W_PAWN, "a2"); // above
+  placePiece(board, Piece::W_PAWN, "b1"); // right
   int r, c;
   sq("a1", r, c);
 
@@ -203,7 +203,7 @@ void test_rook_blocked_by_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_queen_center_moves(void) {
-  placePiece(board, 'Q', "d4");
+  placePiece(board, Piece::W_QUEEN, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -218,7 +218,7 @@ void test_queen_center_moves(void) {
 // ---------------------------------------------------------------------------
 
 void test_king_center_moves(void) {
-  placePiece(board, 'K', "d4");
+  placePiece(board, Piece::W_KING, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -229,7 +229,7 @@ void test_king_center_moves(void) {
 }
 
 void test_king_corner_moves(void) {
-  placePiece(board, 'K', "a1");
+  placePiece(board, Piece::W_KING, "a1");
   int r, c;
   sq("a1", r, c);
 
@@ -240,10 +240,10 @@ void test_king_corner_moves(void) {
 }
 
 void test_king_no_move_onto_own(void) {
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'P', "a2");
-  placePiece(board, 'P', "b2");
-  placePiece(board, 'P', "b1");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::W_PAWN, "a2");
+  placePiece(board, Piece::W_PAWN, "b2");
+  placePiece(board, Piece::W_PAWN, "b1");
   int r, c;
   sq("a1", r, c);
 
@@ -258,8 +258,8 @@ void test_king_no_move_onto_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_black_pawn_diagonal_capture(void) {
-  placePiece(board, 'p', "d5");
-  placePiece(board, 'P', "e4"); // white piece to capture
+  placePiece(board, Piece::B_PAWN, "d5");
+  placePiece(board, Piece::W_PAWN, "e4"); // white piece to capture
   int r, c;
   sq("d5", r, c);
   int tr, tc;
@@ -269,9 +269,9 @@ void test_black_pawn_diagonal_capture(void) {
 
 void test_black_knight_center(void) {
   clearBoard(board);
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'n', "d4");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_KNIGHT, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -283,9 +283,9 @@ void test_black_knight_center(void) {
 
 void test_black_rook_center(void) {
   clearBoard(board);
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'r', "d4");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_ROOK, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -297,9 +297,9 @@ void test_black_rook_center(void) {
 
 void test_black_bishop_center(void) {
   clearBoard(board);
-  placePiece(board, 'k', "a8");
-  placePiece(board, 'K', "a1");
-  placePiece(board, 'b', "d4");
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_KING, "a1");
+  placePiece(board, Piece::B_BISHOP, "d4");
   int r, c;
   sq("d4", r, c);
 
@@ -310,8 +310,8 @@ void test_black_bishop_center(void) {
 }
 
 void test_rook_capture_and_stop(void) {
-  placePiece(board, 'R', "d4");
-  placePiece(board, 'p', "d7"); // enemy rook captures d7
+  placePiece(board, Piece::W_ROOK, "d4");
+  placePiece(board, Piece::B_PAWN, "d7"); // enemy rook captures d7
   int r, c;
   sq("d4", r, c);
   int tr, tc;
@@ -324,9 +324,9 @@ void test_rook_capture_and_stop(void) {
 }
 
 void test_white_pawn_double_push_blocked_second_sq(void) {
-  placePiece(board, 'P', "e2");
+  placePiece(board, Piece::W_PAWN, "e2");
   // e3 is empty, e4 is blocked
-  placePiece(board, 'p', "e4");
+  placePiece(board, Piece::B_PAWN, "e4");
   int r, c;
   sq("e2", r, c);
   TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e4 blocked
@@ -338,8 +338,8 @@ void test_white_pawn_double_push_blocked_second_sq(void) {
 // ---------------------------------------------------------------------------
 
 void test_pawn_a_file_capture(void) {
-  placePiece(board, 'P', "a4");
-  placePiece(board, 'p', "b5"); // can capture right
+  placePiece(board, Piece::W_PAWN, "a4");
+  placePiece(board, Piece::B_PAWN, "b5"); // can capture right
   int r, c;
   sq("a4", r, c);
   int tr, tc;
@@ -354,8 +354,8 @@ void test_pawn_a_file_capture(void) {
 }
 
 void test_pawn_h_file_capture(void) {
-  placePiece(board, 'P', "h4");
-  placePiece(board, 'p', "g5"); // can capture left
+  placePiece(board, Piece::W_PAWN, "h4");
+  placePiece(board, Piece::B_PAWN, "g5"); // can capture left
   int r, c;
   sq("h4", r, c);
   int tr, tc;
@@ -369,7 +369,7 @@ void test_pawn_h_file_capture(void) {
 }
 
 void test_knight_edge_b1(void) {
-  placePiece(board, 'N', "b1");
+  placePiece(board, Piece::W_KNIGHT, "b1");
   int r, c;
   sq("b1", r, c);
 
@@ -380,16 +380,16 @@ void test_knight_edge_b1(void) {
 }
 
 void test_queen_blocked(void) {
-  placePiece(board, 'Q', "d4");
+  placePiece(board, Piece::W_QUEEN, "d4");
   // Surround with own pieces on all 8 directions
-  placePiece(board, 'P', "d5");
-  placePiece(board, 'P', "d3");
-  placePiece(board, 'P', "c4");
-  placePiece(board, 'P', "e4");
-  placePiece(board, 'P', "c5");
-  placePiece(board, 'P', "e5");
-  placePiece(board, 'P', "c3");
-  placePiece(board, 'P', "e3");
+  placePiece(board, Piece::W_PAWN, "d5");
+  placePiece(board, Piece::W_PAWN, "d3");
+  placePiece(board, Piece::W_PAWN, "c4");
+  placePiece(board, Piece::W_PAWN, "e4");
+  placePiece(board, Piece::W_PAWN, "c5");
+  placePiece(board, Piece::W_PAWN, "e5");
+  placePiece(board, Piece::W_PAWN, "c3");
+  placePiece(board, Piece::W_PAWN, "e3");
   int r, c;
   sq("d4", r, c);
 
@@ -400,7 +400,7 @@ void test_queen_blocked(void) {
 }
 
 void test_bishop_corner_a1(void) {
-  placePiece(board, 'B', "a1");
+  placePiece(board, Piece::W_BISHOP, "a1");
   int r, c;
   sq("a1", r, c);
 
@@ -420,8 +420,8 @@ void test_initial_position_white_moves(void) {
 
   // Each of the 8 pawns has 2 moves, each of 2 knights has 2 moves = 20 total
   int totalMoves = 0;
-  ChessIterator::forEachPiece(board, [&](int row, int col, char piece) {
-    if (piece < 'A' || piece > 'Z') return;
+  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
+    if (!ChessPiece::isWhite(piece)) return;
     int moveCount = 0;
     int moves[28][2];
     ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
@@ -435,8 +435,8 @@ void test_initial_position_black_moves(void) {
   PositionState flags{0x0F, -1, -1};
 
   int totalMoves = 0;
-  ChessIterator::forEachPiece(board, [&](int row, int col, char piece) {
-    if (piece < 'a' || piece > 'z') return;
+  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
+    if (!ChessPiece::isBlack(piece)) return;
     int moveCount = 0;
     int moves[28][2];
     ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);

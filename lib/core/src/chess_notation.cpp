@@ -47,11 +47,11 @@ std::string toLAN(const MoveEntry& move) {
   }
 
   std::string result;
-  char piece = toupper(move.piece);
+  PieceType type = ChessPiece::pieceType(move.piece);
 
   // Piece prefix (omit for pawns)
-  if (piece != 'P') {
-    result += piece;
+  if (type != PieceType::PAWN) {
+    result += ChessPiece::pieceTypeToChar(type);
   }
 
   // Origin square
@@ -64,9 +64,9 @@ std::string toLAN(const MoveEntry& move) {
   result += ChessUtils::squareName(move.toRow, move.toCol);
 
   // Promotion suffix
-  if (move.isPromotion && move.promotion != ' ') {
+  if (move.isPromotion && move.promotion != Piece::NONE) {
     result += '=';
-    result += static_cast<char>(toupper(move.promotion));
+    result += ChessPiece::pieceTypeToChar(ChessPiece::pieceType(move.promotion));
   }
 
   return result;
@@ -77,12 +77,12 @@ std::string toLAN(const MoveEntry& move) {
 // ---------------------------------------------------------------------------
 
 // Piece letter for SAN (uppercase, omit for pawns).
-static char sanPieceLetter(char piece) {
-  char upper = toupper(piece);
-  return (upper == 'P') ? '\0' : upper;
+static char sanPieceLetter(Piece piece) {
+  PieceType type = ChessPiece::pieceType(piece);
+  return (type == PieceType::PAWN) ? '\0' : ChessPiece::pieceTypeToChar(type);
 }
 
-std::string toSAN(const char board[8][8], const PositionState& state,
+std::string toSAN(const Piece board[8][8], const PositionState& state,
                   const MoveEntry& move) {
   // Castling
   if (move.isCastling) {
@@ -90,10 +90,10 @@ std::string toSAN(const char board[8][8], const PositionState& state,
   }
 
   std::string result;
-  char piece = toupper(move.piece);
-  char color = ChessUtils::getPieceColor(move.piece);
+  PieceType type = ChessPiece::pieceType(move.piece);
+  Color color = ChessPiece::pieceColor(move.piece);
 
-  if (piece == 'P') {
+  if (type == PieceType::PAWN) {
     // Pawn moves
     if (move.isCapture) {
       // Capture: file of origin + 'x' + destination
@@ -102,22 +102,22 @@ std::string toSAN(const char board[8][8], const PositionState& state,
     }
     result += ChessUtils::squareName(move.toRow, move.toCol);
 
-    if (move.isPromotion && move.promotion != ' ') {
+    if (move.isPromotion && move.promotion != Piece::NONE) {
       result += '=';
-      result += static_cast<char>(toupper(move.promotion));
+      result += ChessPiece::pieceTypeToChar(ChessPiece::pieceType(move.promotion));
     }
   } else {
     // Piece moves — may require disambiguation
-    result += piece;
+    result += ChessPiece::pieceTypeToChar(type);
 
     // Find all same-type pieces of the same color that can also move to the target
     bool needFile = false;
     bool needRank = false;
 
-    ChessIterator::forEachPiece(board, [&](int r, int c, char other) {
+    ChessIterator::forEachPiece(board, [&](int r, int c, Piece other) {
       if (r == move.fromRow && c == move.fromCol) return;
-      if (toupper(other) != piece) return;
-      if (ChessUtils::getPieceColor(other) != color) return;
+      if (ChessPiece::pieceType(other) != type) return;
+      if (ChessPiece::pieceColor(other) != color) return;
 
       if (!ChessRules::isValidMove(board, r, c, move.toRow, move.toCol, state))
         return;
@@ -250,13 +250,13 @@ static bool isPieceLetter(char c) {
 }
 
 // Find and validate a castling move for the given side.
-static bool findCastlingMove(const char board[8][8], const PositionState& state,
-                             char currentTurn, bool kingSide,
+static bool findCastlingMove(const Piece board[8][8], const PositionState& state,
+                             Color currentTurn, bool kingSide,
                              int& fromRow, int& fromCol, int& toRow, int& toCol,
                              char& promotion) {
-  int row = ChessUtils::homeRow(currentTurn);
-  char king = board[row][4];
-  if (toupper(king) != 'K' || ChessUtils::getPieceColor(king) != currentTurn)
+  int row = ChessPiece::homeRow(currentTurn);
+  Piece king = board[row][4];
+  if (ChessPiece::pieceType(king) != PieceType::KING || ChessPiece::pieceColor(king) != currentTurn)
     return false;
   if (!ChessUtils::hasCastlingRight(state.castlingRights, currentTurn, kingSide))
     return false;
@@ -266,8 +266,8 @@ static bool findCastlingMove(const char board[8][8], const PositionState& state,
   return ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state);
 }
 
-bool parseSAN(const char board[8][8], const PositionState& state,
-              char currentTurn, const std::string& san,
+bool parseSAN(const Piece board[8][8], const PositionState& state,
+              Color currentTurn, const std::string& san,
               int& fromRow, int& fromCol,
               int& toRow, int& toCol,
               char& promotion) {
@@ -302,16 +302,16 @@ bool parseSAN(const char board[8][8], const PositionState& state,
   }
 
   // Determine piece type
-  char pieceType;  // uppercase piece letter
+  char pieceTypeChar;  // uppercase piece letter
   if (isPieceLetter(s[0])) {
-    pieceType = s[0];
+    pieceTypeChar = s[0];
     s.erase(0, 1);
   } else {
-    pieceType = 'P';  // pawn
+    pieceTypeChar = 'P';  // pawn
   }
+  PieceType targetType = ChessPiece::charToPieceType(pieceTypeChar);
 
   // Remove capture marker
-  // After removing piece letter, remaining can be like: "xf3", "ef3", "e4", "ae4", "1e4", "a1e4"
   std::string stripped;
   for (char c : s) {
     if (c != 'x') stripped += c;
@@ -345,9 +345,9 @@ bool parseSAN(const char board[8][8], const PositionState& state,
   int matchRow = -1, matchCol = -1;
   int matchCount = 0;
 
-  ChessIterator::forEachPiece(board, [&](int r, int c, char p) {
-    if (toupper(p) != pieceType) return;
-    if (ChessUtils::getPieceColor(p) != currentTurn) return;
+  ChessIterator::forEachPiece(board, [&](int r, int c, Piece p) {
+    if (ChessPiece::pieceType(p) != targetType) return;
+    if (ChessPiece::pieceColor(p) != currentTurn) return;
 
     if (hintFile >= 0 && c != hintFile) return;
     if (hintRank >= 0 && r != hintRank) return;
@@ -403,8 +403,8 @@ static bool looksLikeLAN(const std::string& move) {
   return false;
 }
 
-bool parseMove(const char board[8][8], const PositionState& state,
-               char currentTurn, const std::string& move,
+bool parseMove(const Piece board[8][8], const PositionState& state,
+               Color currentTurn, const std::string& move,
                int& fromRow, int& fromCol,
                int& toRow, int& toCol,
                char& promotion) {

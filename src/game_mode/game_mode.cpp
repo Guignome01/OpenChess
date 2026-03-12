@@ -36,14 +36,14 @@ void GameMode::waitForBoardSetup() {
       allCorrect = true;
 
       // Single pass: check correctness and update LEDs
-      chess_->forEachSquare([&](int row, int col, char piece) {
-        bool shouldHavePiece = (piece != ' ');
+      chess_->forEachSquare([&](int row, int col, Piece piece) {
+        bool shouldHavePiece = !ChessPiece::isEmpty(piece);
         bool hasPiece = boardDriver_->getSensorState(row, col);
 
         if (shouldHavePiece != hasPiece) allCorrect = false;
 
         if (shouldHavePiece && !hasPiece) {
-          boardDriver_->setSquareLED(row, col, SystemUtils::colorLed(ChessUtils::getPieceColor(piece)));
+          boardDriver_->setSquareLED(row, col, SystemUtils::colorLed(ChessPiece::pieceColor(piece)));
         } else if (!shouldHavePiece && hasPiece) {
           boardDriver_->setSquareLED(row, col, LedColors::Red);
         } else {
@@ -64,7 +64,7 @@ void GameMode::waitForBoardSetup() {
 
 MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, char promotion, bool isRemoteMove) {
   // Capture piece type before the move (needed for castling hardware detection)
-  char piece = chess_->getSquare(fromRow, fromCol);
+  Piece piece = chess_->getSquare(fromRow, fromCol);
 
   MoveResult result = chess_->makeMove(fromRow, fromCol, toRow, toCol, promotion);
   if (!result.valid) return result;
@@ -93,12 +93,12 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
 
   // --- Game-end / check hardware feedback ---
   if (result.gameResult == GameResult::CHECKMATE) {
-    boardDriver_->fireworkAnimation(SystemUtils::colorLed(result.winnerColor));
+    boardDriver_->fireworkAnimation(SystemUtils::colorLed(result.winnerColor == 'w' ? Color::WHITE : Color::BLACK));
   } else if (result.gameResult != GameResult::IN_PROGRESS) {
     boardDriver_->fireworkAnimation(LedColors::Cyan);
   } else if (result.isCheck) {
     int kingPos[1][2];
-    if (chess_->findPiece('K', chess_->currentTurn(), kingPos, 1) > 0)
+    if (chess_->findPiece(ChessPiece::makePiece(chess_->currentTurn(), PieceType::KING), kingPos, 1) > 0)
       boardDriver_->blinkSquare(kingPos[0][0], kingPos[0][1], LedColors::Yellow, 3, true, true);
   }
 
@@ -115,22 +115,22 @@ MoveResult GameMode::applyMove(const std::string& move) {
   return applyMove(fromRow, fromCol, toRow, toCol, promotion, true);
 }
 
-bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
+bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol) {
   for (int row = 0; row < 8; row++)
     for (int col = 0; col < 8; col++) {
       // Continue if nothing was picked up from this square
       if (!boardDriver_->getSensorPrev(row, col) || boardDriver_->getSensorState(row, col))
         continue;
 
-      char piece = chess_->getSquare(row, col);
+      Piece piece = chess_->getSquare(row, col);
 
       // Skip empty squares
-      if (piece == ' ')
+      if (ChessPiece::isEmpty(piece))
         continue;
 
       // Check if it's the correct player's piece
-      if (ChessUtils::getPieceColor(piece) != playerColor) {
-        logger_.infof("Wrong turn! It's %s's turn to move.", ChessUtils::colorName(playerColor));
+      if (ChessPiece::pieceColor(piece) != playerColor) {
+        logger_.infof("Wrong turn! It's %s's turn to move.", ChessPiece::colorName(playerColor));
         showIllegalMoveFeedback(row, col);
         continue;
       }
@@ -156,7 +156,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
         int c = moves[i][1];
 
         auto ei = chess_->checkEnPassant(row, col, r, c);
-        if (chess_->getSquare(r, c) == ' ' && !ei.isCapture) {
+        if (ChessPiece::isEmpty(chess_->getSquare(r, c)) && !ei.isCapture) {
           boardDriver_->setSquareLED(r, c, LedColors::White);
         } else {
           boardDriver_->setSquareLED(r, c, LedColors::Red);
@@ -170,7 +170,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
       // Wait for piece placement - handle both normal moves and captures
       int targetRow = -1, targetCol = -1;
       bool piecePlaced = false;
-      bool isKing = (toupper(piece) == 'K');
+      bool isKing = (ChessPiece::pieceType(piece) == PieceType::KING);
       unsigned long liftTimestamp = millis();
       bool resignTransitioned = false; // True once 3s hold switches LEDs to dim orange
       unsigned long resignFlagTimestamp = 0; // When the resign flag was raised
@@ -225,7 +225,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
               else
                 return !boardDriver_->getSensorState(r2, c2);
             };
-            if ((chess_->getSquare(r2, c2) != ' ' || epInfo.isCapture) && isCapturedPiecePickedUp()) {
+            if ((!ChessPiece::isEmpty(chess_->getSquare(r2, c2)) || epInfo.isCapture) && isCapturedPiecePickedUp()) {
               logger_.infof("Capture initiated at %s", ChessUtils::squareName(r2, c2).c_str());
               // Store the target square and wait for the capturing piece to be placed there
               targetRow = r2;
@@ -254,7 +254,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
             }
 
             // For normal non-capture moves: detect when a piece is placed on an empty square
-            if ((chess_->getSquare(r2, c2) == ' ' && !epInfo.isCapture) && boardDriver_->getSensorState(r2, c2)) {
+            if ((ChessPiece::isEmpty(chess_->getSquare(r2, c2)) && !epInfo.isCapture) && boardDriver_->getSensorState(r2, c2)) {
               targetRow = r2;
               targetCol = c2;
               piecePlaced = true;
@@ -284,7 +284,7 @@ bool GameMode::tryPlayerMove(char playerColor, int& fromRow, int& fromCol, int& 
             // First landing: brighten to 50%
             showResignProgress(row, col, 1, true);
             // Run remaining 2 quick lifts inline (blocking)
-            continueResignGesture(row, col, ChessUtils::getPieceColor(piece));
+            continueResignGesture(row, col, ChessPiece::pieceColor(piece));
           }
         } else {
           logger_.info("Pickup cancelled");
@@ -324,7 +324,7 @@ void GameMode::setBoardStateFromFEN(const std::string& fen) {
 // --- Hardware-only castling interactions ---
 // Board already updated by ChessBoard — this only handles LED prompts and sensor waits.
 
-void GameMode::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, char kingPiece, bool waitForKingCompletion) {
+void GameMode::applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, Piece kingPiece, bool waitForKingCompletion) {
   auto ci = ChessUtils::checkCastling(kingFromRow, kingFromCol, kingToRow, kingToCol, kingPiece);
   if (!ci.isCastling) return;
 
@@ -416,7 +416,7 @@ bool GameMode::processResign() {
   return true;
 }
 
-bool GameMode::continueResignGesture(int row, int col, char color) {
+bool GameMode::continueResignGesture(int row, int col, Color color) {
   // Called inline from tryPlayerMove after king returned (50% showing).
   // Need 2 more lift-and-return cycles. Each return brightens: 75% then 100%.
 
@@ -456,17 +456,17 @@ bool GameMode::continueResignGesture(int row, int col, char color) {
     showResignProgress(row, col, lift + 1);
   }
 
-  logger_.infof("Resign gesture completed by %s", ChessUtils::colorName(color));
+  logger_.infof("Resign gesture completed by %s", ChessPiece::colorName(color));
   delay(500);
   clearResignFeedback(row, col);
   return handleResign(color);
 }
 
-bool GameMode::handleResign(char resignColor) {
+bool GameMode::handleResign(Color resignColor) {
   onBeforeResignConfirm();
 
   bool flipped = isFlipped();
-  logger_.infof("Resign confirmation for %s...", ChessUtils::colorName(resignColor));
+  logger_.infof("Resign confirmation for %s...", ChessPiece::colorName(resignColor));
 
   if (!boardConfirm(boardDriver_, flipped)) {
     logger_.info("Resign cancelled");
@@ -476,8 +476,8 @@ bool GameMode::handleResign(char resignColor) {
 
   onResignConfirmed(resignColor);
 
-  char winnerColor = ChessUtils::opponentColor(resignColor);
+  Color winnerColor = ~resignColor;
   boardDriver_->fireworkAnimation(SystemUtils::colorLed(winnerColor));
-  chess_->endGame(GameResult::RESIGNATION, winnerColor);
+  chess_->endGame(GameResult::RESIGNATION, winnerColor == Color::WHITE ? 'w' : 'b');
   return true;
 }

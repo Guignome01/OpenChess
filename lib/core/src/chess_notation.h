@@ -42,7 +42,7 @@ std::string toLAN(const MoveEntry& move);
 
 // Standard Algebraic Notation: "e4", "Nxf3", "O-O", "e8=Q".
 // Requires the board state *before* the move for disambiguation.
-std::string toSAN(const char board[8][8], const PositionState& state,
+std::string toSAN(const Piece board[8][8], const PositionState& state,
                   const MoveEntry& move);
 
 // ---------------------------------------------------------------------------
@@ -64,18 +64,18 @@ bool parseLAN(const std::string& move,
               char& promotion);
 
 // Parse Standard Algebraic Notation: "e4", "Nxf3", "O-O", "e8=Q".
-// Requires board state and the side to move ('w' or 'b') to resolve the
+// Requires board state and the side to move to resolve the
 // origin square via move generation.
-bool parseSAN(const char board[8][8], const PositionState& state,
-              char currentTurn, const std::string& san,
+bool parseSAN(const Piece board[8][8], const PositionState& state,
+              Color currentTurn, const std::string& san,
               int& fromRow, int& fromCol,
               int& toRow, int& toCol,
               char& promotion);
 
 // Auto-detect format and parse.  Tries coordinate first (fast regex match),
 // then LAN, then SAN.  Returns false if no parser succeeds.
-bool parseMove(const char board[8][8], const PositionState& state,
-               char currentTurn, const std::string& move,
+bool parseMove(const Piece board[8][8], const PositionState& state,
+               Color currentTurn, const std::string& move,
                int& fromRow, int& fromCol,
                int& toRow, int& toCol,
                char& promotion);

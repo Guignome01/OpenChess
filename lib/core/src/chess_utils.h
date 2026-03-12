@@ -9,37 +9,9 @@
 
 namespace ChessUtils {
 
-// Inline helper functions for chess logic.
-
-inline bool isWhitePiece(char piece) {
-  return (piece >= 'A' && piece <= 'Z');
-}
-
-inline bool isBlackPiece(char piece) {
-  return (piece >= 'a' && piece <= 'z');
-}
-
-inline char getPieceColor(char piece) {
-  if (isWhitePiece(piece)) return 'w';
-  if (isBlackPiece(piece)) return 'b';
-  return ' ';  // empty square or invalid
-}
-
-inline bool isEnPassantMove(int fromRow, int fromCol, int toRow, int toCol, char piece, char capturedPiece) {
-  return (toupper(piece) == 'P' && fromCol != toCol && capturedPiece == ' ');
-}
-
-inline int getEnPassantCapturedPawnRow(int toRow, char piece) {
-  return toRow - (isWhitePiece(piece) ? -1 : 1);
-}
-
-inline bool isCastlingMove(int fromRow, int fromCol, int toRow, int toCol, char piece) {
-  return (toupper(piece) == 'K' && fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2));
-}
-
-inline const char* colorName(char color) {
-  return (color == 'w') ? "White" : ((color == 'b') ? "Black" : "Unknown");
-}
+// ---------------------------------------------------------------------------
+// Game result name lookup
+// ---------------------------------------------------------------------------
 
 inline const char* gameResultName(GameResult result) {
   static constexpr const char* NAMES[] = {
@@ -58,18 +30,6 @@ inline const char* gameResultName(GameResult result) {
   return (idx < sizeof(NAMES) / sizeof(NAMES[0])) ? NAMES[idx] : "Unknown";
 }
 
-inline char opponentColor(char color) {
-  return (color == 'w') ? 'b' : 'w';
-}
-
-inline int pawnDirection(char color) {
-  return (color == 'w') ? -1 : 1;
-}
-
-inline int homeRow(char color) {
-  return (color == 'w') ? 7 : 0;
-}
-
 // --- Castling rights ---
 // Bitmask: 0x01 = K, 0x02 = Q, 0x04 = k, 0x08 = q.
 
@@ -83,8 +43,9 @@ inline uint8_t castlingCharToBit(char c) {
   }
 }
 
-inline bool hasCastlingRight(uint8_t castlingRights, char pieceColor, bool kingSide) {
-  char c = kingSide ? (pieceColor == 'w' ? 'K' : 'k') : (pieceColor == 'w' ? 'Q' : 'q');
+inline bool hasCastlingRight(uint8_t castlingRights, Color color, bool kingSide) {
+  char c = kingSide ? (color == Color::WHITE ? 'K' : 'k')
+                    : (color == Color::WHITE ? 'Q' : 'q');
   return (castlingRights & castlingCharToBit(c)) != 0;
 }
 
@@ -126,18 +87,21 @@ struct EnPassantInfo {
   int nextEpCol;        // EP target col for the *next* move (-1 if none)
 };
 
-inline EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol, char piece, char targetSquare) {
+inline EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol, Piece piece, Piece targetSquare) {
   EnPassantInfo info{};
   info.capturedPawnRow = -1;
   info.nextEpRow = -1;
   info.nextEpCol = -1;
 
-  info.isCapture = isEnPassantMove(fromRow, fromCol, toRow, toCol, piece, targetSquare);
+  bool isPawn = ChessPiece::pieceType(piece) == PieceType::PAWN;
+
+  // En passant: pawn captures diagonally to an empty square
+  info.isCapture = isPawn && fromCol != toCol && targetSquare == Piece::NONE;
   if (info.isCapture)
-    info.capturedPawnRow = getEnPassantCapturedPawnRow(toRow, piece);
+    info.capturedPawnRow = toRow - ChessPiece::pawnDirection(ChessPiece::pieceColor(piece));
 
   // Pawn double-push creates an EP target for the opponent
-  if (toupper(piece) == 'P' && abs(toRow - fromRow) == 2) {
+  if (isPawn && abs(toRow - fromRow) == 2) {
     info.nextEpRow = (fromRow + toRow) / 2;
     info.nextEpCol = fromCol;
   }
@@ -156,12 +120,13 @@ struct CastlingInfo {
   int rookToCol;     // Rook destination column (-1 if not castling)
 };
 
-inline CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol, char piece) {
+inline CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol, Piece piece) {
   CastlingInfo info{};
   info.rookFromCol = -1;
   info.rookToCol = -1;
 
-  info.isCastling = isCastlingMove(fromRow, fromCol, toRow, toCol, piece);
+  info.isCastling = ChessPiece::pieceType(piece) == PieceType::KING &&
+                    fromRow == toRow && (toCol - fromCol == 2 || toCol - fromCol == -2);
   if (info.isCastling) {
     int deltaCol = toCol - fromCol;
     info.rookFromCol = (deltaCol == 2) ? 7 : 0;
@@ -175,27 +140,27 @@ inline CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol
 // Castling rights update — pure function returning new rights bitmask.
 // ---------------------------------------------------------------------------
 
-inline uint8_t updateCastlingRights(uint8_t rights, int fromRow, int fromCol, int toRow, int toCol, char movedPiece, char capturedPiece) {
+inline uint8_t updateCastlingRights(uint8_t rights, int fromRow, int fromCol, int toRow, int toCol, Piece movedPiece, Piece capturedPiece) {
   // King moved — lose both rights for that color
-  if (movedPiece == 'K')
+  if (movedPiece == Piece::W_KING)
     rights &= ~(0x01 | 0x02);
-  else if (movedPiece == 'k')
+  else if (movedPiece == Piece::B_KING)
     rights &= ~(0x04 | 0x08);
 
   // Rook moved from corner — lose that side's right
-  if (movedPiece == 'R') {
+  if (movedPiece == Piece::W_ROOK) {
     if (fromRow == 7 && fromCol == 7) rights &= ~0x01;
     if (fromRow == 7 && fromCol == 0) rights &= ~0x02;
-  } else if (movedPiece == 'r') {
+  } else if (movedPiece == Piece::B_ROOK) {
     if (fromRow == 0 && fromCol == 7) rights &= ~0x04;
     if (fromRow == 0 && fromCol == 0) rights &= ~0x08;
   }
 
   // Rook captured on corner — lose that side's right
-  if (capturedPiece == 'R') {
+  if (capturedPiece == Piece::W_ROOK) {
     if (toRow == 7 && toCol == 7) rights &= ~0x01;
     if (toRow == 7 && toCol == 0) rights &= ~0x02;
-  } else if (capturedPiece == 'r') {
+  } else if (capturedPiece == Piece::B_ROOK) {
     if (toRow == 0 && toCol == 7) rights &= ~0x04;
     if (toRow == 0 && toCol == 0) rights &= ~0x08;
   }
@@ -210,13 +175,6 @@ inline constexpr bool isValidSquare(int row, int col) {
   return row >= 0 && row < 8 && col >= 0 && col < 8;
 }
 
-// Construct a piece char from an uppercase type letter and a color.
-// makePiece('R', 'w') → 'R';  makePiece('R', 'b') → 'r'.
-inline char makePiece(char type, char color) {
-  return (color == 'w') ? static_cast<char>(toupper(type))
-                        : static_cast<char>(tolower(type));
-}
-
 // Is char a valid promotion piece letter? (case-insensitive: q, r, b, n)
 inline bool isValidPromotionChar(char c) {
   char lower = static_cast<char>(tolower(c));
@@ -229,17 +187,16 @@ inline bool isValidPromotionChar(char c) {
 // Sets capturedPiece to the piece actually captured (including EP captures).
 // Does NOT update PositionState, promotion, or MoveResult — callers handle those.
 // ---------------------------------------------------------------------------
-void applyBoardTransform(char board[8][8], int fromRow, int fromCol,
+void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
                          int toRow, int toCol,
-                         const PositionState& state, char& capturedPiece);
+                         const PositionState& state, Piece& capturedPiece);
 
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)
-// Pawn=1, Knight=3, Bishop=3, Rook=5, Queen=9
-float evaluatePosition(const char board[8][8]);
+float evaluatePosition(const Piece board[8][8]);
 
 // Format the board as a human-readable text block for debugging.
-std::string boardToText(const char board[8][8]);
+std::string boardToText(const Piece board[8][8]);
 
 }  // namespace ChessUtils
 

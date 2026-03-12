@@ -36,27 +36,25 @@ void test_chess_hash_keys_side_to_move(void) {
 // ---------------------------------------------------------------------------
 
 void test_chess_hash_piece_index_white(void) {
-  TEST_ASSERT_EQUAL(0, ChessHash::pieceIndex('P'));
-  TEST_ASSERT_EQUAL(1, ChessHash::pieceIndex('N'));
-  TEST_ASSERT_EQUAL(2, ChessHash::pieceIndex('B'));
-  TEST_ASSERT_EQUAL(3, ChessHash::pieceIndex('R'));
-  TEST_ASSERT_EQUAL(4, ChessHash::pieceIndex('Q'));
-  TEST_ASSERT_EQUAL(5, ChessHash::pieceIndex('K'));
+  TEST_ASSERT_EQUAL(0, ChessPiece::pieceZobristIndex(Piece::W_PAWN));
+  TEST_ASSERT_EQUAL(1, ChessPiece::pieceZobristIndex(Piece::W_KNIGHT));
+  TEST_ASSERT_EQUAL(2, ChessPiece::pieceZobristIndex(Piece::W_BISHOP));
+  TEST_ASSERT_EQUAL(3, ChessPiece::pieceZobristIndex(Piece::W_ROOK));
+  TEST_ASSERT_EQUAL(4, ChessPiece::pieceZobristIndex(Piece::W_QUEEN));
+  TEST_ASSERT_EQUAL(5, ChessPiece::pieceZobristIndex(Piece::W_KING));
 }
 
 void test_chess_hash_piece_index_black(void) {
-  TEST_ASSERT_EQUAL(6, ChessHash::pieceIndex('p'));
-  TEST_ASSERT_EQUAL(7, ChessHash::pieceIndex('n'));
-  TEST_ASSERT_EQUAL(8, ChessHash::pieceIndex('b'));
-  TEST_ASSERT_EQUAL(9, ChessHash::pieceIndex('r'));
-  TEST_ASSERT_EQUAL(10, ChessHash::pieceIndex('q'));
-  TEST_ASSERT_EQUAL(11, ChessHash::pieceIndex('k'));
+  TEST_ASSERT_EQUAL(6, ChessPiece::pieceZobristIndex(Piece::B_PAWN));
+  TEST_ASSERT_EQUAL(7, ChessPiece::pieceZobristIndex(Piece::B_KNIGHT));
+  TEST_ASSERT_EQUAL(8, ChessPiece::pieceZobristIndex(Piece::B_BISHOP));
+  TEST_ASSERT_EQUAL(9, ChessPiece::pieceZobristIndex(Piece::B_ROOK));
+  TEST_ASSERT_EQUAL(10, ChessPiece::pieceZobristIndex(Piece::B_QUEEN));
+  TEST_ASSERT_EQUAL(11, ChessPiece::pieceZobristIndex(Piece::B_KING));
 }
 
 void test_chess_hash_piece_index_invalid(void) {
-  TEST_ASSERT_EQUAL(-1, ChessHash::pieceIndex(' '));
-  TEST_ASSERT_EQUAL(-1, ChessHash::pieceIndex('x'));
-  TEST_ASSERT_EQUAL(-1, ChessHash::pieceIndex('0'));
+  TEST_ASSERT_EQUAL(-1, ChessPiece::pieceZobristIndex(Piece::NONE));
 }
 
 // ---------------------------------------------------------------------------

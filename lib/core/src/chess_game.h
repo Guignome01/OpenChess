@@ -131,9 +131,9 @@ class ChessGame {
 
   // --- Board pass-throughs ---
 
-  const char (&getBoard() const)[8][8] { return board_.getBoard(); }
-  char getSquare(int row, int col) const { return board_.getSquare(row, col); }
-  char currentTurn() const { return board_.currentTurn(); }
+  const Piece (&getBoard() const)[8][8] { return board_.getBoard(); }
+  Piece getSquare(int row, int col) const { return board_.getSquare(row, col); }
+  Color currentTurn() const { return board_.currentTurn(); }
   uint8_t getCastlingRights() const { return board_.getCastlingRights(); }
   const PositionState& positionState() const { return board_.positionState(); }
   std::string getFen() const { return board_.getFen(); }
@@ -145,7 +145,7 @@ class ChessGame {
     board_.getPossibleMoves(row, col, moveCount, moves);
   }
 
-  bool isCheck(char kingColor) const { return board_.isCheck(kingColor); }
+  bool isCheck(Color kingColor) const { return board_.isCheck(kingColor); }
   bool inCheck() const { return board_.inCheck(); }
   bool isCheckmate() const { return board_.isCheckmate(); }
   bool isStalemate() const { return board_.isStalemate(); }
@@ -154,12 +154,12 @@ class ChessGame {
   bool isDraw() const { return board_.isDraw(); }
   bool isThreefoldRepetition() const { return board_.isThreefoldRepetition(); }
 
-  bool isAttacked(int row, int col, char byColor) const {
+  bool isAttacked(int row, int col, Color byColor) const {
     return board_.isAttacked(row, col, byColor);
   }
 
-  int findPiece(char type, char color, int positions[][2], int maxPositions) const {
-    return board_.findPiece(type, color, positions, maxPositions);
+  int findPiece(Piece target, int positions[][2], int maxPositions) const {
+    return board_.findPiece(target, positions, maxPositions);
   }
 
   std::string boardToText() const { return board_.boardToText(); }

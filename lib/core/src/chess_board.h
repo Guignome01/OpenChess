@@ -1,7 +1,6 @@
 #ifndef CORE_CHESS_BOARD_H
 #define CORE_CHESS_BOARD_H
 
-#include <cctype>
 #include <cstring>
 #include <string>
 
@@ -62,9 +61,9 @@ class ChessBoard {
 
   // --- Queries ---
 
-  const char (&getBoard() const)[8][8] { return board_; }
-  char getSquare(int row, int col) const { return board_[row][col]; }
-  char currentTurn() const { return currentTurn_; }
+  const Piece (&getBoard() const)[8][8] { return squares_; }
+  Piece getSquare(int row, int col) const { return squares_[row][col]; }
+  Color currentTurn() const { return currentTurn_; }
 
   // Position state accessors
   uint8_t getCastlingRights() const { return state_.castlingRights; }
@@ -80,32 +79,32 @@ class ChessBoard {
 
   // Legal moves for the piece at (row, col). Returns moveCount; fills moves[][2].
   void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) const {
-    ChessRules::getPossibleMoves(board_, row, col, state_, moveCount, moves);
+    ChessRules::getPossibleMoves(squares_, row, col, state_, moveCount, moves);
   }
 
   // Is the given color's king in check?
-  bool isCheck(char kingColor) const {
-    return ChessRules::isCheck(board_, kingColor);
+  bool isCheck(Color kingColor) const {
+    return ChessRules::isCheck(squares_, kingColor);
   }
 
   // Is the side to move in check?
   bool inCheck() const {
-    return ChessRules::isCheck(board_, currentTurn_);
+    return ChessRules::isCheck(squares_, currentTurn_);
   }
 
   // Is the side to move checkmated?
   bool isCheckmate() const {
-    return ChessRules::isCheckmate(board_, currentTurn_, state_);
+    return ChessRules::isCheckmate(squares_, currentTurn_, state_);
   }
 
   // Is the side to move stalemated?
   bool isStalemate() const {
-    return ChessRules::isStalemate(board_, currentTurn_, state_);
+    return ChessRules::isStalemate(squares_, currentTurn_, state_);
   }
 
   // Is the position drawn due to insufficient material?
   bool isInsufficientMaterial() const {
-    return ChessRules::isInsufficientMaterial(board_);
+    return ChessRules::isInsufficientMaterial(squares_);
   }
 
   // Has the 50-move rule been reached (100 half-moves)?
@@ -121,28 +120,23 @@ class ChessBoard {
   // Is the position drawn by any automatic draw rule?
   // (stalemate, 50-move, insufficient material, threefold)
   bool isDraw() const {
-    return ChessRules::isDraw(board_, currentTurn_, state_, positionHistory_, positionHistoryCount_);
+    return ChessRules::isDraw(squares_, currentTurn_, state_, positionHistory_, positionHistoryCount_);
   }
 
   // Is the given square attacked by pieces of the specified color?
-  // "byColor" is the attacking side: 'w' or 'b'.
-  bool isAttacked(int row, int col, char byColor) const {
-    // ChessRules defines "defendingColor" as the side that owns the square.
-    // Attacked-by 'w' means squares defended by 'w' = attacked from 'b' perspective.
-    char defendingColor = ChessUtils::opponentColor(byColor);
-    return ChessRules::isSquareUnderAttack(board_, row, col, defendingColor);
+  bool isAttacked(int row, int col, Color byColor) const {
+    Color defendingColor = ~byColor;
+    return ChessRules::isSquareUnderAttack(squares_, row, col, defendingColor);
   }
 
-  // Find all pieces of the given type and color.
-  // type: uppercase piece letter ('P','N','B','R','Q','K').
-  // color: 'w' or 'b'.
+  // Find all pieces matching the given Piece value.
   // Returns count; fills positions[][2] with [row, col] pairs.
-  int findPiece(char type, char color, int positions[][2], int maxPositions) const {
-    return ChessIterator::findPiece(board_, type, color, positions, maxPositions);
+  int findPiece(Piece target, int positions[][2], int maxPositions) const {
+    return ChessIterator::findPiece(squares_, target, positions, maxPositions);
   }
 
   // Format the board as a human-readable text block.
-  std::string boardToText() const { return ChessUtils::boardToText(board_); }
+  std::string boardToText() const { return ChessUtils::boardToText(squares_); }
 
   // Current full-move number (starts at 1, increments after black's move).
   int moveNumber() const { return state_.fullmoveClock; }
@@ -150,25 +144,25 @@ class ChessBoard {
   // En passant analysis for a move on this board.
   ChessUtils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
     return ChessUtils::checkEnPassant(fromRow, fromCol, toRow, toCol,
-                                      board_[fromRow][fromCol], board_[toRow][toCol]);
+                                      squares_[fromRow][fromCol], squares_[toRow][toCol]);
   }
 
   // Castling analysis for a move on this board.
   ChessUtils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
     return ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol,
-                                     board_[fromRow][fromCol]);
+                                     squares_[fromRow][fromCol]);
   }
 
   // --- Constants ---
 
-  static const char INITIAL_BOARD[8][8];
+  static const Piece INITIAL_BOARD[8][8];
 
   // Maximum stored positions (sufficient for any legal game)
   static constexpr int MAX_POSITION_HISTORY = 128;
 
  private:
-  char board_[8][8];
-  char currentTurn_;
+  Piece squares_[8][8];
+  Color currentTurn_;
   PositionState state_;  // castling rights, en passant, clocks
 
   // Zobrist position history (for threefold repetition detection)

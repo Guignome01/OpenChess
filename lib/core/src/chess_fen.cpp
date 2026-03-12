@@ -18,12 +18,12 @@ static std::string nextToken(std::string& remaining) {
   return token;
 }
 
-std::string boardToFEN(const char board[8][8], char currentTurn, const PositionState* state) {
+std::string boardToFEN(const Piece board[8][8], Color currentTurn, const PositionState* state) {
   std::string fen;
 
   // Board position — rank 8 first (row 0), rank 1 last (row 7).
   int emptyCount = 0;
-  ChessIterator::forEachSquare(board, [&](int row, int col, char piece) {
+  ChessIterator::forEachSquare(board, [&](int row, int col, Piece piece) {
     if (col == 0 && row > 0) {
       if (emptyCount > 0) {
         fen += std::to_string(emptyCount);
@@ -31,14 +31,14 @@ std::string boardToFEN(const char board[8][8], char currentTurn, const PositionS
       }
       fen += '/';
     }
-    if (piece == ' ') {
+    if (piece == Piece::NONE) {
       emptyCount++;
     } else {
       if (emptyCount > 0) {
         fen += std::to_string(emptyCount);
         emptyCount = 0;
       }
-      fen += piece;
+      fen += ChessPiece::pieceToChar(piece);
     }
   });
   if (emptyCount > 0)
@@ -46,7 +46,7 @@ std::string boardToFEN(const char board[8][8], char currentTurn, const PositionS
 
   // Active color
   fen += ' ';
-  fen += currentTurn;
+  fen += ChessPiece::colorToChar(currentTurn);
 
   // Castling availability
   if (state != nullptr)
@@ -78,14 +78,12 @@ std::string boardToFEN(const char board[8][8], char currentTurn, const PositionS
   return fen;
 }
 
-void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, PositionState* state) {
+void fenToBoard(const std::string& fen, Piece board[8][8], Color& currentTurn, PositionState* state) {
   std::string remaining = fen;
   std::string boardPart = nextToken(remaining);
 
   // Clear board
-  for (int row = 0; row < 8; row++)
-    for (int col = 0; col < 8; col++)
-      board[row][col] = ' ';
+  memset(board, 0, 64 * sizeof(Piece));
 
   // Parse ranks (rank 8 first, rank 1 last)
   int row = 0;
@@ -97,9 +95,10 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
       col = 0;
     } else if (c >= '1' && c <= '8') {
       col += c - '0';
-    } else if (ChessUtils::isWhitePiece(c) || ChessUtils::isBlackPiece(c)) {
-      if (ChessUtils::isValidSquare(row, col)) {
-        board[row][col] = c;
+    } else {
+      Piece p = ChessPiece::charToPiece(c);
+      if (p != Piece::NONE && ChessUtils::isValidSquare(row, col)) {
+        board[row][col] = p;
         col++;
       }
     }
@@ -110,7 +109,7 @@ void fenToBoard(const std::string& fen, char board[8][8], char& currentTurn, Pos
   // Active color
   std::string activeColor = nextToken(remaining);
   if (!activeColor.empty())
-    currentTurn = (activeColor == "w" || activeColor == "W") ? 'w' : 'b';
+    currentTurn = (activeColor == "b" || activeColor == "B") ? Color::BLACK : Color::WHITE;
 
   // Castling rights
   std::string castlingStr = nextToken(remaining);
