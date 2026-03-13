@@ -29,12 +29,11 @@ inline void placePiece(Piece board[8][8], Piece piece, const char* square) {
 }
 
 /// Return whether a given move exists in the rules's possible‐move list.
-inline bool moveExists(Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& flags = {}) {
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, fromRow, fromCol, flags, moveCount, moves);
-  for (int i = 0; i < moveCount; i++) {
-    if (moves[i][0] == toRow && moves[i][1] == toCol)
+inline bool moveExists(Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state = {}) {
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, fromRow, fromCol, state, moves);
+  for (int i = 0; i < moves.count; i++) {
+    if (moves.row(i) == toRow && moves.col(i) == toCol)
       return true;
   }
   return false;

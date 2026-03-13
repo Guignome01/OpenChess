@@ -261,12 +261,11 @@ void test_double_check_only_king_can_move(void) {
   // King is in check
   TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::BLACK));
   // Knight on d6 cannot resolve double check (even though it attacks both e4 and b5)
-  int moveCount = 0;
-  int moves[28][2];
+  MoveList moves;
   int r, c;
   sq("d6", r, c);
-  ChessRules::getPossibleMoves(board, r, c, flags, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  ChessRules::getPossibleMoves(board, r, c, flags, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void test_smothered_mate(void) {
@@ -305,10 +304,9 @@ void test_diagonal_pin(void) {
   sq("d4", r, c);
   PositionState flags{0x00, -1, -1, 0, 1};
   // Pawn should have 0 legal moves (pinned diagonally, can't move along pin)
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, flags, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, flags, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void register_chess_rules_check_tests() {

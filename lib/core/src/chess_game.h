@@ -134,6 +134,8 @@ class ChessGame {
   const Piece (&getBoard() const)[8][8] { return board_.getBoard(); }
   Piece getSquare(int row, int col) const { return board_.getSquare(row, col); }
   Color currentTurn() const { return board_.currentTurn(); }
+  int kingRow(Color c) const { return board_.kingRow(c); }
+  int kingCol(Color c) const { return board_.kingCol(c); }
   uint8_t getCastlingRights() const { return board_.getCastlingRights(); }
   const PositionState& positionState() const { return board_.positionState(); }
   std::string getFen() const { return board_.getFen(); }
@@ -141,8 +143,8 @@ class ChessGame {
 
   // --- Convenience wrappers (chess queries, delegated to board) ---
 
-  void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) const {
-    board_.getPossibleMoves(row, col, moveCount, moves);
+  void getPossibleMoves(int row, int col, MoveList& moves) const {
+    board_.getPossibleMoves(row, col, moves);
   }
 
   bool isCheck(Color kingColor) const { return board_.isCheck(kingColor); }

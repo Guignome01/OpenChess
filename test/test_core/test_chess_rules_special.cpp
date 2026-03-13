@@ -136,19 +136,19 @@ void test_en_passant_not_available(void) {
 // ---------------------------------------------------------------------------
 
 void test_white_pawn_promotes_on_rank8(void) {
-  TEST_ASSERT_TRUE(ChessRules::isPromotion(Piece::W_PAWN, 0));  // row 0 = rank 8
+  TEST_ASSERT_TRUE(ChessPiece::isPromotion(Piece::W_PAWN, 0));  // row 0 = rank 8
 }
 
 void test_white_pawn_no_promote_other_rank(void) {
-  TEST_ASSERT_FALSE(ChessRules::isPromotion(Piece::W_PAWN, 1)); // row 1 = rank 7
+  TEST_ASSERT_FALSE(ChessPiece::isPromotion(Piece::W_PAWN, 1)); // row 1 = rank 7
 }
 
 void test_black_pawn_promotes_on_rank1(void) {
-  TEST_ASSERT_TRUE(ChessRules::isPromotion(Piece::B_PAWN, 7));  // row 7 = rank 1
+  TEST_ASSERT_TRUE(ChessPiece::isPromotion(Piece::B_PAWN, 7));  // row 7 = rank 1
 }
 
 void test_non_pawn_no_promote(void) {
-  TEST_ASSERT_FALSE(ChessRules::isPromotion(Piece::W_ROOK, 0));
+  TEST_ASSERT_FALSE(ChessPiece::isPromotion(Piece::W_ROOK, 0));
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +290,7 @@ void test_ep_h_file_boundary(void) {
 // ---------------------------------------------------------------------------
 
 void test_isPromotion_black_not_rank1(void) {
-  TEST_ASSERT_FALSE(ChessRules::isPromotion(Piece::B_PAWN, 5)); // row 5 = rank 3
+  TEST_ASSERT_FALSE(ChessPiece::isPromotion(Piece::B_PAWN, 5)); // row 5 = rank 3
 }
 
 void test_isCastlingMove_non_king(void) {

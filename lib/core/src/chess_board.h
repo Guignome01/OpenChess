@@ -65,6 +65,10 @@ class ChessBoard {
   Piece getSquare(int row, int col) const { return squares_[row][col]; }
   Color currentTurn() const { return currentTurn_; }
 
+  // Cached king position for the given color.
+  int kingRow(Color c) const { return kingSquare_[ChessPiece::raw(c)][0]; }
+  int kingCol(Color c) const { return kingSquare_[ChessPiece::raw(c)][1]; }
+
   // Position state accessors
   uint8_t getCastlingRights() const { return state_.castlingRights; }
   const PositionState& positionState() const { return state_; }
@@ -77,19 +81,19 @@ class ChessBoard {
 
   // --- Convenience wrappers (delegate to ChessRules / ChessUtils) ---
 
-  // Legal moves for the piece at (row, col). Returns moveCount; fills moves[][2].
-  void getPossibleMoves(int row, int col, int& moveCount, int moves[][2]) const {
-    ChessRules::getPossibleMoves(squares_, row, col, state_, moveCount, moves);
+  // Legal moves for the piece at (row, col).
+  void getPossibleMoves(int row, int col, MoveList& moves) const {
+    ChessRules::getPossibleMoves(squares_, row, col, state_, moves);
   }
 
   // Is the given color's king in check?
   bool isCheck(Color kingColor) const {
-    return ChessRules::isCheck(squares_, kingColor);
+    return ChessRules::isSquareUnderAttack(squares_, kingRow(kingColor), kingCol(kingColor), kingColor);
   }
 
   // Is the side to move in check?
   bool inCheck() const {
-    return ChessRules::isCheck(squares_, currentTurn_);
+    return ChessRules::isSquareUnderAttack(squares_, kingRow(currentTurn_), kingCol(currentTurn_), currentTurn_);
   }
 
   // Is the side to move checkmated?
@@ -114,13 +118,13 @@ class ChessBoard {
 
   // Has the current position occurred three or more times?
   bool isThreefoldRepetition() const {
-    return ChessRules::isThreefoldRepetition(positionHistory_, positionHistoryCount_);
+    return ChessRules::isThreefoldRepetition(hashHistory_);
   }
 
   // Is the position drawn by any automatic draw rule?
   // (stalemate, 50-move, insufficient material, threefold)
   bool isDraw() const {
-    return ChessRules::isDraw(squares_, currentTurn_, state_, positionHistory_, positionHistoryCount_);
+    return ChessRules::isDraw(squares_, currentTurn_, state_, hashHistory_);
   }
 
   // Is the given square attacked by pieces of the specified color?
@@ -157,17 +161,17 @@ class ChessBoard {
 
   static const Piece INITIAL_BOARD[8][8];
 
-  // Maximum stored positions (sufficient for any legal game)
-  static constexpr int MAX_POSITION_HISTORY = 128;
-
  private:
   Piece squares_[8][8];
   Color currentTurn_;
   PositionState state_;  // castling rights, en passant, clocks
 
+  // Cached king positions indexed by Color (0=WHITE, 1=BLACK).
+  // Updated by newGame(), loadFEN(), applyMoveToBoard(), reverseMove().
+  int kingSquare_[2][2];  // [color][0]=row, [color][1]=col
+
   // Zobrist position history (for threefold repetition detection)
-  uint64_t positionHistory_[MAX_POSITION_HISTORY];
-  int positionHistoryCount_;
+  HashHistory hashHistory_;
 
   // FEN / evaluation cache (mutable: updated lazily from const getters)
   mutable std::string cachedFen_;

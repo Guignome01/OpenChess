@@ -1,6 +1,6 @@
 ---
 applyTo: "lib/core/**, src/game_mode/**, src/engine/**"
-description: "Core chess library classes — ChessGame, ChessBoard, ChessHistory, ChessRules, ChessUtils, ChessFEN, ChessNotation, ChessHash, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
+description: "Core chess library classes — ChessGame, ChessBoard, ChessHistory, ChessRules, ChessPiece, ChessUtils, ChessFEN, ChessNotation, ChessHash, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
 ---
 
 # Core Chess Library (`lib/core/`)
@@ -12,10 +12,11 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | Class/Namespace | Role | State |
 |-----------------|------|-------|
 | `ChessGame` | Central orchestrator, sole owner of game lifecycle | Composes ChessBoard + ChessHistory |
-| `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, Zobrist history |
+| `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, king cache, HashHistory |
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
+| `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (header-only, all constexpr) |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessUtils` | Piece queries, coordinate helpers, color-derived helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
+| `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, material evaluation, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessHash` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
@@ -31,6 +32,21 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `Log` | Null-safe logger proxy (value type wrapping `ILogger*`) | Defined in `logger.h` |
 
 All nullable — core classes use `Log` proxy members instead of raw `ILogger*` pointers, eliminating manual null guards.
+
+## Fundamental Concepts
+
+Six independent concepts compose `ChessBoard`'s game state. Understanding these prevents confusion about what each field represents and why they're grouped the way they are.
+
+| # | Concept | Storage | Role |
+|---|---------|---------|------|
+| 1 | Piece layout | `Piece squares_[8][8]` | The 64 squares |
+| 2 | Turn | `Color currentTurn_` | Whose move |
+| 3 | Move-gen context | `PositionState.castlingRights`, `.epRow`, `.epCol` | Input to ChessRules for move generation and Zobrist hashing |
+| 4 | Game clocks | `PositionState.halfmoveClock`, `.fullmoveClock` | 50-move rule counter, FEN move numbering |
+| 5 | King cache | `int kingSquare_[2][2]` | Derived from squares_, maintained incrementally for O(1) check detection |
+| 6 | Hash history | `HashHistory hashHistory_` | Zobrist hashes of past positions for threefold repetition detection |
+
+Concepts 3+4 are bundled in `PositionState` because `MoveEntry` stores the full state for undo — splitting would create friction at that boundary for minimal gain. Concept 5 is derived (redundant with squares_) but essential for performance. Concept 6 resets on irreversible moves (pawn push, capture).
 
 ## Data Flow: How a Move Works
 
@@ -75,7 +91,7 @@ These explain *why* the architecture is the way it is — constraints that code 
 
 - **Check/checkmate suffixes added by caller** — `ChessNotation` output functions omit `+`/`#` suffixes. `ChessGame::getHistory()` appends them by replaying moves on a temp board. This keeps notation logic pure (no need to apply moves to detect check).
 
-- **Fixed-size arrays everywhere** — `MoveEntry[300]`, `positionHistory_[128]`, no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
+- **Fixed-size arrays everywhere** — `MoveEntry[300]`, `HashHistory` (256 entries), `MoveList` (28 entries), no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
 
 ## Key Patterns
 
@@ -83,6 +99,18 @@ These explain *why* the architecture is the way it is — constraints that code 
 - **Composition over inheritance**: `ChessGame` composes `ChessBoard` + `ChessHistory`. No inheritance hierarchy.
 - **Nullable DI**: Storage, observer, and logger are pointer-injected. All nullable — storage and observer guard with `if (ptr_)`, logger uses `Log` proxy (no manual guards).
 - **Compact 2-byte move encoding**: `encodeMove()`/`decodeMove()` — bits 15..10 = from (row*8+col), bits 9..4 = to, bits 3..0 = promo code. Used for binary storage.
-- **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `opponentColor()`, `makePiece()` — use these instead of inline ternaries for color-dependent values.
+- **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `promotionRow()`, `~color` (opponent), `makePiece()` — in `ChessPiece`, use these instead of inline ternaries for color-dependent values.
 - **Castling bit mapping**: `castlingCharToBit()` is the single source of truth for K/Q/k/q → bitmask. `hasCastlingRight()` wraps it with color+side semantics. All castling rights logic should use these.
-- **MoveEntry factory**: `buildMoveEntry()` encapsulates captured-piece determination and all field assignments. Both `ChessGame::makeMove()` and `ChessHistory::replayInto()` use it.
+- **MoveEntry factory**: `MoveEntry::build()` encapsulates captured-piece determination and all field assignments. Both `ChessGame::makeMove()` and `ChessHistory::replayInto()` use it.
+- **Cohesive data types**: `MoveList` bundles move array + count (replaces `int& moveCount, int moves[][2]` out-params). `HashHistory` bundles Zobrist keys + count (replaces `uint64_t*, int` pointer-count pairs). Both are defined in `types.h`.
+
+## Completion Checklist
+
+Every change to `lib/core/` MUST include these steps before the work is considered done. Do not defer any of them to a follow-up.
+
+1. **Tests** — add or update unit tests in `test/test_core/` covering the changed behavior. New public APIs, new structs, renamed parameters, moved functions, and new internal state (like caches) all need test coverage. Register new test functions in `test_core.cpp`.
+2. **Scoped instructions** — if the change affects anything described in this file (`core-library.instructions.md`), update it: Component Roles table, Fundamental Concepts table, Data Flow steps, Design Decisions, Key Patterns.
+3. **Architecture doc** — if the change affects class responsibilities, public APIs, internal state, or component relationships described in `docs/development/architecture.md`, update the relevant section.
+4. **Project structure doc** — if files are added, removed, or their purpose changes, update `docs/development/project-structure.md`.
+5. **Testing instructions** — if new test groups are added or existing groups change scope, update `.github/instructions/testing.instructions.md` (file structure listing, file mirroring table, test group descriptions).
+6. **Top-level instructions** — if the change introduces a new engineering pattern or convention, update `.github/copilot-instructions.md`.

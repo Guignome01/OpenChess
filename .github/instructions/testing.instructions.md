@@ -1,6 +1,6 @@
 ---
 description: "Use when writing, modifying, or debugging unit tests. Covers test architecture, file mirroring convention, test helpers, and per-file test group descriptions."
-applyTo: "test/**"
+applyTo: "test/**, lib/core/**"
 ---
 
 # Unit Testing Guide
@@ -16,24 +16,28 @@ The `lib/core/` library has zero Arduino dependencies — all chess logic compil
 | Action | Command |
 |--------|---------|
 | Run all tests | `pio test -e native` |
-| Run the suite | `pio test -e native -f test_core` |
-
+| Run the suite | `pio test -e native -f test_core` || Run perft suite | `pio test -e native -f test_perft` |
 ## File Structure
 
-All tests are consolidated in `test/test_core/` — one suite, one binary.
+Fast unit tests live in `test/test_core/` (one suite, one binary). The heavyweight perft suite lives separately in `test/test_perft/`.
 
 ```
 test/
 ├── test_helpers.h                       Shared utilities (setupInitialBoard, clearBoard, placePiece, etc.)
+├── test_perft/
+│   └── test_perft.cpp                   Perft move-tree enumeration with detailed counters (captures, EP, castles, promotions, checks, checkmates)
 └── test_core/
     ├── test_core.cpp                    Main entry: setUp/tearDown, shared globals, register calls
     ├── test_chess_rules_moves.cpp        Move generation per piece type, captures, initial position
     ├── test_chess_rules_check.cpp        Check detection, checkmate, stalemate, move legality under check
     ├── test_chess_rules_special.cpp      Castling, en passant, promotion, helper functions
+    ├── test_chess_piece.cpp              ChessPiece: bit extraction, construction, predicates, FEN chars, Zobrist index
     ├── test_chess_utils.cpp              Evaluation, piece color helpers, 50-move rule, castling rights strings
     ├── test_chess_fen.cpp                FEN round-trip, boardToFEN/fenToBoard, validateFEN
     ├── test_chess_notation.cpp           Coordinate/SAN/LAN output and parsing, roundtrip verification
-    ├── test_chess_board.cpp              ChessBoard: moves, special moves, draws, FEN, reverseMove, applyMoveEntry
+    ├── test_chess_iterator.cpp           Board iteration: forEachSquare, forEachPiece, somePiece, findPiece
+    ├── test_chess_hash.cpp               Zobrist hashing: key determinism, computeHash, position sensitivity
+    ├── test_chess_board.cpp              ChessBoard: moves, special moves, draws, FEN, reverseMove, king cache, MoveList, HashHistory
     ├── test_chess_game.cpp               ChessGame: lifecycle, draws, observer, history, undo/redo, getHistory
     ├── test_chess_history.cpp            ChessHistory: move log with undo/redo, branch-on-undo
     └── test_chess_history_recording.cpp  Recording: persistence, header flush, replay, branch-truncation, encode/decode
@@ -49,6 +53,7 @@ Each `lib/core/src/` source file has a corresponding `test/test_core/test_*.cpp`
 | `chess_game.cpp` | `test_chess_game.cpp` |
 | `chess_history.cpp` | `test_chess_history.cpp` + `test_chess_history_recording.cpp` |
 | `chess_rules.cpp` | `test_chess_rules_moves.cpp` + `test_chess_rules_check.cpp` + `test_chess_rules_special.cpp` |
+| `chess_piece.h` | `test_chess_piece.cpp` |
 | `chess_utils.cpp` | `test_chess_utils.cpp` |
 | `chess_fen.cpp` | `test_chess_fen.cpp` |
 | `chess_notation.cpp` | `test_chess_notation.cpp` |
@@ -65,7 +70,11 @@ Shared utilities available to all test files:
 ## Testing Principles
 
 - **Tests guard correctness** — never modify a test to make it pass. If a test fails, fix the production code.
-- **Tests must stay in sync** — when changing chess logic in `lib/core/`, update or add tests in the same change.
+- **Tests must stay in sync** — when changing chess logic in `lib/core/`, update or add tests in the same change. New public APIs, new structs, renamed parameters, moved functions, and new internal state (caches, derived fields) all need test coverage. This includes:
+  - Struct behavior tests for new data types (e.g. `MoveList`, `HashHistory`)
+  - State maintenance tests for derived/cached fields (e.g. king cache across `makeMove`/`reverseMove`/`loadFEN`)
+  - Updating existing tests when signatures or patterns change
+- **Test group descriptions must stay current** — when adding new test sections, update the Test Group Details and file structure listing in this file.
 - **Always test changes** — every logic change must be validated by running the test suite before committing.
 
 ## Test Group Details
@@ -80,7 +89,7 @@ Check detection from every piece type. Checkmate positions. Stalemate positions.
 Castling: rights preservation, blocking pieces, through-check prevention, both colors, queenside/kingside. En passant: standard capture, edge cases. Promotion: all piece types. Helper functions.
 
 ### Board (`test_chess_board.cpp`)
-New game state. Basic moves and captures. En passant execution. Castling execution (both sides). Promotion with piece selection. Check and checkmate detection. Stalemate. 50-move draw. Insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color). Threefold repetition via Zobrist. FEN loading and validation. Compact encode/decode. Board API queries. `reverseMove()` for normal/capture/en passant/castling/promotion. `applyMoveEntry()` replay.
+New game state. Basic moves and captures. En passant execution. Castling execution (both sides). Promotion with piece selection. Check and checkmate detection. Stalemate. 50-move draw. Insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color). Threefold repetition via Zobrist. FEN loading and validation. Compact encode/decode. Board API queries. `reverseMove()` for normal/capture/en passant/castling/promotion. `applyMoveEntry()` replay. King cache (`kingRow`/`kingCol`) correctness after `newGame()`, `loadFEN()`, `makeMove()` (king/non-king), castling, and `reverseMove()`. `MoveList` struct (initial state, add/access, clear, capacity, integration with `getPossibleMoves`). `HashHistory` struct (initial state, add/read, MAX_SIZE constant).
 
 ### Game (`test_chess_game.cpp`)
 Lifecycle: `endGame()` with various results, `isGameOver()` state, move rejection after game-over, checkmate/stalemate/insufficient/fifty-move auto-set game-over, undo clears game-over, `newGame()`/`loadFEN()` reset game-over. Draw detection. Observer notification and batching. History integration. Undo/redo cursor. `getHistory()` in all three formats (coordinate, SAN, LAN).
@@ -99,3 +108,15 @@ Round-trip: board → FEN → board. `boardToFEN()` output correctness. `fenToBo
 
 ### Notation (`test_chess_notation.cpp`)
 Coordinate notation output and parsing. SAN output (disambiguation, captures, castling, promotion). LAN output. Auto-format detection from input strings. Round-trip verification: format → parse → same move.
+
+### Piece (`test_chess_piece.cpp`)
+Bit extraction: `pieceType()` for all 12 pieces + NONE, `pieceColor()`. Construction: `makePiece()` round-trips. Predicates: `isEmpty()`, `isWhite()`, `isBlack()`, `isColor()`. Color flip: `~Color`, `~Piece` operator overloads. FEN char round-trip: `charToPiece()`/`pieceToChar()` for all valid chars, invalid chars, NONE. PieceType char conversion. Material values: `pieceValue()` for all piece types. Zobrist index: `pieceZobristIndex()` for all pieces + NONE. Color helpers: `pawnDirection()`, `homeRow()`, `promotionRow()`. `colorName()`, `charToColor()`/`colorToChar()`. Zero-initialization safety (`Piece::NONE`, `PieceType::NONE`, `Color::WHITE` all == 0).
+
+### Iterator (`test_chess_iterator.cpp`)
+`forEachSquare` visits all 64 squares. `forEachPiece` skips empty. `somePiece` early-exit. `findPiece` locates specific pieces with max limit.
+
+### Hash (`test_chess_hash.cpp`)
+Zobrist key determinism. `pieceZobristIndex` mapping. `computeHash` stability. Hash changes with turn flip, castling rights, en passant. Hash equality for identical positions.
+
+### Perft (`test_perft/test_perft.cpp`)
+Exhaustive move-tree enumeration for 6 positions from the Chess Programming Wiki. Positions 1–4 verify detailed leaf-level counters: nodes, captures, en passant, castles, promotions, checks, and checkmates. Positions 5–6 verify node counts only (no wiki reference counters). Catches compensating bugs that node-only perft misses (e.g. a missed capture offset by a phantom quiet move).

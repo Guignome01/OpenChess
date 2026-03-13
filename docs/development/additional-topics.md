@@ -28,14 +28,14 @@ Before analyzing or modifying any component, read the relevant `docs/` file for 
 
 ### Documentation Sync Rule
 
-When a code change affects architecture, public APIs, endpoints, configuration, build pipeline, file structure, or engineering conventions, update the relevant documentation in the same change — never defer to a follow-up:
+When a code change affects architecture, public APIs, endpoints, configuration, build pipeline, file structure, or engineering conventions, update the relevant documentation **and tests** in the same change — never defer to a follow-up:
 
 - New or changed API endpoints → update [api.md](api.md)
 - New or removed source files → update [project-structure.md](project-structure.md)
 - Build or dependency changes → update [installation.md](installation.md)
 - Architecture or internal design changes → update [architecture.md](architecture.md)
 - New LED behaviors, menu changes, or physical interaction changes → update the relevant file in `docs/guides/`
-- Chess logic changes in `lib/core/` → update or add unit tests in `test/`
+- Chess logic changes in `lib/core/` → update or add unit tests in `test/`, update `core-library.instructions.md` and `testing.instructions.md` as needed (see Completion Checklist in `core-library.instructions.md`)
 - Any behavior change documented in a `.github/instructions/` file → update the instruction file in the same change
 
 ## CLI Quick Reference

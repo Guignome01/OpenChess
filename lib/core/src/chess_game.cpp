@@ -92,7 +92,7 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
 
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
-  MoveEntry entry = buildMoveEntry(fromRow, fromCol, toRow, toCol, piece, targetPiece, result, prevState);
+  MoveEntry entry = MoveEntry::build(fromRow, fromCol, toRow, toCol, piece, targetPiece, result, prevState);
   history_.addMove(entry);
 
   // Auto-end game on checkmate/stalemate/draw

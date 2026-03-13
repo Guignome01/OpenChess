@@ -120,6 +120,11 @@ constexpr int promotionRow(Color c) {
   return c == Color::WHITE ? 0 : 7;
 }
 
+constexpr bool isPromotion(Piece piece, int targetRow) {
+  return pieceType(piece) == PieceType::PAWN &&
+         targetRow == promotionRow(pieceColor(piece));
+}
+
 inline const char* colorName(Color c) {
   return c == Color::WHITE ? "White" : "Black";
 }

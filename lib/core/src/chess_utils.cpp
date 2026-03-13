@@ -8,12 +8,12 @@ namespace ChessUtils {
 
 void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
                          int toRow, int toCol,
-                         const PositionState& state, Piece& capturedPiece) {
+                         const EnPassantInfo& ep, const CastlingInfo& castle,
+                         Piece& capturedPiece) {
   Piece piece = board[fromRow][fromCol];
   capturedPiece = board[toRow][toCol];
 
   // En passant capture — remove the captured pawn
-  auto ep = checkEnPassant(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   if (ep.isCapture) {
     capturedPiece = board[ep.capturedPawnRow][toCol];
     board[ep.capturedPawnRow][toCol] = Piece::NONE;
@@ -24,7 +24,6 @@ void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
   board[fromRow][fromCol] = Piece::NONE;
 
   // Castling — move the rook
-  auto castle = checkCastling(fromRow, fromCol, toRow, toCol, piece);
   if (castle.isCastling) {
     Piece rook = ChessPiece::makePiece(ChessPiece::pieceColor(piece), PieceType::ROOK);
     board[toRow][castle.rookToCol] = rook;

@@ -266,7 +266,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
     }
 
     // Build MoveEntry and add to in-memory log (but don't persist — it's already on disk)
-    MoveEntry entry = buildMoveEntry(fromRow, fromCol, toRow, toCol, piece, targetPiece, moveResult, prevState);
+    MoveEntry entry = MoveEntry::build(fromRow, fromCol, toRow, toCol, piece, targetPiece, moveResult, prevState);
 
     // Add to in-memory log only (bypass persistMove by direct insertion)
     if (moveCount_ < MAX_MOVES) {

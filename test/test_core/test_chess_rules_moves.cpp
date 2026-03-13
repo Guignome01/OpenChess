@@ -90,10 +90,9 @@ void test_knight_center_moves(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(8, moveCount); // Knight in center has 8 moves
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(8, moves.count); // Knight in center has 8 moves
 }
 
 void test_knight_corner_moves(void) {
@@ -101,10 +100,9 @@ void test_knight_corner_moves(void) {
   int r, c;
   sq("a1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(2, moveCount); // Corner knight has 2 moves
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(2, moves.count); // Corner knight has 2 moves
 }
 
 void test_knight_captures_enemy(void) {
@@ -136,10 +134,9 @@ void test_bishop_center_moves(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(13, moveCount); // d4 bishop on empty board
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(13, moves.count); // d4 bishop on empty board
 }
 
 void test_bishop_blocked_by_own(void) {
@@ -149,10 +146,9 @@ void test_bishop_blocked_by_own(void) {
   int r, c;
   sq("c1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void test_bishop_captures_and_stops(void) {
@@ -179,10 +175,9 @@ void test_rook_center_moves(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(14, moveCount); // Rook in center on empty board
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(14, moves.count); // Rook in center on empty board
 }
 
 void test_rook_blocked_by_own(void) {
@@ -192,10 +187,9 @@ void test_rook_blocked_by_own(void) {
   int r, c;
   sq("a1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 // ---------------------------------------------------------------------------
@@ -207,10 +201,9 @@ void test_queen_center_moves(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(27, moveCount); // 13 bishop + 14 rook
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(27, moves.count); // 13 bishop + 14 rook
 }
 
 // ---------------------------------------------------------------------------
@@ -222,10 +215,9 @@ void test_king_center_moves(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(8, moveCount); // King in center has 8 moves
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(8, moves.count); // King in center has 8 moves
 }
 
 void test_king_corner_moves(void) {
@@ -233,10 +225,9 @@ void test_king_corner_moves(void) {
   int r, c;
   sq("a1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(3, moveCount); // Corner king has 3 moves
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(3, moves.count); // Corner king has 3 moves
 }
 
 void test_king_no_move_onto_own(void) {
@@ -247,10 +238,9 @@ void test_king_no_move_onto_own(void) {
   int r, c;
   sq("a1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 // ---------------------------------------------------------------------------
@@ -275,10 +265,9 @@ void test_black_knight_center(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(8, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(8, moves.count);
 }
 
 void test_black_rook_center(void) {
@@ -289,10 +278,9 @@ void test_black_rook_center(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(14, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(14, moves.count);
 }
 
 void test_black_bishop_center(void) {
@@ -303,10 +291,9 @@ void test_black_bishop_center(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(13, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(13, moves.count);
 }
 
 void test_rook_capture_and_stop(void) {
@@ -346,11 +333,10 @@ void test_pawn_a_file_capture(void) {
   sq("b5", tr, tc);
   TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
   // No left capture possible (off-board)
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
   // Should have: a5 (push) + b5 (capture) = 2
-  TEST_ASSERT_EQUAL_INT(2, moveCount);
+  TEST_ASSERT_EQUAL_INT(2, moves.count);
 }
 
 void test_pawn_h_file_capture(void) {
@@ -362,10 +348,9 @@ void test_pawn_h_file_capture(void) {
   sq("g5", tr, tc);
   TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
   // Should have: h5 (push) + g5 (capture) = 2
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(2, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(2, moves.count);
 }
 
 void test_knight_edge_b1(void) {
@@ -373,10 +358,9 @@ void test_knight_edge_b1(void) {
   int r, c;
   sq("b1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(3, moveCount); // a3, c3, d2
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(3, moves.count); // a3, c3, d2
 }
 
 void test_queen_blocked(void) {
@@ -393,10 +377,9 @@ void test_queen_blocked(void) {
   int r, c;
   sq("d4", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(0, moveCount);
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void test_bishop_corner_a1(void) {
@@ -404,10 +387,9 @@ void test_bishop_corner_a1(void) {
   int r, c;
   sq("a1", r, c);
 
-  int moveCount = 0;
-  int moves[28][2];
-  ChessRules::getPossibleMoves(board, r, c, {}, moveCount, moves);
-  TEST_ASSERT_EQUAL_INT(7, moveCount); // a1-h8 diagonal
+  MoveList moves;
+  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  TEST_ASSERT_EQUAL_INT(7, moves.count); // a1-h8 diagonal
 }
 
 // ---------------------------------------------------------------------------
@@ -422,10 +404,9 @@ void test_initial_position_white_moves(void) {
   int totalMoves = 0;
   ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
     if (!ChessPiece::isWhite(piece)) return;
-    int moveCount = 0;
-    int moves[28][2];
-    ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
-    totalMoves += moveCount;
+    MoveList moves;
+    ChessRules::getPossibleMoves(board, row, col, flags, moves);
+    totalMoves += moves.count;
   });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
@@ -437,10 +418,9 @@ void test_initial_position_black_moves(void) {
   int totalMoves = 0;
   ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
     if (!ChessPiece::isBlack(piece)) return;
-    int moveCount = 0;
-    int moves[28][2];
-    ChessRules::getPossibleMoves(board, row, col, flags, moveCount, moves);
-    totalMoves += moveCount;
+    MoveList moves;
+    ChessRules::getPossibleMoves(board, row, col, flags, moves);
+    totalMoves += moves.count;
   });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }

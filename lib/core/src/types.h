@@ -95,6 +95,33 @@ static constexpr float MAX_USAGE_PERCENT = 0.80f;
 // Queen on open board: 7+7+7+7 = 28 (4 diagonals + 4 straights, max 7 each).
 static constexpr int MAX_MOVES_PER_PIECE = 28;
 
+// Fixed-capacity list of target squares for a single piece's moves.
+// Replaces the coupled (int& moveCount, int moves[][2]) out-param pattern.
+struct MoveList {
+  int count = 0;
+
+  void add(int r, int c) {
+    data_[count][0] = r;
+    data_[count][1] = c;
+    count++;
+  }
+  int row(int i) const { return data_[i][0]; }
+  int col(int i) const { return data_[i][1]; }
+  void clear() { count = 0; }
+
+ private:
+  int data_[MAX_MOVES_PER_PIECE][2];
+};
+
+// Fixed-capacity Zobrist hash history for threefold repetition detection.
+// Replaces the coupled (uint64_t*, int) parameter pattern.
+struct HashHistory {
+  static constexpr int MAX_SIZE = 256;
+
+  uint64_t keys[MAX_SIZE];
+  int count = 0;
+};
+
 // Move notation format identifiers — used by ChessGame::getHistory().
 enum class MoveFormat : uint8_t {
   COORDINATE = 0,  // "e2e4", "e7e8q"  (UCI protocol notation)

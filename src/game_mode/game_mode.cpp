@@ -97,9 +97,8 @@ MoveResult GameMode::applyMove(int fromRow, int fromCol, int toRow, int toCol, c
   } else if (result.gameResult != GameResult::IN_PROGRESS) {
     boardDriver_->fireworkAnimation(LedColors::Cyan);
   } else if (result.isCheck) {
-    int kingPos[1][2];
-    if (chess_->findPiece(ChessPiece::makePiece(chess_->currentTurn(), PieceType::KING), kingPos, 1) > 0)
-      boardDriver_->blinkSquare(kingPos[0][0], kingPos[0][1], LedColors::Yellow, 3, true, true);
+    Color turn = chess_->currentTurn();
+    boardDriver_->blinkSquare(chess_->kingRow(turn), chess_->kingCol(turn), LedColors::Yellow, 3, true, true);
   }
 
   return result;
@@ -138,9 +137,8 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
       logger_.infof("Piece pickup from %s", ChessUtils::squareName(row, col).c_str());
 
       // Generate possible moves
-      int moveCount = 0;
-      int moves[MAX_MOVES_PER_PIECE][2];
-      chess_->getPossibleMoves(row, col, moveCount, moves);
+      MoveList moves;
+      chess_->getPossibleMoves(row, col, moves);
 
       // Drain any stale queued animations so highlights appear on a clean strip
       boardDriver_->waitForAnimationQueueDrain();
@@ -151,9 +149,9 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
         boardDriver_->setSquareLED(row, col, LedColors::Cyan);
 
       // Highlight possible move squares (different colors for empty vs capture)
-      for (int i = 0; i < moveCount; i++) {
-        int r = moves[i][0];
-        int c = moves[i][1];
+      for (int i = 0; i < moves.count; i++) {
+        int r = moves.row(i);
+        int c = moves.col(i);
 
         auto ei = chess_->checkEnPassant(row, col, r, c);
         if (ChessPiece::isEmpty(chess_->getSquare(r, c)) && !ei.isCapture) {
@@ -205,8 +203,8 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
 
             // Check if this would be a legal move
             bool isLegalMove = false;
-            for (int i = 0; i < moveCount; i++)
-              if (moves[i][0] == r2 && moves[i][1] == c2) {
+            for (int i = 0; i < moves.count; i++)
+              if (moves.row(i) == r2 && moves.col(i) == c2) {
                 isLegalMove = true;
                 break;
               }
@@ -293,8 +291,8 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
       }
 
       bool legalMove = false;
-      for (int i = 0; i < moveCount; i++)
-        if (moves[i][0] == targetRow && moves[i][1] == targetCol) {
+      for (int i = 0; i < moves.count; i++)
+        if (moves.row(i) == targetRow && moves.col(i) == targetCol) {
           legalMove = true;
           break;
         }

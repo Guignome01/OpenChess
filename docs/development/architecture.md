@@ -85,10 +85,10 @@ Lives in `lib/core/` — a standalone PlatformIO library with zero Arduino depen
 
 Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has no member variables, no constructor, and no instance state. Position-dependent context (castling rights, en passant target) is passed in via `const PositionState&` (defined in `types.h`). Implements:
 
-- **Move generation** — `getPossibleMoves(board, row, col, flags, ...)` returns all legal moves for a piece at a given position. Internally generates pseudo-legal moves per piece type, then filters out any move that would leave the player's king in check (`leavesInCheck()`).
-- **Castling** — the `flags.castlingRights` bitmask (bit 0 = White kingside, bit 1 = White queenside, bit 2 = Black kingside, bit 3 = Black queenside) is passed in by the caller. `addCastlingMoves()` checks rights, empty intermediate squares, and that the king doesn't pass through or land on an attacked square.
-- **En passant** — the target square (`flags.epRow`, `flags.epCol`) is passed in by the caller. `hasLegalEnPassantCapture()` checks whether an adjacent pawn can legally execute the capture (used by `ChessBoard` for Zobrist hashing).
-- **Game state checks** — `isCheck(board, color)`, `isCheckmate(board, color, flags)`, `isStalemate(board, color, flags)`, `hasAnyLegalMove(board, color, flags)`, `isPromotion(piece, row)`, `isSquareUnderAttack(board, row, col, defendingColor)`.
+- **Move generation** — `getPossibleMoves(board, row, col, state, moves)` fills a `MoveList&` with all legal moves for a piece at a given position. Internally generates pseudo-legal moves per piece type, then filters out any move that would leave the player's king in check (`leavesInCheck()`).
+- **Castling** — the `state.castlingRights` bitmask (bit 0 = White kingside, bit 1 = White queenside, bit 2 = Black kingside, bit 3 = Black queenside) is passed in by the caller. `addCastlingMoves()` checks rights, empty intermediate squares, and that the king doesn't pass through or land on an attacked square.
+- **En passant** — the target square (`state.epRow`, `state.epCol`) is passed in by the caller. `hasLegalEnPassantCapture()` checks whether an adjacent pawn can legally execute the capture (used by `ChessBoard` for Zobrist hashing).
+- **Game state checks** — `isCheck(board, color)`, `isCheckmate(board, color, state)`, `isStalemate(board, color, state)`, `hasAnyLegalMove(board, color, state)`, `isSquareUnderAttack(board, row, col, defendingColor)`. Threefold repetition detection takes `const HashHistory&`.
 
 `ChessBoard` owns all position state (castling rights, en passant target, halfmove/fullmove clocks) via a `PositionState` struct and passes it to `ChessRules` methods as needed.
 
@@ -96,14 +96,17 @@ Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has n
 
 Also in `lib/core/` (`chess_hash.h`, header-only). `ChessHash` namespace provides Zobrist hashing for position comparison and threefold repetition detection. All 793 random keys (12×64 piece-square + 16 castling + 8 en passant + 1 side-to-move) are generated at compile time via a `constexpr` xorshift64 PRNG seeded with `0x12345678ABCDEF01`. The generated `Keys` struct is stored with `PROGMEM` (~6.2KB flash, zero RAM). Public API:
 
-- `constexpr pieceIndex(char)` — maps a piece character to its Zobrist table index (0–11), returns -1 for invalid input. Uses a `switch` statement for portability.
-- `computeHash(board, turn, state)` — computes the full Zobrist hash for a position. Iterates pieces via `ChessIterator::forEachPiece()`, XORs castling rights, conditionally XORs en passant only when a legal capture exists (via `ChessRules::hasLegalEnPassantCapture()`), and XORs side-to-move for black.
+- `computeHash(board, turn, state)` — computes the full Zobrist hash for a position. Iterates pieces via `ChessIterator::forEachPiece()`, uses `ChessPiece::pieceZobristIndex()` for piece-to-table-index mapping, XORs castling rights, conditionally XORs en passant only when a legal capture exists (via `ChessRules::hasLegalEnPassantCapture()`), and XORs side-to-move for black.
 
 Consumed by `ChessBoard::recordPosition()` for position history tracking.
 
+### ChessPiece
+
+Also in `lib/core/` (`chess_piece.h`, header-only). `ChessPiece` namespace provides type-safe piece representation via the `Piece`, `Color`, and `PieceType` enum classes. All functions are `constexpr` (except `colorName()`). Core API: `pieceType(piece)` / `pieceColor(piece)` (extraction), `makePiece(color, type)` (construction), `isWhite` / `isBlack` / `isEmpty` / `isColor` (predicates), `~color` / `~piece` (opponent flip via operator overload), `pawnDirection()` / `homeRow()` / `promotionRow()` (color-derived constants), `isPromotion(piece, targetRow)` (pawn reaching promotion rank), `charToPiece` / `pieceToChar` / `charToPieceType` / `pieceTypeToChar` (FEN char conversion), `pieceZobristIndex(piece)` (Zobrist hash table index 0–11), `pieceValue(piece)` (material value in pawns), `colorName(color)` → `"White"` / `"Black"`.
+
 ### ChessBoard
 
-Also in `lib/core/` (`chess_board.h/cpp`). Board representation and position-level chess logic — a pure position container with no lifecycle state. Owns the board array, current turn, and all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock). Public API: `newGame()`, `loadFEN()` → `bool` (validates FEN before applying — checks rank count, valid characters, rank piece sum, and turn field; returns false and leaves board unchanged on invalid input), `makeMove()` → `MoveResult`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`. Undo/redo support: `reverseMove(const MoveEntry&)` restores the board to the state before the given move (piece placement, captured piece, castling rook, position state, Zobrist history), and `applyMoveEntry(const MoveEntry&)` delegating to `makeMove()` with the entry's coordinates and promotion. Convenience wrappers delegate to `ChessRules`/`ChessUtils` without exposing internals: `getPossibleMoves()`, `isCheck()`, `inCheck()`, `isCheckmate()`, `isStalemate()`, `isInsufficientMaterial()`, `isDraw()`, `isFiftyMoves()`, `isAttacked()`, `findPiece()`, `checkEnPassant()`, `checkCastling()`, `moveNumber()`. Game-end detection is delegated to `ChessRules::isGameOver()` (called from `makeMove()`), covering checkmate, stalemate, 50-move draw, insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color bishops), and threefold repetition (via Zobrist hashing — constexpr-generated keys in `chess_hash.h`). En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Lifecycle state (`gameOver_`, `gameResult_`, `winnerColor_`) and lifecycle methods (`endGame()`, `isGameOver()`) live in `ChessGame` — Board has no concept of game-over. Move history, observer notification, undo/redo, and batching also live in `ChessGame`.
+Also in `lib/core/` (`chess_board.h/cpp`). Board representation and position-level chess logic — a pure position container with no lifecycle state. Owns the board array, current turn, all position state via a `PositionState` struct (castling rights, en passant target, halfmove clock, fullmove clock), a king position cache (`kingSquare_[2][2]` — `kingRow(color)` / `kingCol(color)` accessors, maintained incrementally for O(1) check detection), and a `HashHistory` for Zobrist position tracking. Public API: `newGame()`, `loadFEN()` → `bool` (validates FEN before applying — checks rank count, valid characters, rank piece sum, and turn field; returns false and leaves board unchanged on invalid input), `makeMove()` → `MoveResult`, `getFen()`, `getEvaluation()`, `getCastlingRights()`, `positionState()`. Undo/redo support: `reverseMove(const MoveEntry&)` restores the board to the state before the given move (piece placement, captured piece, castling rook, position state, Zobrist history), and `applyMoveEntry(const MoveEntry&)` delegating to `makeMove()` with the entry's coordinates and promotion. Convenience wrappers delegate to `ChessRules`/`ChessUtils` without exposing internals: `getPossibleMoves(row, col, MoveList&)`, `isCheck()`, `inCheck()`, `isCheckmate()`, `isStalemate()`, `isInsufficientMaterial()`, `isDraw()`, `isFiftyMoves()`, `isAttacked()`, `findPiece()`, `checkEnPassant()`, `checkCastling()`, `moveNumber()`. Game-end detection is delegated to `ChessRules::isGameOver()` (called from `makeMove()`), covering checkmate, stalemate, 50-move draw, insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-color bishops), and threefold repetition (via Zobrist hashing — constexpr-generated keys in `chess_hash.h`). En passant is only hashed when a legal capture exists (verified via `ChessRules::hasLegalEnPassantCapture()`). Lifecycle state (`gameOver_`, `gameResult_`, `winnerColor_`) and lifecycle methods (`endGame()`, `isGameOver()`) live in `ChessGame` — Board has no concept of game-over. Move history, observer notification, undo/redo, and batching also live in `ChessGame`.
 
 - **FEN / evaluation cache** — `getFen()` and `getEvaluation()` use dirty-flag caching (`mutable` fields) to avoid recomputing on repeated calls. The cache is invalidated automatically on every mutation (`newGame()`, `loadFEN()`, `makeMove()`, `reverseMove()`).
 
@@ -130,7 +133,7 @@ Notation convenience methods: `makeMove(const std::string& move)` parses a coord
 
 ### ChessUtils & SystemUtils
 
-`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing helper functions for chess logic: piece color detection, material evaluation, board queries (`isValidSquare`), piece construction (`makePiece`, `isValidPromotionChar`), and inline utility functions (`getPieceColor`, `isWhitePiece`, `isBlackPiece`, `isEnPassantMove`, `isCastlingMove`, `colorName`, `opponentColor`, `squareName`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessFEN` (in `lib/core/`, `chess_fen.h/cpp`) centralizes all FEN string handling: `boardToFEN()` (board array → FEN string), `fenToBoard()` (FEN string → board array + state), and `validateFEN()` (format validation). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
+`ChessUtils` (in `lib/core/`, `chess_utils.h/cpp`) is a namespace providing board-level helper functions: material evaluation (`evaluatePosition`), board queries (`isValidSquare`), coordinate helpers (`squareName`, `fileChar`, `rankChar`, `fileIndex`, `rankIndex`), validation (`isValidPromotionChar`), and special-move analysis structs (`checkEnPassant`, `checkCastling`, `updateCastlingRights`). Piece-level functions (color detection, construction, promotion detection) live in `ChessPiece` (`chess_piece.h`). Higher-level struct-returning analyzers aggregate multiple checks into a single return value: `checkEnPassant()` (returns `EnPassantInfo` — EP-capture detection + next EP target), `checkCastling()` (returns `CastlingInfo` — castling detection + rook source/destination columns), and `updateCastlingRights()` (pure function returning updated castling rights bitmask). `ChessBoard::applyMoveToBoard()` delegates to these analyzers so it contains no inline chess logic. Also provides castling rights string formatting/parsing (`castlingRightsToString`/`castlingRightsFromString`) and coordinate helpers (`fileChar`, `rankChar`, `fileIndex`, `rankIndex`). `ChessFEN` (in `lib/core/`, `chess_fen.h/cpp`) centralizes all FEN string handling: `boardToFEN()` (board array → FEN string), `fenToBoard()` (FEN string → board array + state), and `validateFEN()` (format validation). `ChessNotation` (in `lib/core/`, `chess_notation.h/cpp`) provides move notation conversion: coordinate notation (`"e2e4"`), SAN (`"Nf3"`), and LAN (`"Ng1-f3"`) output and parsing. All functions are pure — board state and position are passed in as parameters. Output functions omit check/checkmate suffixes; the caller appends them. All functions use `std::string` (not Arduino `String`). Internal APIs (`updateBoardState`, `addFen`, `setBoardStateFromFEN`) accept `std::string` directly; Arduino `String` conversion happens only at the hardware/network boundary (e.g., HTTP responses, LittleFS reads).
 
 `SystemUtils` (in `src/`) contains the Arduino/ESP32-dependent functions that were separated from the core library: `colorLed()` (piece char → LED color) and `ensureNvsInitialized()` (Arduino Preferences guard). Board debug output uses `ChessUtils::boardToText()`. These are not available in native tests.
 
@@ -559,20 +562,33 @@ The `data/` directory is committed to git so users without npm tools can still b
 
 ## Utilities
 
-**`ChessUtils`** (`chess_utils.h/cpp`) — namespace with helper functions:
-- `getPieceColor(piece)` — returns `'w'` or `'b'`
-- `isWhitePiece()`, `isBlackPiece()` — piece color checks
+**`ChessPiece`** (`chess_piece.h`) — header-only namespace with piece-level functions. All `constexpr` unless noted:
+- `pieceType(piece)` → `PieceType` — extract piece type from `Piece` enum
+- `pieceColor(piece)` → `Color` — extract color
+- `makePiece(color, type)` → `Piece` — construct piece
+- `isWhite(piece)`, `isBlack(piece)`, `isColor(piece, color)`, `isEmpty(piece)` — piece predicates
+- `~color` / `~piece` — opponent color / opponent-colored piece (operator overloads)
+- `pawnDirection(color)`, `homeRow(color)`, `promotionRow(color)` — color-derived constants
+- `isPromotion(piece, targetRow)` — pawn reaching promotion rank
+- `colorName(color)` — `"White"` / `"Black"` (inline, not constexpr)
+- `charToPiece(char)` / `pieceToChar(piece)` — FEN char ↔ `Piece` conversion
+- `charToPieceType(char)` / `pieceTypeToChar(type)` — FEN char ↔ `PieceType` conversion
+- `pieceIndex(piece)` — Zobrist hash table index (0–11)
+
+**`ChessUtils`** (`chess_utils.h/cpp`) — namespace with board-level helper functions:
 - `isValidSquare(row, col)` — bounds check for 8×8 board
-- `makePiece(type, color)` — construct piece char from uppercase type + color
 - `isValidPromotionChar(c)` — case-insensitive promotion piece validation
-- `findPiece(board, type, color, positions, max)` — locate all pieces of given type/color (in `ChessIterator`)
-- `isEnPassantMove()`, `getEnPassantCapturedPawnRow()`, `isCastlingMove()` — special move detection
-- `evaluatePosition(board)` — material balance in pawns
-- `castlingRightsToString()` / `castlingRightsFromString()` — FEN castling field
-- `colorName()` — `'w'`→`"White"`, `'b'`→`"Black"`
-- `opponentColor()` — `'w'`→`'b'`, `'b'`→`'w'`
-- `squareName(row, col)` — returns algebraic notation string (e.g. `"e4"`)
+- `squareName(row, col)` — algebraic notation string (e.g. `"e4"`)
 - `fileChar()`, `rankChar()`, `fileIndex()`, `rankIndex()` — coordinate helpers
+- `evaluatePosition(board)` — material balance in pawns
+- `boardToText(board)` — human-readable board for debugging
+- `gameResultName(result)` — `GameResult` → display string
+- `castlingRightsToString()` / `castlingRightsFromString()` — FEN castling field
+- `hasCastlingRight()`, `castlingCharToBit()` — castling rights queries
+- `checkEnPassant()` → `EnPassantInfo` — EP capture detection + next EP target
+- `checkCastling()` → `CastlingInfo` — castling detection + rook positions
+- `updateCastlingRights()` — pure function returning updated bitmask
+- `applyBoardTransform()` — minimal move application on a raw board array
 
 **`ChessIterator`** (`chess_iterator.h`) — header-only namespace with board iteration helpers, all built on a single internal `detail::forEachSquareUntil` primitive:
 - `forEachSquare(board, fn)` — call `fn(row, col, piece)` for all 64 squares

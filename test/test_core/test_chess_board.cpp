@@ -1105,6 +1105,163 @@ void test_board_apply_move_entry_promotion(void) {
 }
 
 // ---------------------------------------------------------------------------
+// King cache
+// ---------------------------------------------------------------------------
+
+void test_board_king_cache_initial(void) {
+  setUpBoard();
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(0, cb.kingRow(Color::BLACK));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::BLACK));
+}
+
+void test_board_king_cache_after_king_move(void) {
+  setUpBoard();
+  cb.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  cb.makeMove(7, 4, 7, 3);  // Ke1-d1
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(3, cb.kingCol(Color::WHITE));
+  // Black king unchanged
+  TEST_ASSERT_EQUAL_INT(0, cb.kingRow(Color::BLACK));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::BLACK));
+}
+
+void test_board_king_cache_after_non_king_move(void) {
+  setUpBoard();
+  cb.makeMove(6, 4, 4, 4);  // e2-e4 (pawn move)
+  // Kings haven't moved
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(0, cb.kingRow(Color::BLACK));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::BLACK));
+}
+
+void test_board_king_cache_after_castling(void) {
+  setUpBoard();
+  cb.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+  cb.makeMove(7, 4, 7, 6);  // O-O white kingside
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(6, cb.kingCol(Color::WHITE));
+}
+
+void test_board_king_cache_after_load_fen(void) {
+  setUpBoard();
+  cb.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R b KQkq - 0 1");
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(0, cb.kingRow(Color::BLACK));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::BLACK));
+
+  // Now a position with kings off-center
+  cb.loadFEN("8/8/8/3k4/8/8/8/1K6 w - - 0 1");
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(1, cb.kingCol(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(3, cb.kingRow(Color::BLACK));
+  TEST_ASSERT_EQUAL_INT(3, cb.kingCol(Color::BLACK));
+}
+
+void test_board_king_cache_after_reverse_move(void) {
+  setUpBoard();
+  cb.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
+  PositionState before = cb.positionState();
+  cb.makeMove(7, 4, 7, 3);  // Ke1-d1
+  TEST_ASSERT_EQUAL_INT(3, cb.kingCol(Color::WHITE));
+
+  MoveEntry e = makeBoardEntry(7, 4, 7, 3, Piece::W_KING, Piece::NONE, before);
+  cb.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::WHITE));
+}
+
+void test_board_king_cache_reverse_castling(void) {
+  setUpBoard();
+  cb.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+  PositionState before = cb.positionState();
+  cb.makeMove(7, 4, 7, 6);  // O-O
+  TEST_ASSERT_EQUAL_INT(6, cb.kingCol(Color::WHITE));
+
+  MoveEntry e = makeBoardEntry(7, 4, 7, 6, Piece::W_KING, Piece::NONE, before,
+                               Piece::NONE, false, -1, true);
+  cb.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_INT(7, cb.kingRow(Color::WHITE));
+  TEST_ASSERT_EQUAL_INT(4, cb.kingCol(Color::WHITE));
+}
+
+// ---------------------------------------------------------------------------
+// MoveList struct
+// ---------------------------------------------------------------------------
+
+void test_movelist_initial_state(void) {
+  MoveList moves;
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
+}
+
+void test_movelist_add_and_access(void) {
+  MoveList moves;
+  moves.add(3, 5);
+  moves.add(0, 7);
+  TEST_ASSERT_EQUAL_INT(2, moves.count);
+  TEST_ASSERT_EQUAL_INT(3, moves.row(0));
+  TEST_ASSERT_EQUAL_INT(5, moves.col(0));
+  TEST_ASSERT_EQUAL_INT(0, moves.row(1));
+  TEST_ASSERT_EQUAL_INT(7, moves.col(1));
+}
+
+void test_movelist_clear(void) {
+  MoveList moves;
+  moves.add(1, 2);
+  moves.add(3, 4);
+  TEST_ASSERT_EQUAL_INT(2, moves.count);
+  moves.clear();
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
+}
+
+void test_movelist_fills_to_capacity(void) {
+  MoveList moves;
+  for (int i = 0; i < MAX_MOVES_PER_PIECE; i++) {
+    moves.add(i % 8, i / 4);
+  }
+  TEST_ASSERT_EQUAL_INT(MAX_MOVES_PER_PIECE, moves.count);
+  // Verify first and last entries
+  TEST_ASSERT_EQUAL_INT(0, moves.row(0));
+  TEST_ASSERT_EQUAL_INT(0, moves.col(0));
+  TEST_ASSERT_EQUAL_INT((MAX_MOVES_PER_PIECE - 1) % 8, moves.row(MAX_MOVES_PER_PIECE - 1));
+  TEST_ASSERT_EQUAL_INT((MAX_MOVES_PER_PIECE - 1) / 4, moves.col(MAX_MOVES_PER_PIECE - 1));
+}
+
+void test_movelist_used_by_get_possible_moves(void) {
+  setUpBoard();
+  MoveList moves;
+  cb.getPossibleMoves(6, 4, moves);  // e2 pawn: e3 and e4
+  TEST_ASSERT_EQUAL_INT(2, moves.count);
+}
+
+// ---------------------------------------------------------------------------
+// HashHistory struct
+// ---------------------------------------------------------------------------
+
+void test_hashhistory_initial_state(void) {
+  HashHistory h;
+  TEST_ASSERT_EQUAL_INT(0, h.count);
+}
+
+void test_hashhistory_add_and_read(void) {
+  HashHistory h;
+  h.keys[h.count++] = 0xDEADBEEF;
+  h.keys[h.count++] = 0xCAFEBABE;
+  TEST_ASSERT_EQUAL_INT(2, h.count);
+  TEST_ASSERT_EQUAL_UINT64(0xDEADBEEF, h.keys[0]);
+  TEST_ASSERT_EQUAL_UINT64(0xCAFEBABE, h.keys[1]);
+}
+
+void test_hashhistory_max_size(void) {
+  TEST_ASSERT_EQUAL_INT(256, HashHistory::MAX_SIZE);
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -1257,4 +1414,25 @@ void register_chess_board_tests() {
   RUN_TEST(test_board_reverse_move_clears_game_over);
   RUN_TEST(test_board_apply_move_entry);
   RUN_TEST(test_board_apply_move_entry_promotion);
+
+  // King cache
+  RUN_TEST(test_board_king_cache_initial);
+  RUN_TEST(test_board_king_cache_after_king_move);
+  RUN_TEST(test_board_king_cache_after_non_king_move);
+  RUN_TEST(test_board_king_cache_after_castling);
+  RUN_TEST(test_board_king_cache_after_load_fen);
+  RUN_TEST(test_board_king_cache_after_reverse_move);
+  RUN_TEST(test_board_king_cache_reverse_castling);
+
+  // MoveList struct
+  RUN_TEST(test_movelist_initial_state);
+  RUN_TEST(test_movelist_add_and_access);
+  RUN_TEST(test_movelist_clear);
+  RUN_TEST(test_movelist_fills_to_capacity);
+  RUN_TEST(test_movelist_used_by_get_possible_moves);
+
+  // HashHistory struct
+  RUN_TEST(test_hashhistory_initial_state);
+  RUN_TEST(test_hashhistory_add_and_read);
+  RUN_TEST(test_hashhistory_max_size);
 }

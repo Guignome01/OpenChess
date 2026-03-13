@@ -172,7 +172,7 @@ inline uint8_t updateCastlingRights(uint8_t rights, int fromRow, int fromCol, in
 
 // Is (row, col) within the 8×8 board?
 inline constexpr bool isValidSquare(int row, int col) {
-  return row >= 0 && row < 8 && col >= 0 && col < 8;
+  return (unsigned)row < 8 && (unsigned)col < 8;
 }
 
 // Is char a valid promotion piece letter? (case-insensitive: q, r, b, n)
@@ -189,7 +189,8 @@ inline bool isValidPromotionChar(char c) {
 // ---------------------------------------------------------------------------
 void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
                          int toRow, int toCol,
-                         const PositionState& state, Piece& capturedPiece);
+                         const EnPassantInfo& ep, const CastlingInfo& castle,
+                         Piece& capturedPiece);
 
 // Evaluate board position using simple material count
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)

@@ -20,11 +20,12 @@ const Piece ChessBoard::INITIAL_BOARD[8][8] = {
 
 ChessBoard::ChessBoard()
     : currentTurn_(Color::WHITE),
-      positionHistoryCount_(0),
       cachedEval_(0.0f),
       fenDirty_(true),
       evalDirty_(true) {
   memcpy(squares_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
+  kingSquare_[0][0] = 7; kingSquare_[0][1] = 4;  // White king at e1
+  kingSquare_[1][0] = 0; kingSquare_[1][1] = 4;  // Black king at e8
 }
 
 // ---------------------------------------------------------------------------
@@ -35,7 +36,9 @@ void ChessBoard::newGame() {
   memcpy(squares_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
   currentTurn_ = Color::WHITE;
   state_ = PositionState::initial();
-  positionHistoryCount_ = 0;
+  hashHistory_.count = 0;
+  kingSquare_[0][0] = 7; kingSquare_[0][1] = 4;
+  kingSquare_[1][0] = 0; kingSquare_[1][1] = 4;
   invalidateCache();
   recordPosition();
 }
@@ -44,7 +47,14 @@ bool ChessBoard::loadFEN(const std::string& fen) {
   if (!ChessFEN::validateFEN(fen)) return false;
 
   ChessFEN::fenToBoard(fen, squares_, currentTurn_, &state_);
-  positionHistoryCount_ = 0;
+  hashHistory_.count = 0;
+  // Scan for king positions after loading arbitrary FEN
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++) {
+      Piece p = squares_[r][c];
+      if (p == Piece::W_KING) { kingSquare_[0][0] = r; kingSquare_[0][1] = c; }
+      else if (p == Piece::B_KING) { kingSquare_[1][0] = r; kingSquare_[1][1] = c; }
+    }
   invalidateCache();
   recordPosition();
   return true;
@@ -78,7 +88,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   recordPosition();
   char winner = ' ';
   GameResult endResult = ChessRules::isGameOver(
-      squares_, currentTurn_, state_, positionHistory_, positionHistoryCount_, winner);
+      squares_, currentTurn_, state_, hashHistory_, winner);
   result.gameResult = endResult;
   result.winnerColor = winner;
 
@@ -87,7 +97,7 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   if (endResult == GameResult::CHECKMATE) {
     result.isCheck = true;
   } else if (endResult == GameResult::IN_PROGRESS &&
-             ChessRules::isCheck(squares_, currentTurn_)) {
+             ChessRules::isCheck(squares_, currentTurn_, kingRow(currentTurn_), kingCol(currentTurn_))) {
     result.isCheck = true;
   }
 
@@ -129,12 +139,17 @@ void ChessBoard::reverseMove(const MoveEntry& entry) {
   // Restore position state from before the move
   state_ = entry.prevState;
 
-  // Switch turn back
+  // Switch turn back and restore king cache
   currentTurn_ = ChessPiece::pieceColor(entry.piece);
+  if (ChessPiece::pieceType(entry.piece) == PieceType::KING) {
+    int ci = ChessPiece::raw(currentTurn_);
+    kingSquare_[ci][0] = entry.fromRow;
+    kingSquare_[ci][1] = entry.fromCol;
+  }
 
   // Pop last Zobrist position
-  if (positionHistoryCount_ > 0)
-    positionHistoryCount_--;
+  if (hashHistory_.count > 0)
+    hashHistory_.count--;
 
   invalidateCache();
 }
@@ -200,7 +215,7 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
 
   // --- Apply the physical board transform (piece move + castling rook + EP removal) ---
   Piece actualCapture;
-  ChessUtils::applyBoardTransform(squares_, fromRow, fromCol, toRow, toCol, state_, actualCapture);
+  ChessUtils::applyBoardTransform(squares_, fromRow, fromCol, toRow, toCol, ep, castle, actualCapture);
   result.isCapture = (actualCapture != Piece::NONE);
 
   // Update castling rights
@@ -208,7 +223,7 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
       state_.castlingRights, fromRow, fromCol, toRow, toCol, piece, actualCapture);
 
   // Pawn promotion
-  if (ChessRules::isPromotion(piece, toRow)) {
+  if (ChessPiece::isPromotion(piece, toRow)) {
     result.isPromotion = true;
     Color pieceColor = ChessPiece::pieceColor(piece);
     if (promotion != ' ' && promotion != '\0') {
@@ -218,6 +233,13 @@ void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol
       result.promotedTo = ChessPiece::makePiece(pieceColor, PieceType::QUEEN);
     }
     squares_[toRow][toCol] = result.promotedTo;
+  }
+
+  // Update king cache if a king moved
+  if (ChessPiece::pieceType(piece) == PieceType::KING) {
+    int ci = ChessPiece::raw(ChessPiece::pieceColor(piece));
+    kingSquare_[ci][0] = toRow;
+    kingSquare_[ci][1] = toCol;
   }
 }
 
@@ -238,11 +260,11 @@ void ChessBoard::advanceTurn() {
 // ---------------------------------------------------------------------------
 
 void ChessBoard::recordPosition() {
-  if (state_.halfmoveClock == 0 && positionHistoryCount_ > 0)
-    positionHistoryCount_ = 0;
+  if (state_.halfmoveClock == 0 && hashHistory_.count > 0)
+    hashHistory_.count = 0;
 
-  if (positionHistoryCount_ < MAX_POSITION_HISTORY) {
-    positionHistory_[positionHistoryCount_++] =
+  if (hashHistory_.count < HashHistory::MAX_SIZE) {
+    hashHistory_.keys[hashHistory_.count++] =
         ChessHash::computeHash(squares_, currentTurn_, state_);
   }
 }

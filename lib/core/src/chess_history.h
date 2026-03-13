@@ -26,37 +26,37 @@ struct MoveEntry {
   bool isPromotion;
   bool isCheck;
   PositionState prevState;  // position state before the move (enables undo)
+
+  // Build a MoveEntry from move coordinates and result.
+  // Encapsulates captured-piece determination and all field assignments.
+  static MoveEntry build(int fromRow, int fromCol, int toRow, int toCol,
+                         Piece piece, Piece targetPiece,
+                         const MoveResult& result,
+                         const PositionState& prevState) {
+    Piece captured = Piece::NONE;
+    if (result.isEnPassant)
+      captured = ChessPiece::makePiece(~ChessPiece::pieceColor(piece), PieceType::PAWN);
+    else if (result.isCapture)
+      captured = targetPiece;
+
+    MoveEntry entry;
+    entry.fromRow = fromRow;
+    entry.fromCol = fromCol;
+    entry.toRow = toRow;
+    entry.toCol = toCol;
+    entry.piece = piece;
+    entry.captured = captured;
+    entry.promotion = result.isPromotion ? result.promotedTo : Piece::NONE;
+    entry.isCapture = result.isCapture;
+    entry.isEnPassant = result.isEnPassant;
+    entry.epCapturedRow = result.epCapturedRow;
+    entry.isCastling = result.isCastling;
+    entry.isPromotion = result.isPromotion;
+    entry.isCheck = result.isCheck;
+    entry.prevState = prevState;
+    return entry;
+  }
 };
-
-// Build a MoveEntry from move coordinates and result.
-// Encapsulates captured-piece determination and all field assignments.
-inline MoveEntry buildMoveEntry(int fromRow, int fromCol, int toRow, int toCol,
-                                Piece piece, Piece targetPiece,
-                                const MoveResult& result,
-                                const PositionState& prevState) {
-  Piece captured = Piece::NONE;
-  if (result.isEnPassant)
-    captured = ChessPiece::makePiece(~ChessPiece::pieceColor(piece), PieceType::PAWN);
-  else if (result.isCapture)
-    captured = targetPiece;
-
-  MoveEntry entry;
-  entry.fromRow = fromRow;
-  entry.fromCol = fromCol;
-  entry.toRow = toRow;
-  entry.toCol = toCol;
-  entry.piece = piece;
-  entry.captured = captured;
-  entry.promotion = result.isPromotion ? result.promotedTo : Piece::NONE;
-  entry.isCapture = result.isCapture;
-  entry.isEnPassant = result.isEnPassant;
-  entry.epCapturedRow = result.epCapturedRow;
-  entry.isCastling = result.isCastling;
-  entry.isPromotion = result.isPromotion;
-  entry.isCheck = result.isCheck;
-  entry.prevState = prevState;
-  return entry;
-}
 
 // In-memory game history with optional persistent recording.
 //
