@@ -309,6 +309,139 @@ void test_diagonal_pin(void) {
   TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
+// ---------------------------------------------------------------------------
+// isCheck — 4-param overload (explicit king position)
+// ---------------------------------------------------------------------------
+
+void test_isCheck_explicit_king_position(void) {
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8");
+  // Using explicit king position
+  TEST_ASSERT_TRUE(ChessRules::isCheck(board, Color::WHITE, 7, 4));
+}
+
+void test_isCheck_explicit_wrong_position(void) {
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_ROOK, "e8");
+  // Pass wrong position — king is not really at d1, so check should not be detected there
+  TEST_ASSERT_FALSE(ChessRules::isCheck(board, Color::WHITE, 7, 3));
+}
+
+// ---------------------------------------------------------------------------
+// isValidMove — direct tests
+// ---------------------------------------------------------------------------
+
+void test_isValidMove_basic_valid(void) {
+  setupInitialBoard(board);
+  PositionState flags = PositionState::initial();
+  // e2e4 is valid
+  TEST_ASSERT_TRUE(ChessRules::isValidMove(board, 6, 4, 4, 4, flags));
+}
+
+void test_isValidMove_illegal_destination(void) {
+  setupInitialBoard(board);
+  PositionState flags = PositionState::initial();
+  // e2e5 (3 squares) is illegal for a pawn
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, 6, 4, 3, 4, flags));
+}
+
+void test_isValidMove_empty_source(void) {
+  PositionState flags{0x00, -1, -1, 0, 1};
+  placePiece(board, Piece::W_KING, "h1");
+  placePiece(board, Piece::B_KING, "h8");
+  // e4 is empty — moving from empty square is invalid
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, 4, 4, 3, 4, flags));
+}
+
+// ---------------------------------------------------------------------------
+// isDraw — direct static tests
+// ---------------------------------------------------------------------------
+
+void test_rules_isDraw_insufficient(void) {
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_KING, "e8");
+  PositionState st{0x00, -1, -1, 0, 1};
+  HashHistory hh{};
+  TEST_ASSERT_TRUE(ChessRules::isDraw(board, Color::WHITE, st, hh));
+}
+
+void test_rules_isDraw_fifty_move(void) {
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::B_KING, "e8");
+  placePiece(board, Piece::W_ROOK, "a1");  // sufficient material
+  PositionState st{0x00, -1, -1, 100, 50};
+  HashHistory hh{};
+  TEST_ASSERT_TRUE(ChessRules::isDraw(board, Color::WHITE, st, hh));
+}
+
+void test_rules_isDraw_false(void) {
+  setupInitialBoard(board);
+  PositionState st = PositionState::initial();
+  HashHistory hh{};
+  TEST_ASSERT_FALSE(ChessRules::isDraw(board, Color::WHITE, st, hh));
+}
+
+// ---------------------------------------------------------------------------
+// isGameOver — direct static tests
+// ---------------------------------------------------------------------------
+
+void test_rules_isGameOver_checkmate(void) {
+  // Back rank mate
+  placePiece(board, Piece::B_KING, "g8");
+  placePiece(board, Piece::B_PAWN, "f7");
+  placePiece(board, Piece::B_PAWN, "g7");
+  placePiece(board, Piece::B_PAWN, "h7");
+  placePiece(board, Piece::W_ROOK, "e8");
+  placePiece(board, Piece::W_KING, "a1");
+  PositionState st{0x00, -1, -1, 0, 1};
+  HashHistory hh{};
+  char winner = ' ';
+  GameResult result = ChessRules::isGameOver(board, Color::BLACK, st, hh, winner);
+  TEST_ASSERT_ENUM_EQ(GameResult::CHECKMATE, result);
+  TEST_ASSERT_EQUAL_CHAR('w', winner);
+}
+
+void test_rules_isGameOver_stalemate(void) {
+  placePiece(board, Piece::B_KING, "a8");
+  placePiece(board, Piece::W_QUEEN, "b6");
+  placePiece(board, Piece::W_KING, "c6");
+  PositionState st{0x00, -1, -1, 0, 1};
+  HashHistory hh{};
+  char winner = ' ';
+  GameResult result = ChessRules::isGameOver(board, Color::BLACK, st, hh, winner);
+  TEST_ASSERT_ENUM_EQ(GameResult::STALEMATE, result);
+}
+
+void test_rules_isGameOver_in_progress(void) {
+  setupInitialBoard(board);
+  PositionState st = PositionState::initial();
+  HashHistory hh{};
+  char winner = ' ';
+  GameResult result = ChessRules::isGameOver(board, Color::WHITE, st, hh, winner);
+  TEST_ASSERT_ENUM_EQ(GameResult::IN_PROGRESS, result);
+}
+
+void test_rules_isThreefoldRepetition_direct(void) {
+  // Fabricate a HashHistory with 3 identical hashes
+  HashHistory hh{};
+  hh.keys[0] = 0xABCD;
+  hh.keys[1] = 0x1234;
+  hh.keys[2] = 0xABCD;
+  hh.keys[3] = 0x5678;
+  hh.keys[4] = 0xABCD;
+  hh.count = 5;
+  TEST_ASSERT_TRUE(ChessRules::isThreefoldRepetition(hh));
+}
+
+void test_rules_isThreefoldRepetition_not_reached(void) {
+  HashHistory hh{};
+  hh.keys[0] = 0xABCD;
+  hh.keys[1] = 0x1234;
+  hh.keys[2] = 0xABCD;
+  hh.count = 3;
+  TEST_ASSERT_FALSE(ChessRules::isThreefoldRepetition(hh));
+}
+
 void register_chess_rules_check_tests() {
   needsDefaultKings = false;
 
@@ -351,4 +484,27 @@ void register_chess_rules_check_tests() {
   RUN_TEST(test_isSquareUnderAttack_by_pawn);
   RUN_TEST(test_isSquareUnderAttack_by_knight);
   RUN_TEST(test_isSquareUnderAttack_not_attacked);
+
+  // isCheck explicit king position
+  RUN_TEST(test_isCheck_explicit_king_position);
+  RUN_TEST(test_isCheck_explicit_wrong_position);
+
+  // isValidMove direct
+  RUN_TEST(test_isValidMove_basic_valid);
+  RUN_TEST(test_isValidMove_illegal_destination);
+  RUN_TEST(test_isValidMove_empty_source);
+
+  // isDraw direct
+  RUN_TEST(test_rules_isDraw_insufficient);
+  RUN_TEST(test_rules_isDraw_fifty_move);
+  RUN_TEST(test_rules_isDraw_false);
+
+  // isGameOver direct
+  RUN_TEST(test_rules_isGameOver_checkmate);
+  RUN_TEST(test_rules_isGameOver_stalemate);
+  RUN_TEST(test_rules_isGameOver_in_progress);
+
+  // isThreefoldRepetition direct
+  RUN_TEST(test_rules_isThreefoldRepetition_direct);
+  RUN_TEST(test_rules_isThreefoldRepetition_not_reached);
 }

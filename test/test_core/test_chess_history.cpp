@@ -151,6 +151,107 @@ void test_history_multiple_moves(void) {
 }
 
 // ---------------------------------------------------------------------------
+// MoveEntry::build()
+// ---------------------------------------------------------------------------
+
+void test_moveEntry_build_simple(void) {
+  PositionState prevSt = PositionState::initial();
+  MoveResult result{true, false, false, -1, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
+  MoveEntry e = MoveEntry::build(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE, result, prevSt);
+  TEST_ASSERT_EQUAL(6, e.fromRow);
+  TEST_ASSERT_EQUAL(4, e.fromCol);
+  TEST_ASSERT_EQUAL(4, e.toRow);
+  TEST_ASSERT_EQUAL(4, e.toCol);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, e.piece);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, e.captured);
+  TEST_ASSERT_FALSE(e.isCapture);
+  TEST_ASSERT_FALSE(e.isEnPassant);
+  TEST_ASSERT_FALSE(e.isCastling);
+  TEST_ASSERT_FALSE(e.isPromotion);
+}
+
+void test_moveEntry_build_capture(void) {
+  PositionState prevSt = PositionState::initial();
+  MoveResult result{true, true, false, -1, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
+  MoveEntry e = MoveEntry::build(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN, result, prevSt);
+  TEST_ASSERT_TRUE(e.isCapture);
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, e.captured);
+}
+
+void test_moveEntry_build_en_passant(void) {
+  PositionState prevSt{0x00, 2, 3, 0, 1};
+  MoveResult result{true, true, true, 3, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
+  // EP capture: e5xd6, target is empty, captured pawn is determined by build()
+  MoveEntry e = MoveEntry::build(3, 4, 2, 3, Piece::W_PAWN, Piece::NONE, result, prevSt);
+  TEST_ASSERT_TRUE(e.isEnPassant);
+  TEST_ASSERT_TRUE(e.isCapture);
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, e.captured);  // build() infers captured pawn
+  TEST_ASSERT_EQUAL(3, e.epCapturedRow);
+}
+
+void test_moveEntry_build_promotion(void) {
+  PositionState prevSt{0x00, -1, -1, 0, 1};
+  MoveResult result{true, false, false, -1, false, true, Piece::W_QUEEN, false, GameResult::IN_PROGRESS, ' '};
+  MoveEntry e = MoveEntry::build(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, result, prevSt);
+  TEST_ASSERT_TRUE(e.isPromotion);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, e.promotion);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, e.piece);  // original piece
+}
+
+void test_moveEntry_build_preserves_prev_state(void) {
+  PositionState prevSt{0x0F, 5, 4, 10, 6};
+  MoveResult result{true, false, false, -1, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
+  MoveEntry e = MoveEntry::build(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE, result, prevSt);
+  TEST_ASSERT_EQUAL_UINT8(0x0F, e.prevState.castlingRights);
+  TEST_ASSERT_EQUAL_INT(5, e.prevState.epRow);
+  TEST_ASSERT_EQUAL_INT(4, e.prevState.epCol);
+  TEST_ASSERT_EQUAL_INT(10, e.prevState.halfmoveClock);
+  TEST_ASSERT_EQUAL_INT(6, e.prevState.fullmoveClock);
+}
+
+// ---------------------------------------------------------------------------
+// Additional history edge cases
+// ---------------------------------------------------------------------------
+
+void test_history_empty_returns_true(void) {
+  hist = ChessHistory();
+  TEST_ASSERT_TRUE(hist.empty());
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
+  TEST_ASSERT_FALSE(hist.empty());
+}
+
+void test_history_lastMove_content(void) {
+  hist = ChessHistory();
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
+  hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
+  hist.addMove(makeEntry(7, 6, 5, 5, Piece::W_KNIGHT));
+  const MoveEntry& last = hist.lastMove();
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, last.piece);
+  TEST_ASSERT_EQUAL(5, last.toRow);
+  TEST_ASSERT_EQUAL(5, last.toCol);
+}
+
+void test_history_currentMoveIndex_direct(void) {
+  hist = ChessHistory();
+  TEST_ASSERT_EQUAL_INT(-1, hist.currentMoveIndex());  // before any move
+
+  hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
+  TEST_ASSERT_EQUAL_INT(0, hist.currentMoveIndex());  // after 1st move
+
+  hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
+  TEST_ASSERT_EQUAL_INT(1, hist.currentMoveIndex());  // after 2nd move
+
+  hist.undoMove();
+  TEST_ASSERT_EQUAL_INT(0, hist.currentMoveIndex());  // undo → back to 1st
+
+  hist.undoMove();
+  TEST_ASSERT_EQUAL_INT(-1, hist.currentMoveIndex());  // undo → before any
+
+  hist.redoMove();
+  TEST_ASSERT_EQUAL_INT(0, hist.currentMoveIndex());  // redo → after 1st
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -169,4 +270,18 @@ void register_chess_history_tests() {
   RUN_TEST(test_history_undo_redo_sequence);
   RUN_TEST(test_history_branch_wipes_future);
   RUN_TEST(test_history_multiple_moves);
+
+  // MoveEntry::build()
+  RUN_TEST(test_moveEntry_build_simple);
+  RUN_TEST(test_moveEntry_build_capture);
+  RUN_TEST(test_moveEntry_build_en_passant);
+  RUN_TEST(test_moveEntry_build_promotion);
+  RUN_TEST(test_moveEntry_build_preserves_prev_state);
+
+  // Additional edge cases
+  RUN_TEST(test_history_empty_returns_true);
+  RUN_TEST(test_history_lastMove_content);
+
+  // currentMoveIndex direct
+  RUN_TEST(test_history_currentMoveIndex_direct);
 }

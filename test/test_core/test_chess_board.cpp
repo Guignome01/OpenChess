@@ -1262,6 +1262,114 @@ void test_hashhistory_max_size(void) {
 }
 
 // ---------------------------------------------------------------------------
+// loadFEN edge cases
+// ---------------------------------------------------------------------------
+
+void test_board_load_fen_sets_castling_rights(void) {
+  setUpBoard();
+  cb.loadFEN("r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w Kq - 0 1");
+  // K + q = 0x01 | 0x08 = 0x09
+  TEST_ASSERT_EQUAL_UINT8(0x09, cb.getCastlingRights());
+}
+
+void test_board_load_fen_sets_ep_target(void) {
+  setUpBoard();
+  cb.loadFEN("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1");
+  const PositionState& st = cb.positionState();
+  TEST_ASSERT_EQUAL_INT(5, st.epRow);  // e3 = row 5
+  TEST_ASSERT_EQUAL_INT(4, st.epCol);  // e = col 4
+}
+
+void test_board_load_fen_sets_clocks(void) {
+  setUpBoard();
+  cb.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 42 21");
+  TEST_ASSERT_EQUAL_INT(42, cb.positionState().halfmoveClock);
+  TEST_ASSERT_EQUAL_INT(21, cb.positionState().fullmoveClock);
+}
+
+// ---------------------------------------------------------------------------
+// Dirty-flag caching (getEvaluation / getFen)
+// ---------------------------------------------------------------------------
+
+void test_board_getEvaluation_updates_after_capture(void) {
+  setUpBoard();
+  float evalBefore = cb.getEvaluation();
+  // Set up a capture scenario
+  cb.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
+  cb.makeMove(4, 4, 3, 3);  // exd5
+  float evalAfter = cb.getEvaluation();
+  // White captured a pawn, should be up ~1.0
+  TEST_ASSERT_TRUE(evalAfter > evalBefore);
+}
+
+void test_board_getFen_updates_after_move(void) {
+  setUpBoard();
+  std::string fenBefore = cb.getFen();
+  cb.makeMove(6, 4, 4, 4);  // e2e4
+  std::string fenAfter = cb.getFen();
+  TEST_ASSERT_FALSE(fenBefore == fenAfter);
+  // FEN should reflect black to move
+  TEST_ASSERT_TRUE(fenAfter.find(" b ") != std::string::npos);
+}
+
+// ---------------------------------------------------------------------------
+// Board-level threefold repetition query
+// ---------------------------------------------------------------------------
+
+void test_board_isThreefoldRepetition_query(void) {
+  setUpBoard();
+  cb.loadFEN("4k3/4p3/8/8/8/8/4P3/4K3 w - - 0 1");
+  // Repeat position 3 times
+  cb.makeMove(7, 4, 7, 3);  // Ke1-d1
+  cb.makeMove(0, 4, 0, 3);  // Ke8-d8
+  cb.makeMove(7, 3, 7, 4);  // Kd1-e1
+  cb.makeMove(0, 3, 0, 4);  // Kd8-e8 — 2nd occurrence
+  cb.makeMove(7, 4, 7, 3);  // Ke1-d1
+  cb.makeMove(0, 4, 0, 3);  // Ke8-d8
+  cb.makeMove(7, 3, 7, 4);  // Kd1-e1
+  cb.makeMove(0, 3, 0, 4);  // Kd8-e8 — 3rd occurrence
+  TEST_ASSERT_TRUE(cb.isThreefoldRepetition());
+}
+
+void test_board_isThreefoldRepetition_false(void) {
+  setUpBoard();
+  TEST_ASSERT_FALSE(cb.isThreefoldRepetition());
+}
+
+// ---------------------------------------------------------------------------
+// reverseMove cache restoration
+// ---------------------------------------------------------------------------
+
+void test_board_reverse_move_restores_fen(void) {
+  setUpBoard();
+  std::string fenBefore = cb.getFen();
+  PositionState before = cb.positionState();
+  cb.makeMove(6, 4, 4, 4);  // e2-e4
+  TEST_ASSERT_FALSE(fenBefore == cb.getFen());
+
+  MoveEntry e = makeBoardEntry(6, 4, 4, 4, Piece::W_PAWN, Piece::NONE, before);
+  cb.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_STRING(fenBefore.c_str(), cb.getFen().c_str());
+}
+
+void test_board_reverse_move_restores_eval(void) {
+  setUpBoard();
+  cb.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
+  float evalBefore = cb.getEvaluation();
+  PositionState before = cb.positionState();
+  MoveResult r = cb.makeMove(4, 4, 3, 3);  // exd5 capture
+  TEST_ASSERT_TRUE(r.valid);
+  // Eval should change after capture
+  TEST_ASSERT_FALSE(evalBefore == cb.getEvaluation());
+
+  MoveEntry e = makeBoardEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN, before);
+  cb.reverseMove(e);
+
+  TEST_ASSERT_EQUAL_FLOAT(evalBefore, cb.getEvaluation());
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -1435,4 +1543,21 @@ void register_chess_board_tests() {
   RUN_TEST(test_hashhistory_initial_state);
   RUN_TEST(test_hashhistory_add_and_read);
   RUN_TEST(test_hashhistory_max_size);
+
+  // loadFEN edge cases
+  RUN_TEST(test_board_load_fen_sets_castling_rights);
+  RUN_TEST(test_board_load_fen_sets_ep_target);
+  RUN_TEST(test_board_load_fen_sets_clocks);
+
+  // Dirty-flag caching
+  RUN_TEST(test_board_getEvaluation_updates_after_capture);
+  RUN_TEST(test_board_getFen_updates_after_move);
+
+  // Board-level threefold repetition
+  RUN_TEST(test_board_isThreefoldRepetition_query);
+  RUN_TEST(test_board_isThreefoldRepetition_false);
+
+  // reverseMove cache restoration
+  RUN_TEST(test_board_reverse_move_restores_fen);
+  RUN_TEST(test_board_reverse_move_restores_eval);
 }

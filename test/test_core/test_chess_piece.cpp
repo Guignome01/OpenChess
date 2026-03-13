@@ -197,6 +197,95 @@ static void test_piece_none_is_zero(void) {
 }
 
 // ---------------------------------------------------------------------------
+// isPromotion edge cases (Phase 5)
+// ---------------------------------------------------------------------------
+
+static void test_isPromotion_white_pawn_on_row_0(void) {
+  TEST_ASSERT_TRUE(isPromotion(Piece::W_PAWN, 0));
+}
+
+static void test_isPromotion_white_pawn_on_other_rows(void) {
+  for (int row = 1; row <= 7; row++) {
+    TEST_ASSERT_FALSE(isPromotion(Piece::W_PAWN, row));
+  }
+}
+
+static void test_isPromotion_black_pawn_on_row_7(void) {
+  TEST_ASSERT_TRUE(isPromotion(Piece::B_PAWN, 7));
+}
+
+static void test_isPromotion_black_pawn_on_other_rows(void) {
+  for (int row = 0; row <= 6; row++) {
+    TEST_ASSERT_FALSE(isPromotion(Piece::B_PAWN, row));
+  }
+}
+
+static void test_isPromotion_non_pawn_pieces(void) {
+  // No non-pawn piece should ever be a promotion, even on the promotion row
+  Piece whitePieces[] = {Piece::W_KNIGHT, Piece::W_BISHOP, Piece::W_ROOK,
+                         Piece::W_QUEEN, Piece::W_KING};
+  for (auto p : whitePieces) {
+    TEST_ASSERT_FALSE(isPromotion(p, 0));
+  }
+  Piece blackPieces[] = {Piece::B_KNIGHT, Piece::B_BISHOP, Piece::B_ROOK,
+                         Piece::B_QUEEN, Piece::B_KING};
+  for (auto p : blackPieces) {
+    TEST_ASSERT_FALSE(isPromotion(p, 7));
+  }
+}
+
+static void test_isPromotion_none(void) {
+  TEST_ASSERT_FALSE(isPromotion(Piece::NONE, 0));
+  TEST_ASSERT_FALSE(isPromotion(Piece::NONE, 7));
+}
+
+// ---------------------------------------------------------------------------
+// pieceValue — full black pieces coverage
+// ---------------------------------------------------------------------------
+
+static void test_piece_value_all_black(void) {
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceValue(Piece::B_PAWN));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_KNIGHT));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_BISHOP));
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceValue(Piece::B_ROOK));
+  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceValue(Piece::B_QUEEN));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceValue(Piece::B_KING));
+}
+
+// ---------------------------------------------------------------------------
+// charToPiece — exhaustive individual mapping
+// ---------------------------------------------------------------------------
+
+static void test_charToPiece_all_valid(void) {
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN,   charToPiece('P'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, charToPiece('N'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_BISHOP, charToPiece('B'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK,   charToPiece('R'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN,  charToPiece('Q'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING,   charToPiece('K'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN,   charToPiece('p'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_KNIGHT, charToPiece('n'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_BISHOP, charToPiece('b'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK,   charToPiece('r'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_QUEEN,  charToPiece('q'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING,   charToPiece('k'));
+}
+
+// ---------------------------------------------------------------------------
+// pieceTypeValue
+// ---------------------------------------------------------------------------
+
+static void test_pieceTypeValue_all(void) {
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceTypeValue(PieceType::PAWN));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::KNIGHT));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::BISHOP));
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceTypeValue(PieceType::ROOK));
+  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceTypeValue(PieceType::QUEEN));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::KING));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::NONE));
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -218,4 +307,21 @@ void register_chess_piece_tests() {
   RUN_TEST(test_color_name);
   RUN_TEST(test_color_char_conversion);
   RUN_TEST(test_piece_none_is_zero);
+
+  // isPromotion (Phase 5)
+  RUN_TEST(test_isPromotion_white_pawn_on_row_0);
+  RUN_TEST(test_isPromotion_white_pawn_on_other_rows);
+  RUN_TEST(test_isPromotion_black_pawn_on_row_7);
+  RUN_TEST(test_isPromotion_black_pawn_on_other_rows);
+  RUN_TEST(test_isPromotion_non_pawn_pieces);
+  RUN_TEST(test_isPromotion_none);
+
+  // pieceValue black pieces (Phase 5)
+  RUN_TEST(test_piece_value_all_black);
+
+  // charToPiece exhaustive (Phase 5)
+  RUN_TEST(test_charToPiece_all_valid);
+
+  // pieceTypeValue
+  RUN_TEST(test_pieceTypeValue_all);
 }

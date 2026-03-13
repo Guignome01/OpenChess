@@ -154,6 +154,45 @@ void test_validateFEN_no_castling_no_ep(void) {
   TEST_ASSERT_TRUE(ChessFEN::validateFEN("8/8/8/8/8/8/8/4K3 w - - 0 1"));
 }
 
+// ---------------------------------------------------------------------------
+// Edge cases (Phase 4J)
+// ---------------------------------------------------------------------------
+
+void test_fen_black_to_move(void) {
+  std::string inputFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+  Color turn;
+  PositionState state;
+  ChessFEN::fenToBoard(inputFen, board, turn, &state);
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, turn);
+}
+
+void test_fen_complex_midgame_roundtrip(void) {
+  // Mid-game position with partial castling, en passant, and non-trivial clocks
+  std::string inputFen = "r1bq1rk1/pp2ppbp/2np1np1/8/2BPP3/2N2N2/PP3PPP/R1BQ1RK1 b - - 4 8";
+  Color turn;
+  PositionState state;
+  ChessFEN::fenToBoard(inputFen, board, turn, &state);
+
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, turn);
+  TEST_ASSERT_EQUAL_UINT8(0x00, state.castlingRights);
+  TEST_ASSERT_EQUAL_INT(4, state.halfmoveClock);
+  TEST_ASSERT_EQUAL_INT(8, state.fullmoveClock);
+
+  std::string outputFen = ChessFEN::boardToFEN(board, turn, &state);
+  TEST_ASSERT_EQUAL_STRING(inputFen.c_str(), outputFen.c_str());
+}
+
+void test_fenToBoard_lenient_accepts_board_only(void) {
+  // fenToBoard should accept a FEN with only the board placement (no state fields)
+  Piece b2[8][8];
+  Color turn;
+  PositionState state;
+  ChessFEN::fenToBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR", b2, turn, &state);
+  // Should parse the board without crashing — verify a known piece
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, b2[7][0]);
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, b2[0][4]);
+}
+
 void register_chess_fen_tests() {
   needsDefaultKings = false;
 
@@ -181,4 +220,9 @@ void register_chess_fen_tests() {
   RUN_TEST(test_validateFEN_bad_halfmove);
   RUN_TEST(test_validateFEN_bad_fullmove);
   RUN_TEST(test_validateFEN_no_castling_no_ep);
+
+  // Edge cases (Phase 4J)
+  RUN_TEST(test_fen_black_to_move);
+  RUN_TEST(test_fen_complex_midgame_roundtrip);
+  RUN_TEST(test_fenToBoard_lenient_accepts_board_only);
 }

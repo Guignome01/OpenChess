@@ -397,6 +397,204 @@ void test_hasCastlingRight_partial(void) {
   TEST_ASSERT_TRUE(ChessUtils::hasCastlingRight(wKbq, Color::BLACK, false));  // q set
 }
 
+// ---------------------------------------------------------------------------
+// Coordinate helpers: fileChar / rankChar / fileIndex / rankIndex
+// ---------------------------------------------------------------------------
+
+void test_fileChar_all_columns(void) {
+  TEST_ASSERT_EQUAL_CHAR('a', ChessUtils::fileChar(0));
+  TEST_ASSERT_EQUAL_CHAR('b', ChessUtils::fileChar(1));
+  TEST_ASSERT_EQUAL_CHAR('c', ChessUtils::fileChar(2));
+  TEST_ASSERT_EQUAL_CHAR('d', ChessUtils::fileChar(3));
+  TEST_ASSERT_EQUAL_CHAR('e', ChessUtils::fileChar(4));
+  TEST_ASSERT_EQUAL_CHAR('f', ChessUtils::fileChar(5));
+  TEST_ASSERT_EQUAL_CHAR('g', ChessUtils::fileChar(6));
+  TEST_ASSERT_EQUAL_CHAR('h', ChessUtils::fileChar(7));
+}
+
+void test_rankChar_all_rows(void) {
+  TEST_ASSERT_EQUAL_CHAR('8', ChessUtils::rankChar(0));
+  TEST_ASSERT_EQUAL_CHAR('7', ChessUtils::rankChar(1));
+  TEST_ASSERT_EQUAL_CHAR('6', ChessUtils::rankChar(2));
+  TEST_ASSERT_EQUAL_CHAR('5', ChessUtils::rankChar(3));
+  TEST_ASSERT_EQUAL_CHAR('4', ChessUtils::rankChar(4));
+  TEST_ASSERT_EQUAL_CHAR('3', ChessUtils::rankChar(5));
+  TEST_ASSERT_EQUAL_CHAR('2', ChessUtils::rankChar(6));
+  TEST_ASSERT_EQUAL_CHAR('1', ChessUtils::rankChar(7));
+}
+
+void test_fileIndex_all_files(void) {
+  TEST_ASSERT_EQUAL_INT(0, ChessUtils::fileIndex('a'));
+  TEST_ASSERT_EQUAL_INT(1, ChessUtils::fileIndex('b'));
+  TEST_ASSERT_EQUAL_INT(4, ChessUtils::fileIndex('e'));
+  TEST_ASSERT_EQUAL_INT(7, ChessUtils::fileIndex('h'));
+}
+
+void test_rankIndex_all_ranks(void) {
+  TEST_ASSERT_EQUAL_INT(7, ChessUtils::rankIndex('1'));
+  TEST_ASSERT_EQUAL_INT(6, ChessUtils::rankIndex('2'));
+  TEST_ASSERT_EQUAL_INT(4, ChessUtils::rankIndex('4'));
+  TEST_ASSERT_EQUAL_INT(0, ChessUtils::rankIndex('8'));
+}
+
+void test_coordinate_roundtrip(void) {
+  for (int col = 0; col < 8; col++) {
+    char f = ChessUtils::fileChar(col);
+    TEST_ASSERT_EQUAL_INT(col, ChessUtils::fileIndex(f));
+  }
+  for (int row = 0; row < 8; row++) {
+    char r = ChessUtils::rankChar(row);
+    TEST_ASSERT_EQUAL_INT(row, ChessUtils::rankIndex(r));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// isValidSquare
+// ---------------------------------------------------------------------------
+
+void test_isValidSquare_valid(void) {
+  TEST_ASSERT_TRUE(ChessUtils::isValidSquare(0, 0));
+  TEST_ASSERT_TRUE(ChessUtils::isValidSquare(0, 7));
+  TEST_ASSERT_TRUE(ChessUtils::isValidSquare(7, 0));
+  TEST_ASSERT_TRUE(ChessUtils::isValidSquare(7, 7));
+  TEST_ASSERT_TRUE(ChessUtils::isValidSquare(3, 4));
+}
+
+void test_isValidSquare_invalid(void) {
+  TEST_ASSERT_FALSE(ChessUtils::isValidSquare(-1, 0));
+  TEST_ASSERT_FALSE(ChessUtils::isValidSquare(0, -1));
+  TEST_ASSERT_FALSE(ChessUtils::isValidSquare(8, 0));
+  TEST_ASSERT_FALSE(ChessUtils::isValidSquare(0, 8));
+  TEST_ASSERT_FALSE(ChessUtils::isValidSquare(-1, -1));
+}
+
+// ---------------------------------------------------------------------------
+// isValidPromotionChar
+// ---------------------------------------------------------------------------
+
+void test_isValidPromotionChar_valid(void) {
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('q'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('r'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('b'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('n'));
+}
+
+void test_isValidPromotionChar_uppercase(void) {
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('Q'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('R'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('B'));
+  TEST_ASSERT_TRUE(ChessUtils::isValidPromotionChar('N'));
+}
+
+void test_isValidPromotionChar_invalid(void) {
+  TEST_ASSERT_FALSE(ChessUtils::isValidPromotionChar('k'));
+  TEST_ASSERT_FALSE(ChessUtils::isValidPromotionChar('p'));
+  TEST_ASSERT_FALSE(ChessUtils::isValidPromotionChar('x'));
+  TEST_ASSERT_FALSE(ChessUtils::isValidPromotionChar(' '));
+}
+
+// ---------------------------------------------------------------------------
+// gameResultName
+// ---------------------------------------------------------------------------
+
+void test_gameResultName_all_values(void) {
+  TEST_ASSERT_EQUAL_STRING("In progress", ChessUtils::gameResultName(GameResult::IN_PROGRESS));
+  TEST_ASSERT_EQUAL_STRING("Checkmate", ChessUtils::gameResultName(GameResult::CHECKMATE));
+  TEST_ASSERT_EQUAL_STRING("Stalemate", ChessUtils::gameResultName(GameResult::STALEMATE));
+  TEST_ASSERT_EQUAL_STRING("Draw (50-move rule)", ChessUtils::gameResultName(GameResult::DRAW_50));
+  TEST_ASSERT_EQUAL_STRING("Draw (threefold repetition)", ChessUtils::gameResultName(GameResult::DRAW_3FOLD));
+  TEST_ASSERT_EQUAL_STRING("Resignation", ChessUtils::gameResultName(GameResult::RESIGNATION));
+  TEST_ASSERT_EQUAL_STRING("Draw (insufficient material)", ChessUtils::gameResultName(GameResult::DRAW_INSUFFICIENT));
+  TEST_ASSERT_EQUAL_STRING("Draw (agreement)", ChessUtils::gameResultName(GameResult::DRAW_AGREEMENT));
+  TEST_ASSERT_EQUAL_STRING("Timeout", ChessUtils::gameResultName(GameResult::TIMEOUT));
+  TEST_ASSERT_EQUAL_STRING("Aborted", ChessUtils::gameResultName(GameResult::ABORTED));
+}
+
+// ---------------------------------------------------------------------------
+// boardToText
+// ---------------------------------------------------------------------------
+
+void test_boardToText_initial_position(void) {
+  setupInitialBoard(board);
+  std::string text = ChessUtils::boardToText(board);
+  TEST_ASSERT_TRUE(text.length() > 0);
+  // Check that back ranks have expected piece chars
+  TEST_ASSERT_TRUE(text.find('r') != std::string::npos);  // black rook
+  TEST_ASSERT_TRUE(text.find('R') != std::string::npos);  // white rook
+  TEST_ASSERT_TRUE(text.find('K') != std::string::npos);  // white king
+  TEST_ASSERT_TRUE(text.find('k') != std::string::npos);  // black king
+}
+
+void test_boardToText_empty_board(void) {
+  std::string text = ChessUtils::boardToText(board);
+  TEST_ASSERT_TRUE(text.length() > 0);
+  // Empty board rows should contain only dots (no piece chars between rank labels)
+  // Each rank line looks like "8 . . . . . . . .  8\n"
+  for (int row = 0; row < 8; row++) {
+    char rank = ChessUtils::rankChar(row);
+    // Find the rank label at line start
+    std::string prefix = std::string(1, rank) + " ";
+    size_t pos = text.find(prefix);
+    TEST_ASSERT_TRUE(pos != std::string::npos);
+    // The 8 squares after the rank label should all be dots
+    for (int col = 0; col < 8; col++) {
+      TEST_ASSERT_EQUAL_CHAR('.', text[pos + 2 + col * 2]);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// applyBoardTransform
+// ---------------------------------------------------------------------------
+
+void test_applyBoardTransform_simple_move(void) {
+  placePiece(board, Piece::W_PAWN, "e2");
+  ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
+  ChessUtils::CastlingInfo castle{false, -1, -1};
+  Piece captured = Piece::NONE;
+  ChessUtils::applyBoardTransform(board, 6, 4, 4, 4, ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[4][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[6][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, captured);
+}
+
+void test_applyBoardTransform_capture(void) {
+  placePiece(board, Piece::W_PAWN, "e4");
+  placePiece(board, Piece::B_PAWN, "d5");
+  ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
+  ChessUtils::CastlingInfo castle{false, -1, -1};
+  Piece captured = Piece::NONE;
+  ChessUtils::applyBoardTransform(board, 4, 4, 3, 3, ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[3][3]);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[4][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, captured);
+}
+
+void test_applyBoardTransform_en_passant(void) {
+  placePiece(board, Piece::W_PAWN, "e5");
+  placePiece(board, Piece::B_PAWN, "d5");  // captured pawn on row 3
+  ChessUtils::EnPassantInfo ep{true, 3, -1, -1};  // EP capture, captured pawn on row 3
+  ChessUtils::CastlingInfo castle{false, -1, -1};
+  Piece captured = Piece::NONE;
+  ChessUtils::applyBoardTransform(board, 3, 4, 2, 3, ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[2][3]);  // pawn moved to d6
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[3][4]);     // source cleared
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[3][3]);     // captured pawn removed
+}
+
+void test_applyBoardTransform_castling(void) {
+  placePiece(board, Piece::W_KING, "e1");
+  placePiece(board, Piece::W_ROOK, "h1");
+  ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
+  ChessUtils::CastlingInfo castle{true, 7, 5};  // kingside: rook h1→f1
+  Piece captured = Piece::NONE;
+  ChessUtils::applyBoardTransform(board, 7, 4, 7, 6, ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, board[7][6]);   // king on g1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, board[7][5]);   // rook on f1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[7][4]);      // e1 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[7][7]);      // h1 cleared
+}
+
 void register_chess_utils_tests() {
   needsDefaultKings = false;
 
@@ -482,4 +680,33 @@ void register_chess_utils_tests() {
   RUN_TEST(test_hasCastlingRight_all_rights);
   RUN_TEST(test_hasCastlingRight_no_rights);
   RUN_TEST(test_hasCastlingRight_partial);
+
+  // Coordinate helpers
+  RUN_TEST(test_fileChar_all_columns);
+  RUN_TEST(test_rankChar_all_rows);
+  RUN_TEST(test_fileIndex_all_files);
+  RUN_TEST(test_rankIndex_all_ranks);
+  RUN_TEST(test_coordinate_roundtrip);
+
+  // isValidSquare
+  RUN_TEST(test_isValidSquare_valid);
+  RUN_TEST(test_isValidSquare_invalid);
+
+  // isValidPromotionChar
+  RUN_TEST(test_isValidPromotionChar_valid);
+  RUN_TEST(test_isValidPromotionChar_uppercase);
+  RUN_TEST(test_isValidPromotionChar_invalid);
+
+  // gameResultName
+  RUN_TEST(test_gameResultName_all_values);
+
+  // boardToText
+  RUN_TEST(test_boardToText_initial_position);
+  RUN_TEST(test_boardToText_empty_board);
+
+  // applyBoardTransform
+  RUN_TEST(test_applyBoardTransform_simple_move);
+  RUN_TEST(test_applyBoardTransform_capture);
+  RUN_TEST(test_applyBoardTransform_en_passant);
+  RUN_TEST(test_applyBoardTransform_castling);
 }

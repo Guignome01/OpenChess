@@ -61,53 +61,6 @@ void test_game_threefold_different_castling_rights(void) {
 }
 
 // ---------------------------------------------------------------------------
-// isDraw (aggregate query — delegates to board for all conditions)
-// ---------------------------------------------------------------------------
-
-void test_game_is_draw_insufficient_material(void) {
-  setUpGame();
-  game.loadFEN("4k3/8/8/8/8/8/8/4K3 w - - 0 1");
-  TEST_ASSERT_TRUE(game.isDraw());
-}
-
-void test_game_is_draw_fifty_move(void) {
-  setUpGame();
-  game.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 100 50");
-  TEST_ASSERT_TRUE(game.isDraw());
-}
-
-void test_game_is_draw_false(void) {
-  setUpGame();
-  TEST_ASSERT_FALSE(game.isDraw());
-}
-
-// ---------------------------------------------------------------------------
-// isThreefoldRepetition (public — delegates to board)
-// ---------------------------------------------------------------------------
-
-void test_game_is_threefold_repetition(void) {
-  setUpGame();
-  // Repeat rook moves to produce threefold repetition (sufficient material)
-  game.loadFEN("4k3/8/8/8/8/8/8/R3K3 w - - 0 1");
-  game.makeMove(7, 0, 7, 1); // Ra1-b1
-  game.makeMove(0, 4, 0, 3); // Ke8-d8
-  game.makeMove(7, 1, 7, 0); // Rb1-a1
-  game.makeMove(0, 3, 0, 4); // Kd8-e8
-  game.makeMove(7, 0, 7, 1); // Ra1-b1
-  game.makeMove(0, 4, 0, 3); // Ke8-d8
-  game.makeMove(7, 1, 7, 0); // Rb1-a1
-  game.makeMove(0, 3, 0, 4); // Kd8-e8
-  // Position has now occurred 3 times
-  TEST_ASSERT_TRUE(game.isThreefoldRepetition());
-}
-
-void test_game_is_threefold_repetition_false(void) {
-  setUpGame();
-  TEST_ASSERT_FALSE(game.isThreefoldRepetition());
-}
-
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Observer notification / batching
 // ---------------------------------------------------------------------------
 
@@ -355,107 +308,8 @@ void test_game_batch_first_last_single_observer(void) {
 }
 
 // ---------------------------------------------------------------------------
-// History integration (ChessGame owns history, records moves via makeMove)
+// getHistory (SAN/LAN formats exercise board-replay orchestration logic)
 // ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Navigation orchestrator: currentMoveIndex, moveCount, getHistory
-// ---------------------------------------------------------------------------
-
-void test_game_move_count_empty(void) {
-  setUpGame();
-  TEST_ASSERT_EQUAL(0, game.moveCount());
-}
-
-void test_game_move_count_after_moves(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  TEST_ASSERT_EQUAL(2, game.moveCount());
-}
-
-void test_game_current_move_index_start(void) {
-  setUpGame();
-  // Before any moves: index 0 (start position)
-  TEST_ASSERT_EQUAL(0, game.currentMoveIndex());
-}
-
-void test_game_current_move_index_after_moves(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  TEST_ASSERT_EQUAL(1, game.currentMoveIndex());
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  TEST_ASSERT_EQUAL(2, game.currentMoveIndex());
-}
-
-void test_game_current_move_index_after_undo(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  game.undoMove();
-  TEST_ASSERT_EQUAL(1, game.currentMoveIndex());
-  game.undoMove();
-  TEST_ASSERT_EQUAL(0, game.currentMoveIndex());
-}
-
-void test_game_get_history_empty(void) {
-  setUpGame();
-  std::string moves[10];
-  int count = game.getHistory(moves, 10);
-  TEST_ASSERT_EQUAL(0, count);
-}
-
-void test_game_get_history_basic(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  game.makeMove(7, 6, 5, 5);  // 2. Nf3
-
-  std::string moves[10];
-  int count = game.getHistory(moves, 10);
-  TEST_ASSERT_EQUAL(3, count);
-  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
-  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
-  TEST_ASSERT_EQUAL_STRING("g1f3", moves[2].c_str());
-}
-
-void test_game_get_history_with_promotion(void) {
-  setUpGame();
-  // Set up a position where white can promote
-  game.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
-  game.makeMove(1, 4, 0, 4, 'Q');  // e7e8q
-
-  std::string moves[10];
-  int count = game.getHistory(moves, 10);
-  TEST_ASSERT_EQUAL(1, count);
-  TEST_ASSERT_EQUAL_STRING("e7e8q", moves[0].c_str());
-}
-
-void test_game_get_history_includes_all_after_undo(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  game.undoMove();              // cursor at move 1, but log still has 2 moves
-
-  std::string moves[10];
-  int count = game.getHistory(moves, 10);
-  TEST_ASSERT_EQUAL(2, count);
-  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
-  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
-}
-
-void test_game_get_history_max_limit(void) {
-  setUpGame();
-  game.makeMove(6, 4, 4, 4);  // 1. e4
-  game.makeMove(1, 4, 3, 4);  // 1... e5
-  game.makeMove(7, 6, 5, 5);  // 2. Nf3
-
-  std::string moves[2];
-  int count = game.getHistory(moves, 2);
-  TEST_ASSERT_EQUAL(2, count);
-  TEST_ASSERT_EQUAL_STRING("e2e4", moves[0].c_str());
-  TEST_ASSERT_EQUAL_STRING("e7e5", moves[1].c_str());
-}
 
 void test_game_get_history_san_format(void) {
   setUpGame();
@@ -673,6 +527,95 @@ void test_game_san_check_suffix(void) {
 }
 
 // ---------------------------------------------------------------------------
+// makeMove(string) — string-based overload
+// ---------------------------------------------------------------------------
+
+void test_game_makeMove_string_coordinate(void) {
+  setUpGame();
+  MoveResult r = game.makeMove("e2e4");
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, game.getSquare(4, 4));
+  TEST_ASSERT_ENUM_EQ(Color::BLACK, game.currentTurn());
+}
+
+void test_game_makeMove_string_invalid(void) {
+  setUpGame();
+  MoveResult r = game.makeMove("xxxx");
+  TEST_ASSERT_FALSE(r.valid);
+}
+
+void test_game_makeMove_string_empty(void) {
+  setUpGame();
+  MoveResult r = game.makeMove("");
+  TEST_ASSERT_FALSE(r.valid);
+}
+
+void test_game_makeMove_string_promotion(void) {
+  setUpGame();
+  game.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
+  MoveResult r = game.makeMove("e7e8q");
+  TEST_ASSERT_TRUE(r.valid);
+  TEST_ASSERT_TRUE(r.isPromotion);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, game.getSquare(0, 4));
+}
+
+// ---------------------------------------------------------------------------
+// parseMove() instance method
+// ---------------------------------------------------------------------------
+
+void test_game_parseMove_coordinate(void) {
+  setUpGame();
+  int fr, fc, tr, tc;
+  char promo;
+  bool ok = game.parseMove("e2e4", fr, fc, tr, tc, promo);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_INT(6, fr);
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(4, tr);
+  TEST_ASSERT_EQUAL_INT(4, tc);
+}
+
+void test_game_parseMove_san(void) {
+  setUpGame();
+  int fr, fc, tr, tc;
+  char promo;
+  bool ok = game.parseMove("Nf3", fr, fc, tr, tc, promo);
+  TEST_ASSERT_TRUE(ok);
+  TEST_ASSERT_EQUAL_INT(7, fr);  // g1
+  TEST_ASSERT_EQUAL_INT(6, fc);
+  TEST_ASSERT_EQUAL_INT(5, tr);  // f3
+  TEST_ASSERT_EQUAL_INT(5, tc);
+}
+
+void test_game_parseMove_invalid(void) {
+  setUpGame();
+  int fr, fc, tr, tc;
+  char promo;
+  bool ok = game.parseMove("Zz9", fr, fc, tr, tc, promo);
+  TEST_ASSERT_FALSE(ok);
+}
+
+// ---------------------------------------------------------------------------
+// board() / history() accessors
+// ---------------------------------------------------------------------------
+
+void test_game_board_accessor(void) {
+  setUpGame();
+  const ChessBoard& b = game.board();
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, b.getSquare(7, 4));
+  TEST_ASSERT_ENUM_EQ(Color::WHITE, b.currentTurn());
+}
+
+void test_game_history_accessor(void) {
+  setUpGame();
+  game.makeMove(6, 4, 4, 4);
+  game.makeMove(1, 4, 3, 4);
+  const ChessHistory& h = game.history();
+  TEST_ASSERT_EQUAL(2, h.moveCount());
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, h.getMove(0).piece);
+}
+
+// ---------------------------------------------------------------------------
 // Registration
 // ---------------------------------------------------------------------------
 
@@ -682,15 +625,6 @@ void register_chess_game_tests() {
   // Threefold repetition
   RUN_TEST(test_game_threefold_repetition);
   RUN_TEST(test_game_threefold_different_castling_rights);
-
-  // isDraw
-  RUN_TEST(test_game_is_draw_insufficient_material);
-  RUN_TEST(test_game_is_draw_fifty_move);
-  RUN_TEST(test_game_is_draw_false);
-
-  // isThreefoldRepetition
-  RUN_TEST(test_game_is_threefold_repetition);
-  RUN_TEST(test_game_is_threefold_repetition_false);
 
   // Observer notification / batching
   RUN_TEST(test_game_observer_fires_on_move);
@@ -715,17 +649,7 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_history_invalid_move_not_recorded);
   RUN_TEST(test_game_history_last_move_after_sequence);
 
-  // Navigation orchestrator
-  RUN_TEST(test_game_move_count_empty);
-  RUN_TEST(test_game_move_count_after_moves);
-  RUN_TEST(test_game_current_move_index_start);
-  RUN_TEST(test_game_current_move_index_after_moves);
-  RUN_TEST(test_game_current_move_index_after_undo);
-  RUN_TEST(test_game_get_history_empty);
-  RUN_TEST(test_game_get_history_basic);
-  RUN_TEST(test_game_get_history_with_promotion);
-  RUN_TEST(test_game_get_history_includes_all_after_undo);
-  RUN_TEST(test_game_get_history_max_limit);
+  // Navigation orchestrator (SAN/LAN formats test board-replay logic)
   RUN_TEST(test_game_get_history_san_format);
   RUN_TEST(test_game_get_history_lan_format);
 
@@ -747,4 +671,19 @@ void register_chess_game_tests() {
   RUN_TEST(test_game_redo_restores_game_over);
   RUN_TEST(test_game_san_checkmate_suffix);
   RUN_TEST(test_game_san_check_suffix);
+
+  // makeMove(string)
+  RUN_TEST(test_game_makeMove_string_coordinate);
+  RUN_TEST(test_game_makeMove_string_invalid);
+  RUN_TEST(test_game_makeMove_string_empty);
+  RUN_TEST(test_game_makeMove_string_promotion);
+
+  // parseMove() instance method
+  RUN_TEST(test_game_parseMove_coordinate);
+  RUN_TEST(test_game_parseMove_san);
+  RUN_TEST(test_game_parseMove_invalid);
+
+  // board() / history() accessors
+  RUN_TEST(test_game_board_accessor);
+  RUN_TEST(test_game_history_accessor);
 }

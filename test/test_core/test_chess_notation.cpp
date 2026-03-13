@@ -553,6 +553,129 @@ void test_roundtrip_san_scholar_mate(void) {
 }
 
 // ===========================================================================
+// Edge-case coverage (Phase 4I)
+// ===========================================================================
+
+void test_toSAN_en_passant(void) {
+  // White pawn on e5, black pawn just pushed d7-d5: en passant capture exd6
+  ChessBoard b;
+  b.loadFEN("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3");
+  MoveEntry m = makeEntry(3, 4, 2, 3, Piece::W_PAWN, Piece::B_PAWN);
+  m.isEnPassant = true;
+  m.epCapturedRow = 3;
+  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  TEST_ASSERT_EQUAL_STRING("exd6", san.c_str());
+}
+
+void test_toSAN_promotion_with_capture(void) {
+  // White pawn on d7 captures on e8 with promotion
+  ChessBoard b;
+  b.loadFEN("4rb2/3P4/8/8/8/8/8/4K2k w - - 0 1");
+  MoveEntry m = makeEntry(1, 3, 0, 4, Piece::W_PAWN, Piece::B_ROOK, Piece::W_QUEEN);
+  m.isCapture = true;
+  m.isPromotion = true;
+  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  TEST_ASSERT_EQUAL_STRING("dxe8=Q", san.c_str());
+}
+
+void test_toSAN_full_disambiguation(void) {
+  // Full disambiguation (file+rank) occurs when ≥2 ambiguous pieces exist:
+  // one on the same file (needs rank) and one on the same rank (needs file).
+  // Three queens: d1(7,3), d5(3,3), a1(7,0) — all can reach d4(4,3).
+  // Qd5 shares file d → needRank. Qa1 shares rank 1 → needFile.
+  ChessBoard b;
+  b.loadFEN("4k3/8/8/3Q4/8/8/8/Q2Q3K w - - 0 1");
+  MoveEntry m = makeEntry(7, 3, 4, 3, Piece::W_QUEEN);  // Qd1-d4
+  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  TEST_ASSERT_EQUAL_STRING("Qd1d4", san.c_str());
+}
+
+void test_parseSAN_en_passant_capture(void) {
+  ChessBoard b;
+  b.loadFEN("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3");
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "exd6", fr, fc, tr, tc, promo));
+  TEST_ASSERT_EQUAL_INT(3, fr);  // e5
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(2, tr);  // d6
+  TEST_ASSERT_EQUAL_INT(3, tc);
+}
+
+void test_parseSAN_promotion_with_capture(void) {
+  ChessBoard b;
+  b.loadFEN("4rb2/3P4/8/8/8/8/8/4K2k w - - 0 1");
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "dxe8=Q", fr, fc, tr, tc, promo));
+  TEST_ASSERT_EQUAL_INT(1, fr);  // d7
+  TEST_ASSERT_EQUAL_INT(3, fc);
+  TEST_ASSERT_EQUAL_INT(0, tr);  // e8
+  TEST_ASSERT_EQUAL_INT(4, tc);
+  TEST_ASSERT_EQUAL_CHAR('q', promo);  // parseSAN lowercases promotion
+}
+
+void test_parseSAN_invalid_no_matching_piece(void) {
+  // No knight can reach e4 from the initial position via SAN "Ne4"
+  ChessBoard b;
+  b.newGame();
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_FALSE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Ne4", fr, fc, tr, tc, promo));
+}
+
+void test_parseLAN_pawn_capture(void) {
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_TRUE(ChessNotation::parseLAN("e4xd5", fr, fc, tr, tc, promo));
+  TEST_ASSERT_EQUAL_INT(4, fr);  // e4
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(3, tr);  // d5
+  TEST_ASSERT_EQUAL_INT(3, tc);
+}
+
+void test_parseSAN_disambiguation_by_rank(void) {
+  // Two knights on e2 and e6, both can reach d4 — need rank hint
+  ChessBoard b;
+  b.loadFEN("4k3/8/4N3/8/8/8/4N3/4K3 w - - 0 1");
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "N2d4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_EQUAL_INT(6, fr);  // e2
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(4, tr);  // d4
+  TEST_ASSERT_EQUAL_INT(3, tc);
+}
+
+void test_parseSAN_queenside_castling_with_zeros(void) {
+  ChessBoard b;
+  b.loadFEN("r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 5");
+  int fr, fc, tr, tc;
+  char promo;
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "0-0-0", fr, fc, tr, tc, promo));
+  TEST_ASSERT_EQUAL_INT(7, fr);  // e1
+  TEST_ASSERT_EQUAL_INT(4, fc);
+  TEST_ASSERT_EQUAL_INT(7, tr);  // c1
+  TEST_ASSERT_EQUAL_INT(2, tc);
+}
+
+void test_toLAN_en_passant(void) {
+  MoveEntry m = makeEntry(3, 4, 2, 3, Piece::W_PAWN, Piece::B_PAWN);
+  m.isCapture = true;
+  m.isEnPassant = true;
+  std::string lan = ChessNotation::toLAN(m);
+  TEST_ASSERT_EQUAL_STRING("e5xd6", lan.c_str());
+}
+
+void test_toLAN_promotion_with_capture(void) {
+  MoveEntry m = makeEntry(1, 3, 0, 4, Piece::W_PAWN, Piece::B_ROOK, Piece::W_QUEEN);
+  m.isCapture = true;
+  m.isPromotion = true;
+  std::string lan = ChessNotation::toLAN(m);
+  TEST_ASSERT_EQUAL_STRING("d7xe8=Q", lan.c_str());
+}
+
+// ===========================================================================
 // Registration
 // ===========================================================================
 
@@ -626,4 +749,17 @@ void register_chess_notation_tests() {
 
   // Roundtrip
   RUN_TEST(test_roundtrip_san_scholar_mate);
+
+  // Edge cases (Phase 4I)
+  RUN_TEST(test_toSAN_en_passant);
+  RUN_TEST(test_toSAN_promotion_with_capture);
+  RUN_TEST(test_toSAN_full_disambiguation);
+  RUN_TEST(test_parseSAN_en_passant_capture);
+  RUN_TEST(test_parseSAN_promotion_with_capture);
+  RUN_TEST(test_parseSAN_invalid_no_matching_piece);
+  RUN_TEST(test_parseLAN_pawn_capture);
+  RUN_TEST(test_parseSAN_disambiguation_by_rank);
+  RUN_TEST(test_parseSAN_queenside_castling_with_zeros);
+  RUN_TEST(test_toLAN_en_passant);
+  RUN_TEST(test_toLAN_promotion_with_capture);
 }
