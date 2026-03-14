@@ -230,9 +230,9 @@ void ChessRules::getPossibleMoves(const BB& bb, const Piece mailbox[],
   // destination, which cannot be pre-computed with pin/check masks.
   if (isKing) {
     for (int i = 0; i < pseudoMoves.count; i++) {
-      Square target = pseudoMoves.square(i);
-      if (!leavesInCheck(bb, mailbox, sq, target, state, target))
-        moves.addSquare(target);
+      Move m = pseudoMoves.moves[i];
+      if (!leavesInCheck(bb, mailbox, sq, static_cast<Square>(m.to), state, static_cast<Square>(m.to)))
+        moves.add(m);
     }
     return;
   }
@@ -245,26 +245,107 @@ void ChessRules::getPossibleMoves(const BB& bb, const Piece mailbox[],
   // - If not pinned: only targets addressing the check (or all, if no check).
   Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
 
-  // Precompute EP target once (avoid repeated squareOf inside the loop).
-  bool isPawn = ChessPiece::pieceType(piece) == PieceType::PAWN;
-  bool hasEP = isPawn && state.epRow >= 0 && state.epCol >= 0;
-  Square epTarget = hasEP ? squareOf(state.epRow, state.epCol) : Square(-1);
-
   for (int i = 0; i < pseudoMoves.count; i++) {
-    Square target = pseudoMoves.square(i);
+    Move m = pseudoMoves.moves[i];
+    Square target = static_cast<Square>(m.to);
 
     // EP captures bypass mask filtering — removing two pawns on the same rank
     // can create a horizontal discovered check that pin analysis cannot detect.
-    if (hasEP && target == epTarget) {
+    if (m.isEP()) {
       if (!leavesInCheck(bb, mailbox, sq, target, state, kingSq))
-        moves.addSquare(target);
+        moves.add(m);
       continue;
     }
 
     // Standard mask check: target must satisfy both pin and check constraints.
     if (squareBB(target) & legalMask)
-      moves.addSquare(target);
+      moves.add(m);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Bulk legal move generation — full position
+// ---------------------------------------------------------------------------
+// Same pin+check mask strategy as getPossibleMoves, but iterated over ALL
+// friendly pieces. Reuses per-piece pseudo-legal generators (which now emit
+// Move structs with full from/to/flags), then filters for legality.
+
+void ChessRules::generateMovesImpl(const BB& bb, const Piece mailbox[],
+                                    Color color, const PositionState& state,
+                                    MoveList& out, bool capturesOnly) {
+  out.clear();
+  Bitboard friendly = bb.byColor[ChessPiece::raw(color)];
+
+  // Find king
+  int kidx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(color, PieceType::KING));
+  Bitboard kingBB = bb.byPiece[kidx];
+  if (!kingBB) return;
+  Square kingSq = lsb(kingBB);
+
+  // Check detection
+  Bitboard checkers = attackersOfSquare(bb, kingSq, ~color);
+  int checkerCount = popcount(checkers);
+  bool doubleCheck = (checkerCount >= 2);
+
+  Bitboard checkMask = ~0ULL;
+  if (checkerCount == 1) {
+    Square checker = lsb(checkers);
+    checkMask = ChessAttacks::rayBetween(kingSq, checker) | squareBB(checker);
+  }
+
+  PinData pinData = computePinData(bb, kingSq, color);
+
+  // --- King moves (always leavesInCheck, unaffected by pin/check masks) ---
+  {
+    MoveList kingPseudo;
+    getPseudoLegalMoves(bb, mailbox, kingSq, state, kingPseudo, true);
+    for (int i = 0; i < kingPseudo.count; i++) {
+      Move m = kingPseudo.moves[i];
+      if (capturesOnly && !m.isCapture()) continue;
+      if (!leavesInCheck(bb, mailbox, kingSq, static_cast<Square>(m.to), state, static_cast<Square>(m.to)))
+        out.add(m);
+    }
+  }
+
+  // Double check: only king can move — done above, skip non-king pieces.
+  if (doubleCheck) return;
+
+  // --- Non-king pieces ---
+  Bitboard pieces = friendly & ~squareBB(kingSq);
+  while (pieces) {
+    Square sq = popLsb(pieces);
+    Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
+
+    MoveList pseudo;
+    getPseudoLegalMoves(bb, mailbox, sq, state, pseudo, false);
+
+    for (int i = 0; i < pseudo.count; i++) {
+      Move m = pseudo.moves[i];
+      Square target = static_cast<Square>(m.to);
+
+      if (m.isEP()) {
+        if (!leavesInCheck(bb, mailbox, sq, target, state, kingSq))
+          out.add(m);  // EP is always a capture
+        continue;
+      }
+
+      if (!(squareBB(target) & legalMask)) continue;
+      if (capturesOnly && !m.isCapture() && !m.isPromotion()) continue;
+      out.add(m);
+    }
+  }
+}
+
+void ChessRules::generateAllMoves(const BB& bb, const Piece mailbox[],
+                                   Color color, const PositionState& state,
+                                   MoveList& moves) {
+  generateMovesImpl(bb, mailbox, color, state, moves, false);
+}
+
+void ChessRules::generateCaptures(const BB& bb, const Piece mailbox[],
+                                   Color color, const PositionState& state,
+                                   MoveList& moves) {
+  generateMovesImpl(bb, mailbox, color, state, moves, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -278,21 +359,34 @@ void ChessRules::addPawnMoves(const BB& bb, const Piece mailbox[],
   int col = colOf(sq);
   int direction = ChessPiece::pawnDirection(pieceColor);
   Bitboard friendly = bb.byColor[ChessPiece::raw(pieceColor)];
+  int promoRow = ChessPiece::promotionRow(pieceColor);
+  uint8_t from8 = static_cast<uint8_t>(sq);
+
+  // Helper: emit a single pawn move (or 4 promotion variants).
+  auto emitPawn = [&](Square to, uint8_t baseFlags) {
+    uint8_t to8 = static_cast<uint8_t>(to);
+    if (rowOf(to) == promoRow) {
+      for (uint8_t pi = 0; pi < 4; pi++)
+        moves.add(Move(from8, to8, baseFlags | Move::promoFlags(pi)));
+    } else {
+      moves.add(Move(from8, to8, baseFlags));
+    }
+  };
 
   // One square forward
   int fwdRow = row + direction;
   if ((unsigned)fwdRow < 8) {
     Square fwdSq = squareOf(fwdRow, col);
     if (!(bb.occupied & squareBB(fwdSq))) {
-      moves.addSquare(fwdSq);
+      emitPawn(fwdSq, 0);
 
-      // Initial two-square move
+      // Initial two-square move (never a promotion)
       int startRow = ChessPiece::homeRow(pieceColor) + direction;
       if (row == startRow) {
         int dblRow = row + 2 * direction;
         Square dblSq = squareOf(dblRow, col);
         if (!(bb.occupied & squareBB(dblSq)))
-          moves.addSquare(dblSq);
+          moves.add(Move(from8, static_cast<uint8_t>(dblSq), 0));
       }
     }
   }
@@ -305,18 +399,19 @@ void ChessRules::addPawnMoves(const BB& bb, const Piece mailbox[],
       if ((unsigned)captureCol < 8) {
         Square capSq = squareOf(captureRow, captureCol);
         Bitboard capBit = squareBB(capSq);
-        // Capture if enemy piece present
         if ((bb.occupied & capBit) && !(friendly & capBit))
-          moves.addSquare(capSq);
+          emitPawn(capSq, MOVE_CAPTURE);
       }
     }
   }
 
-  // En passant captures
+  // En passant captures (never a promotion — EP target is rank 3 or 6)
   if (state.epRow >= 0 && state.epCol >= 0 && row == state.epRow - direction) {
     for (int dc = -1; dc <= 1; dc += 2) {
-      if (col + dc == state.epCol)
-        moves.addSquare(squareOf(state.epRow, state.epCol));
+      if (col + dc == state.epCol) {
+        Square epSq = squareOf(state.epRow, state.epCol);
+        moves.add(Move(from8, static_cast<uint8_t>(epSq), MOVE_CAPTURE | MOVE_EP));
+      }
     }
   }
 }
@@ -327,30 +422,50 @@ void ChessRules::addPawnMoves(const BB& bb, const Piece mailbox[],
 
 void ChessRules::addRookMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
   Bitboard attacks = ChessAttacks::rookAttacks(sq, bb.occupied);
-  attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];  // exclude friendly pieces
-  while (attacks)
-    moves.addSquare(popLsb(attacks));
+  attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
+  Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
+  uint8_t from8 = static_cast<uint8_t>(sq);
+  while (attacks) {
+    Square to = popLsb(attacks);
+    uint8_t flags = (squareBB(to) & enemy) ? MOVE_CAPTURE : uint8_t(0);
+    moves.add(Move(from8, static_cast<uint8_t>(to), flags));
+  }
 }
 
 void ChessRules::addBishopMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
   Bitboard attacks = ChessAttacks::bishopAttacks(sq, bb.occupied);
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
-  while (attacks)
-    moves.addSquare(popLsb(attacks));
+  Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
+  uint8_t from8 = static_cast<uint8_t>(sq);
+  while (attacks) {
+    Square to = popLsb(attacks);
+    uint8_t flags = (squareBB(to) & enemy) ? MOVE_CAPTURE : uint8_t(0);
+    moves.add(Move(from8, static_cast<uint8_t>(to), flags));
+  }
 }
 
 void ChessRules::addQueenMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
   Bitboard attacks = ChessAttacks::queenAttacks(sq, bb.occupied);
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
-  while (attacks)
-    moves.addSquare(popLsb(attacks));
+  Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
+  uint8_t from8 = static_cast<uint8_t>(sq);
+  while (attacks) {
+    Square to = popLsb(attacks);
+    uint8_t flags = (squareBB(to) & enemy) ? MOVE_CAPTURE : uint8_t(0);
+    moves.add(Move(from8, static_cast<uint8_t>(to), flags));
+  }
 }
 
 void ChessRules::addKnightMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
   Bitboard attacks = ChessAttacks::KNIGHT_ATTACKS[sq];
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
-  while (attacks)
-    moves.addSquare(popLsb(attacks));
+  Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
+  uint8_t from8 = static_cast<uint8_t>(sq);
+  while (attacks) {
+    Square to = popLsb(attacks);
+    uint8_t flags = (squareBB(to) & enemy) ? MOVE_CAPTURE : uint8_t(0);
+    moves.add(Move(from8, static_cast<uint8_t>(to), flags));
+  }
 }
 
 void ChessRules::addKingMoves(const BB& bb, const Piece mailbox[],
@@ -359,8 +474,13 @@ void ChessRules::addKingMoves(const BB& bb, const Piece mailbox[],
                                bool includeCastling) {
   Bitboard attacks = ChessAttacks::KING_ATTACKS[sq];
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
-  while (attacks)
-    moves.addSquare(popLsb(attacks));
+  Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
+  uint8_t from8 = static_cast<uint8_t>(sq);
+  while (attacks) {
+    Square to = popLsb(attacks);
+    uint8_t flags = (squareBB(to) & enemy) ? MOVE_CAPTURE : uint8_t(0);
+    moves.add(Move(from8, static_cast<uint8_t>(to), flags));
+  }
 
   if (includeCastling)
     addCastlingMoves(bb, mailbox, sq, pieceColor, state.castlingRights, moves);
@@ -381,6 +501,8 @@ void ChessRules::addCastlingMoves(const BB& bb, const Piece mailbox[],
   // King cannot castle while in check.
   if (isSquareUnderAttack(bb, sq, pieceColor)) return;
 
+  uint8_t from8 = static_cast<uint8_t>(sq);
+
   // King-side castling (e -> g)
   if (ChessUtils::hasCastlingRight(castlingRights, pieceColor, true)) {
     Square f = squareOf(homeRow, 5);
@@ -388,7 +510,7 @@ void ChessRules::addCastlingMoves(const BB& bb, const Piece mailbox[],
     Square h = squareOf(homeRow, 7);
     if (mailbox[f] == Piece::NONE && mailbox[g] == Piece::NONE && mailbox[h] == rookPiece)
       if (!isSquareUnderAttack(bb, f, pieceColor) && !isSquareUnderAttack(bb, g, pieceColor))
-        moves.addSquare(g);
+        moves.add(Move(from8, static_cast<uint8_t>(g), MOVE_CASTLING));
   }
 
   // Queen-side castling (e -> c)
@@ -400,7 +522,7 @@ void ChessRules::addCastlingMoves(const BB& bb, const Piece mailbox[],
     if (mailbox[d] == Piece::NONE && mailbox[c] == Piece::NONE &&
         mailbox[b] == Piece::NONE && mailbox[a] == rookPiece)
       if (!isSquareUnderAttack(bb, d, pieceColor) && !isSquareUnderAttack(bb, c, pieceColor))
-        moves.addSquare(c);
+        moves.add(Move(from8, static_cast<uint8_t>(c), MOVE_CASTLING));
   }
 }
 
@@ -450,7 +572,7 @@ bool ChessRules::isValidMove(const BB& bb, const Piece mailbox[],
   Square checkSq = isKingMove ? to : kingSq;
 
   for (int i = 0; i < pseudoMoves.count; i++)
-    if (pseudoMoves.square(i) == to)
+    if (static_cast<Square>(pseudoMoves.moves[i].to) == to)
       return !leavesInCheck(bb, mailbox, from, to, state, checkSq);
 
   return false;
@@ -607,25 +729,23 @@ bool ChessRules::hasAnyLegalMove(const BB& bb, const Piece mailbox[],
 
     // King moves: test each destination with copy-make.
     if (isKing) {
-      for (int i = 0; i < pseudoMoves.count; i++)
-        if (!leavesInCheck(bb, mailbox, sq, pseudoMoves.square(i), state, pseudoMoves.square(i)))
+      for (int i = 0; i < pseudoMoves.count; i++) {
+        Square target = static_cast<Square>(pseudoMoves.moves[i].to);
+        if (!leavesInCheck(bb, mailbox, sq, target, state, target))
           return true;
+      }
       return false;
     }
 
     // Non-king: compute combined legal mask once for this piece.
     Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
 
-    // Precompute EP target for pawns.
-    bool isPawn = ChessPiece::pieceType(piece) == PieceType::PAWN;
-    bool hasEP = isPawn && state.epRow >= 0 && state.epCol >= 0;
-    Square epTarget = hasEP ? squareOf(state.epRow, state.epCol) : Square(-1);
-
     for (int i = 0; i < pseudoMoves.count; i++) {
-      Square target = pseudoMoves.square(i);
+      Move m = pseudoMoves.moves[i];
+      Square target = static_cast<Square>(m.to);
 
       // EP captures: always use leavesInCheck (horizontal discovered check).
-      if (hasEP && target == epTarget) {
+      if (m.isEP()) {
         if (!leavesInCheck(bb, mailbox, sq, target, state, kingSq)) return true;
         continue;
       }

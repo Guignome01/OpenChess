@@ -63,40 +63,36 @@ static PerftResult perft(ChessBoard& cb, int depth) {
       cb.getPossibleMoves(row, col, moves);
 
       for (int i = 0; i < moves.count; i++) {
-        int toRow = moves.row(i);
-        int toCol = moves.col(i);
-        bool isPromo = ChessPiece::isPromotion(piece, toRow);
+        int toRow = moves.targetRow(i);
+        int toCol = moves.targetCol(i);
+        Move m = moves.moves[i];
 
-        // Promotion moves must be counted once per promotion piece
-        const char promos[] = {'q', 'r', 'b', 'n'};
-        int promoCount = isPromo ? 4 : 1;
+        // Map promotion index to character for makeMove
+        static constexpr char PROMO_CHARS[] = {'n', 'b', 'r', 'q'};
+        char promoPiece = m.isPromotion() ? PROMO_CHARS[m.promoIndex()] : ' ';
+        Piece targetPiece = cb.getSquare(toRow, toCol);
 
-        for (int p = 0; p < promoCount; p++) {
-          char promoPiece = isPromo ? promos[p] : ' ';
-          Piece targetPiece = cb.getSquare(toRow, toCol);
+        MoveResult mr = cb.makeMove(row, col, toRow, toCol, promoPiece);
+        if (!mr.valid) continue;
 
-          MoveResult mr = cb.makeMove(row, col, toRow, toCol, promoPiece);
-          if (!mr.valid) continue;
+        MoveEntry entry = MoveEntry::build(row, col, toRow, toCol,
+                                           piece, targetPiece,
+                                           mr, prevState);
 
-          MoveEntry entry = MoveEntry::build(row, col, toRow, toCol,
-                                             piece, targetPiece,
-                                             mr, prevState);
-
-          if (depth == 1) {
-            // Leaf move — count node and move-type properties
-            result.nodes++;
-            if (mr.isCapture) result.captures++;
-            if (mr.isEnPassant) result.ep++;
-            if (mr.isCastling) result.castles++;
-            if (mr.isPromotion) result.promotions++;
-            if (mr.isCheck) result.checks++;
-            if (mr.gameResult == GameResult::CHECKMATE) result.checkmates++;
-          } else {
-            result += perft(cb, depth - 1);
-          }
-
-          cb.reverseMove(entry);
+        if (depth == 1) {
+          // Leaf move — count node and move-type properties
+          result.nodes++;
+          if (mr.isCapture) result.captures++;
+          if (mr.isEnPassant) result.ep++;
+          if (mr.isCastling) result.castles++;
+          if (mr.isPromotion) result.promotions++;
+          if (mr.isCheck) result.checks++;
+          if (mr.gameResult == GameResult::CHECKMATE) result.checkmates++;
+        } else {
+          result += perft(cb, depth - 1);
         }
+
+        cb.reverseMove(entry);
       }
     }
   }

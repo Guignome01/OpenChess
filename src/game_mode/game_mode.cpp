@@ -150,8 +150,8 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
 
       // Highlight possible move squares (different colors for empty vs capture)
       for (int i = 0; i < moves.count; i++) {
-        int r = moves.row(i);
-        int c = moves.col(i);
+        int r = moves.targetRow(i);
+        int c = moves.targetCol(i);
 
         auto ei = chess_->checkEnPassant(row, col, r, c);
         if (ChessPiece::isEmpty(chess_->getSquare(r, c)) && !ei.isCapture) {
@@ -204,7 +204,7 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
             // Check if this would be a legal move
             bool isLegalMove = false;
             for (int i = 0; i < moves.count; i++)
-              if (moves.row(i) == r2 && moves.col(i) == c2) {
+              if (moves.targetRow(i) == r2 && moves.targetCol(i) == c2) {
                 isLegalMove = true;
                 break;
               }
@@ -292,7 +292,7 @@ bool GameMode::tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int&
 
       bool legalMove = false;
       for (int i = 0; i < moves.count; i++)
-        if (moves.row(i) == targetRow && moves.col(i) == targetCol) {
+        if (moves.targetRow(i) == targetRow && moves.targetCol(i) == targetCol) {
           legalMove = true;
           break;
         }

@@ -1204,19 +1204,20 @@ void test_movelist_initial_state(void) {
 
 void test_movelist_add_and_access(void) {
   MoveList moves;
-  moves.add(3, 5);
-  moves.add(0, 7);
+  // Add Move structs — use squareOf to encode (row, col) into from/to
+  moves.add(Move(0, static_cast<uint8_t>(ChessBitboard::squareOf(3, 5))));
+  moves.add(Move(0, static_cast<uint8_t>(ChessBitboard::squareOf(0, 7))));
   TEST_ASSERT_EQUAL_INT(2, moves.count);
-  TEST_ASSERT_EQUAL_INT(3, moves.row(0));
-  TEST_ASSERT_EQUAL_INT(5, moves.col(0));
-  TEST_ASSERT_EQUAL_INT(0, moves.row(1));
-  TEST_ASSERT_EQUAL_INT(7, moves.col(1));
+  TEST_ASSERT_EQUAL_INT(3, moves.targetRow(0));
+  TEST_ASSERT_EQUAL_INT(5, moves.targetCol(0));
+  TEST_ASSERT_EQUAL_INT(0, moves.targetRow(1));
+  TEST_ASSERT_EQUAL_INT(7, moves.targetCol(1));
 }
 
 void test_movelist_clear(void) {
   MoveList moves;
-  moves.add(1, 2);
-  moves.add(3, 4);
+  moves.add(Move(0, static_cast<uint8_t>(ChessBitboard::squareOf(1, 2))));
+  moves.add(Move(0, static_cast<uint8_t>(ChessBitboard::squareOf(3, 4))));
   TEST_ASSERT_EQUAL_INT(2, moves.count);
   moves.clear();
   TEST_ASSERT_EQUAL_INT(0, moves.count);
@@ -1224,15 +1225,13 @@ void test_movelist_clear(void) {
 
 void test_movelist_fills_to_capacity(void) {
   MoveList moves;
-  for (int i = 0; i < MAX_MOVES_PER_PIECE; i++) {
-    moves.add(i % 8, i / 4);
+  for (int i = 0; i < MAX_MOVES; i++) {
+    moves.add(Move(0, static_cast<uint8_t>(ChessBitboard::squareOf(i % 8, i / 4 % 8))));
   }
-  TEST_ASSERT_EQUAL_INT(MAX_MOVES_PER_PIECE, moves.count);
+  TEST_ASSERT_EQUAL_INT(MAX_MOVES, moves.count);
   // Verify first and last entries
-  TEST_ASSERT_EQUAL_INT(0, moves.row(0));
-  TEST_ASSERT_EQUAL_INT(0, moves.col(0));
-  TEST_ASSERT_EQUAL_INT((MAX_MOVES_PER_PIECE - 1) % 8, moves.row(MAX_MOVES_PER_PIECE - 1));
-  TEST_ASSERT_EQUAL_INT((MAX_MOVES_PER_PIECE - 1) / 4, moves.col(MAX_MOVES_PER_PIECE - 1));
+  TEST_ASSERT_EQUAL_INT(0, moves.targetRow(0));
+  TEST_ASSERT_EQUAL_INT(0, moves.targetCol(0));
 }
 
 void test_movelist_used_by_get_possible_moves(void) {

@@ -15,7 +15,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, king cache, HashHistory |
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (header-only, all constexpr) |
-| `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
+| `ChessRules` | Per-piece and bulk move generation, check/checkmate/stalemate detection | Stateless (all static) |
 | `ChessEval` | Position evaluation: material count + piece-square tables (PSTs). Returns centipawns (`int`). | Stateless namespace |
 | `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
@@ -101,7 +101,7 @@ These explain *why* the architecture is the way it is — constraints that code 
 
 - **Check/checkmate suffixes added by caller** — `ChessNotation` output functions omit `+`/`#` suffixes. `ChessGame::getHistory()` appends them by replaying moves on a temp board. This keeps notation logic pure (no need to apply moves to detect check).
 
-- **Fixed-size arrays everywhere** — `MoveEntry[300]`, `HashHistory` (256 entries), `MoveList` (28 entries), no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
+- **Fixed-size arrays everywhere** — `MoveEntry[300]`, `HashHistory` (256 entries), `MoveList` (218 entries, stores `Move` structs), no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
 
 ## Key Patterns
 
@@ -112,10 +112,10 @@ These explain *why* the architecture is the way it is — constraints that code 
 - **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `promotionRow()`, `~color` (opponent), `makePiece()` — in `ChessPiece`, use these instead of inline ternaries for color-dependent values.
 - **Castling bit mapping**: `castlingCharToBit()` is the single source of truth for K/Q/k/q → bitmask. `hasCastlingRight()` wraps it with color+side semantics. All castling rights logic should use these.
 - **MoveEntry factory**: `MoveEntry::build()` encapsulates captured-piece determination and all field assignments. Both `ChessGame::makeMove()` and `ChessHistory::replayInto()` use it.
-- **Cohesive data types**: `MoveList` bundles move array + count (replaces `int& moveCount, int moves[][2]` out-params). `HashHistory` bundles Zobrist keys + count (replaces `uint64_t*, int` pointer-count pairs). `BitboardSet` bundles 12 piece + 2 color + 1 occupancy bitboards. All defined in `types.h` / `chess_bitboard.h`.
+- **Cohesive data types**: `MoveList` stores `Move[218]` + count — used by both per-piece `getPossibleMoves` (with UI adapter accessors `targetRow(i)`/`targetCol(i)`) and bulk `generateAllMoves`/`generateCaptures`. `Move` struct stores compact from/to/flags (3 bytes: capture, EP, castling, promotion + 2-bit promo piece type). Promotions emit 4 `Move` variants per target square (one per piece type). `ScoredMove` pairs a `Move` with `int16_t score` for future move ordering. `HashHistory` bundles Zobrist keys + count. `BitboardSet` bundles 12 piece + 2 color + 1 occupancy bitboards. All defined in `types.h` / `chess_bitboard.h`.
 - **Bitboard serialization via popLsb**: iterating pieces uses `while (bb) { sq = popLsb(bb); ... }` — the standard pattern for extracting set bits from a bitboard one at a time.
 - **Attack detection via bitwise AND**: `isSquareUnderAttack` checks `KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx]` etc. — a single AND per piece type replaces ray-walking loops.
-- **Pin-aware move generation**: `ChessRules::getPossibleMoves` and `hasAnyLegalMove(kingSq)` compute a `checkMask` and `PinData` (up to 8 pins, one per direction) once per call. Non-king/non-EP moves are filtered via bitwise AND against `pinRayFor(pinData, sq) & checkMask` — no `leavesInCheck` call needed. Only king moves and EP captures still use copy-make (`leavesInCheck`). X-ray helpers (`xrayRookAttacks`, `xrayBishopAttacks`, `rayBetween`) in `ChessAttacks` support pin detection. File-local helpers in `chess_rules.cpp` anonymous namespace: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
+- **Pin-aware move generation**: `ChessRules::getPossibleMoves`, `hasAnyLegalMove(kingSq)`, `generateAllMoves`, and `generateCaptures` compute a `checkMask` and `PinData` (up to 8 pins, one per direction) once per call. Non-king/non-EP moves are filtered via bitwise AND against `pinRayFor(pinData, sq) & checkMask` — no `leavesInCheck` call needed. Only king moves and EP captures still use copy-make (`leavesInCheck`). X-ray helpers (`xrayRookAttacks`, `xrayBishopAttacks`, `rayBetween`) in `ChessAttacks` support pin detection. File-local helpers in `chess_rules.cpp` anonymous namespace: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
 - **Copy-make for legality check**: `leavesInCheck()` copies `BitboardSet` (~120 bytes), applies the move on the copy, and checks the king square. Used for king moves, EP captures, and `isValidMove`. Lightweight because bitboard copy is a flat struct copy.
 
 ## Completion Checklist

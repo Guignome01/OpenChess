@@ -92,29 +92,72 @@ static constexpr uint16_t FEN_MARKER = 0xFFFF;
 static constexpr int MAX_GAMES = 50;
 static constexpr float MAX_USAGE_PERCENT = 0.80f;
 
-// Maximum number of pseudo-legal moves a single piece can have.
-// Queen on open board: 7+7+7+7 = 28 (4 diagonals + 4 straights, max 7 each).
-static constexpr int MAX_MOVES_PER_PIECE = 28;
+// Move flag bits — packed into a single uint8_t.
+static constexpr uint8_t MOVE_CAPTURE   = 1 << 0;
+static constexpr uint8_t MOVE_EP        = 1 << 1;
+static constexpr uint8_t MOVE_CASTLING  = 1 << 2;
+static constexpr uint8_t MOVE_PROMOTION = 1 << 3;
+// Bits 4-5: promotion piece type (only meaningful when MOVE_PROMOTION is set).
+static constexpr int MOVE_PROMO_SHIFT = 4;
 
-// Fixed-capacity list of target squares for a single piece's moves.
-// Stores LERF square indices internally; exposes row(i)/col(i) for
-// firmware compatibility and square(i) for internal bitboard code.
+// Compact move: from-square, to-square, flags byte. 3 bytes + 1 padding.
+struct Move {
+  uint8_t from;
+  uint8_t to;
+  uint8_t flags;
+
+  constexpr Move() : from(0), to(0), flags(0) {}
+  constexpr Move(uint8_t f, uint8_t t, uint8_t fl = 0) : from(f), to(t), flags(fl) {}
+
+  constexpr bool isCapture()   const { return flags & MOVE_CAPTURE; }
+  constexpr bool isEP()        const { return flags & MOVE_EP; }
+  constexpr bool isCastling()  const { return flags & MOVE_CASTLING; }
+  constexpr bool isPromotion() const { return flags & MOVE_PROMOTION; }
+
+  // Promotion piece encoding: 0=Knight, 1=Bishop, 2=Rook, 3=Queen.
+  constexpr uint8_t promoIndex() const { return (flags >> MOVE_PROMO_SHIFT) & 0x03; }
+
+  // Build promotion flags: MOVE_PROMOTION | (index << MOVE_PROMO_SHIFT).
+  static constexpr uint8_t promoFlags(uint8_t index) {
+    return MOVE_PROMOTION | (index << MOVE_PROMO_SHIFT);
+  }
+
+  // Map PieceType (KNIGHT..QUEEN) to 2-bit promotion index.
+  static constexpr uint8_t promoIndexFromType(PieceType pt) {
+    return static_cast<uint8_t>(pt) - static_cast<uint8_t>(PieceType::KNIGHT);
+  }
+
+  // Map 2-bit promotion index back to PieceType.
+  static constexpr PieceType promoTypeFromIndex(uint8_t idx) {
+    return static_cast<PieceType>(idx + static_cast<uint8_t>(PieceType::KNIGHT));
+  }
+
+  constexpr bool operator==(const Move& o) const {
+    return from == o.from && to == o.to && flags == o.flags;
+  }
+};
+
+// Move with an attached score for move ordering (MVV-LVA, killers, history).
+struct ScoredMove {
+  Move move;
+  int16_t score = 0;
+};
+
+// Unified move list — used for both per-piece and full-position generation.
+// Stores Move structs with from/to/flags. Capacity 218 = theoretical max legal moves.
+static constexpr int MAX_MOVES = 218;
+
 struct MoveList {
+  Move moves[MAX_MOVES];
   int count = 0;
 
-  void add(int r, int c) {
-    targets_[count++] = ChessBitboard::squareOf(r, c);
-  }
-  void addSquare(ChessBitboard::Square sq) {
-    targets_[count++] = sq;
-  }
-  int row(int i) const { return ChessBitboard::rowOf(targets_[i]); }
-  int col(int i) const { return ChessBitboard::colOf(targets_[i]); }
-  ChessBitboard::Square square(int i) const { return targets_[i]; }
+  void add(Move m) { moves[count++] = m; }
   void clear() { count = 0; }
 
- private:
-  ChessBitboard::Square targets_[MAX_MOVES_PER_PIECE];
+  // UI adapter — extract target coordinates for LED/sensor code
+  int targetRow(int i) const { return ChessBitboard::rowOf(moves[i].to); }
+  int targetCol(int i) const { return ChessBitboard::colOf(moves[i].to); }
+  ChessBitboard::Square target(int i) const { return static_cast<ChessBitboard::Square>(moves[i].to); }
 };
 
 // Fixed-capacity Zobrist hash history for threefold repetition detection.

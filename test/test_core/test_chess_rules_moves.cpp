@@ -426,6 +426,332 @@ void test_initial_position_black_moves(void) {
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
 
+// ---------------------------------------------------------------------------
+// Bulk legal move generation (generateAllMoves / generateCaptures)
+// ---------------------------------------------------------------------------
+
+void test_generateAllMoves_initial_position(void) {
+  setupInitialBoard(bb, mailbox);
+  PositionState state{0x0F, -1, -1};
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+  TEST_ASSERT_EQUAL_INT(20, moves.count);
+
+  ChessRules::generateAllMoves(bb, mailbox, Color::BLACK, state, moves);
+  TEST_ASSERT_EQUAL_INT(20, moves.count);
+}
+
+void test_generateAllMoves_captures_only(void) {
+  // White queen on d4, black pawns on c5, e5, black king on h8, white king on h1.
+  // Queen can capture c5, e5 = 2 captures.
+  placePiece(bb, mailbox, Piece::W_KING, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "d4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "c5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e5");
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList caps;
+  ChessRules::generateCaptures(bb, mailbox, Color::WHITE, state, caps);
+
+  // Count captures actually flagged
+  int captureCount = 0;
+  for (int i = 0; i < caps.count; i++) {
+    TEST_ASSERT_TRUE(caps.moves[i].isCapture());
+    captureCount++;
+  }
+  // Queen captures c5 + e5, king has no captures → 2
+  TEST_ASSERT_EQUAL_INT(2, captureCount);
+}
+
+void test_generateAllMoves_under_check(void) {
+  // White king on e1, black rook giving check from e8, white rook on a1.
+  // Legal: king moves to escape, or rook blocks on e-file.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "e8");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  // All generated moves must be legal evasions.
+  TEST_ASSERT_TRUE(moves.count > 0);
+
+  // King escape moves (d1, f1, d2, f2 — but some may be attacked)
+  // + rook interpositions on the e-file (e2, e3, e4, e5, e6, e7) or capture e8
+  // Exact count depends on attack geometry; just verify it's reasonable (> 0).
+  // Also verify king can't stay on e-file (still in check from e8).
+  for (int i = 0; i < moves.count; i++) {
+    Move m = moves.moves[i];
+    uint8_t from = m.from;
+    uint8_t to = m.to;
+    // If this is a king move, destination should not be on e-file
+    // (rook attacks entire e-file).
+    if (from == ChessBitboard::squareOf(7, 4)) { // e1
+      TEST_ASSERT_NOT_EQUAL(4, ChessBitboard::colOf(to)); // not e-file
+    }
+  }
+}
+
+void test_generateAllMoves_double_check(void) {
+  // Double check: only king can move.
+  // White king on e1, black rook on e8 (check), black bishop on b4 (check).
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "e8");
+  placePiece(bb, mailbox, Piece::B_BISHOP, "b4");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1"); // Can't block two checks
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  // All moves must be king moves.
+  uint8_t kingSq = static_cast<uint8_t>(ChessBitboard::squareOf(7, 4)); // e1
+  for (int i = 0; i < moves.count; i++)
+    TEST_ASSERT_EQUAL_UINT8(kingSq, moves.moves[i].from);
+}
+
+void test_generateAllMoves_flags_capture(void) {
+  // Verify capture flag is set correctly.
+  placePiece(bb, mailbox, Piece::W_KING, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "d4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e6");
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  uint8_t e6 = static_cast<uint8_t>(ChessBitboard::squareOf(2, 4)); // e6
+  bool foundCapture = false;
+  for (int i = 0; i < moves.count; i++) {
+    Move m = moves.moves[i];
+    if (m.to == e6) {
+      TEST_ASSERT_TRUE(m.isCapture());
+      TEST_ASSERT_FALSE(m.isEP());
+      TEST_ASSERT_FALSE(m.isCastling());
+      TEST_ASSERT_FALSE(m.isPromotion());
+      foundCapture = true;
+    }
+  }
+  TEST_ASSERT_TRUE(foundCapture);
+}
+
+void test_generateAllMoves_flags_ep(void) {
+  // Verify EP flag.
+  // White pawn on e5, black pawn just moved d7-d5 → EP target d6.
+  placePiece(bb, mailbox, Piece::W_KING, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
+  PositionState state{};
+  state.castlingRights = 0;
+  state.epRow = 2;  // d6 → row 2 (rank 6)
+  state.epCol = 3;  // file d
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  uint8_t d6 = static_cast<uint8_t>(ChessBitboard::squareOf(2, 3));
+  bool foundEP = false;
+  for (int i = 0; i < moves.count; i++) {
+    Move m = moves.moves[i];
+    if (m.to == d6 && m.isEP()) {
+      TEST_ASSERT_TRUE(m.isCapture());
+      TEST_ASSERT_TRUE(m.isEP());
+      foundEP = true;
+    }
+  }
+  TEST_ASSERT_TRUE(foundEP);
+}
+
+void test_generateAllMoves_flags_castling(void) {
+  // Verify castling flag.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  PositionState state{};
+  state.castlingRights = 0x01; // White kingside only
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  uint8_t g1 = static_cast<uint8_t>(ChessBitboard::squareOf(7, 6));
+  bool foundCastle = false;
+  for (int i = 0; i < moves.count; i++) {
+    Move m = moves.moves[i];
+    if (m.to == g1 && m.isCastling()) {
+      TEST_ASSERT_FALSE(m.isCapture());
+      foundCastle = true;
+    }
+  }
+  TEST_ASSERT_TRUE(foundCastle);
+}
+
+void test_generateAllMoves_flags_promotion(void) {
+  // White pawn on e7, empty e8 → 4 promotion moves.
+  placePiece(bb, mailbox, Piece::W_KING, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e7");
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, moves);
+
+  uint8_t e8 = static_cast<uint8_t>(ChessBitboard::squareOf(0, 4));
+  int promoCount = 0;
+  bool promoIndices[4] = {};
+  for (int i = 0; i < moves.count; i++) {
+    Move m = moves.moves[i];
+    if (m.to == e8 && m.isPromotion()) {
+      promoIndices[m.promoIndex()] = true;
+      promoCount++;
+    }
+  }
+  TEST_ASSERT_EQUAL_INT(4, promoCount);
+  // All 4 promotion types present
+  for (int i = 0; i < 4; i++)
+    TEST_ASSERT_TRUE(promoIndices[i]);
+
+  // Verify promotion type mapping round-trips
+  TEST_ASSERT_ENUM_EQ(PieceType::KNIGHT, Move::promoTypeFromIndex(0));
+  TEST_ASSERT_ENUM_EQ(PieceType::BISHOP, Move::promoTypeFromIndex(1));
+  TEST_ASSERT_ENUM_EQ(PieceType::ROOK,   Move::promoTypeFromIndex(2));
+  TEST_ASSERT_ENUM_EQ(PieceType::QUEEN,  Move::promoTypeFromIndex(3));
+}
+
+void test_generateAllMoves_matches_perPiece(void) {
+  // Verify generateAllMoves produces the same move set as iterating
+  // getPossibleMoves per piece (for non-promotion positions).
+  setupInitialBoard(bb, mailbox);
+  PositionState state{0x0F, -1, -1};
+
+  // Count via per-piece getPossibleMoves
+  int perPieceCount = 0;
+  ChessIterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece piece) {
+    if (!ChessPiece::isWhite(piece)) return;
+    MoveList moves;
+    ChessRules::getPossibleMoves(bb, mailbox, r, c, state, moves);
+    perPieceCount += moves.count;
+  });
+
+  // Count via bulk generateAllMoves
+  MoveList bulk;
+  ChessRules::generateAllMoves(bb, mailbox, Color::WHITE, state, bulk);
+
+  TEST_ASSERT_EQUAL_INT(perPieceCount, bulk.count);
+
+  // Verify every bulk move has a from-square belonging to a white piece
+  for (int i = 0; i < bulk.count; i++) {
+    Piece p = mailbox[bulk.moves[i].from];
+    TEST_ASSERT_TRUE(ChessPiece::isWhite(p));
+  }
+}
+
+void test_generateCaptures_ep_included(void) {
+  // generateCaptures must include EP captures.
+  placePiece(bb, mailbox, Piece::W_KING, "h1");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
+  PositionState state{};
+  state.castlingRights = 0;
+  state.epRow = 2;  // d6
+  state.epCol = 3;
+
+  MoveList caps;
+  ChessRules::generateCaptures(bb, mailbox, Color::WHITE, state, caps);
+
+  bool foundEP = false;
+  for (int i = 0; i < caps.count; i++) {
+    if (caps.moves[i].isEP()) {
+      foundEP = true;
+      TEST_ASSERT_TRUE(caps.moves[i].isCapture());
+    }
+  }
+  TEST_ASSERT_TRUE(foundEP);
+}
+
+void test_generateCaptures_no_quiet_moves(void) {
+  // generateCaptures should not include non-capture quiet moves.
+  setupInitialBoard(bb, mailbox);
+  PositionState state{0x0F, -1, -1};
+
+  MoveList caps;
+  ChessRules::generateCaptures(bb, mailbox, Color::WHITE, state, caps);
+
+  // Initial position has zero captures available.
+  TEST_ASSERT_EQUAL_INT(0, caps.count);
+}
+
+void test_generateAllMoves_stalemate(void) {
+  // Stalemate: no legal moves → count = 0.
+  // Simple stalemate: black king on h8, white queen on g6, white king on f7.
+  placePiece(bb, mailbox, Piece::W_KING, "f7");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "g6");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  PositionState state{};
+  state.castlingRights = 0;
+
+  MoveList moves;
+  ChessRules::generateAllMoves(bb, mailbox, Color::BLACK, state, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
+}
+
+void test_Move_struct_basics(void) {
+  Move m(10, 20, MOVE_CAPTURE | MOVE_EP);
+  TEST_ASSERT_EQUAL_UINT8(10, m.from);
+  TEST_ASSERT_EQUAL_UINT8(20, m.to);
+  TEST_ASSERT_TRUE(m.isCapture());
+  TEST_ASSERT_TRUE(m.isEP());
+  TEST_ASSERT_FALSE(m.isCastling());
+  TEST_ASSERT_FALSE(m.isPromotion());
+
+  Move m2;
+  TEST_ASSERT_EQUAL_UINT8(0, m2.from);
+  TEST_ASSERT_EQUAL_UINT8(0, m2.flags);
+
+  // Equality
+  Move m3(10, 20, MOVE_CAPTURE | MOVE_EP);
+  TEST_ASSERT_TRUE(m == m3);
+  Move m4(10, 21, MOVE_CAPTURE | MOVE_EP);
+  TEST_ASSERT_FALSE(m == m4);
+}
+
+void test_MoveList_add_clear(void) {
+  MoveList list;
+  TEST_ASSERT_EQUAL_INT(0, list.count);
+
+  list.add(Move(0, 8, 0));
+  list.add(Move(1, 9, MOVE_CAPTURE));
+  TEST_ASSERT_EQUAL_INT(2, list.count);
+  TEST_ASSERT_EQUAL_UINT8(0, list.moves[0].from);
+  TEST_ASSERT_EQUAL_UINT8(9, list.moves[1].to);
+  TEST_ASSERT_TRUE(list.moves[1].isCapture());
+
+  list.clear();
+  TEST_ASSERT_EQUAL_INT(0, list.count);
+}
+
+void test_Move_promo_index_roundtrip(void) {
+  // Verify promotion index ↔ PieceType round-trip.
+  PieceType types[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
+  for (int i = 0; i < 4; i++) {
+    uint8_t idx = Move::promoIndexFromType(types[i]);
+    TEST_ASSERT_EQUAL_UINT8(i, idx);
+    TEST_ASSERT_ENUM_EQ(types[i], Move::promoTypeFromIndex(idx));
+  }
+}
+
 void register_chess_rules_moves_tests() {
   needsDefaultKings = true;
 
@@ -479,4 +805,21 @@ void register_chess_rules_moves_tests() {
   // Initial position
   RUN_TEST(test_initial_position_white_moves);
   RUN_TEST(test_initial_position_black_moves);
+
+  // Bulk move generation (generateAllMoves / generateCaptures)
+  RUN_TEST(test_Move_struct_basics);
+  RUN_TEST(test_Move_promo_index_roundtrip);
+  RUN_TEST(test_MoveList_add_clear);
+  RUN_TEST(test_generateAllMoves_initial_position);
+  RUN_TEST(test_generateAllMoves_captures_only);
+  RUN_TEST(test_generateAllMoves_under_check);
+  RUN_TEST(test_generateAllMoves_double_check);
+  RUN_TEST(test_generateAllMoves_flags_capture);
+  RUN_TEST(test_generateAllMoves_flags_ep);
+  RUN_TEST(test_generateAllMoves_flags_castling);
+  RUN_TEST(test_generateAllMoves_flags_promotion);
+  RUN_TEST(test_generateAllMoves_matches_perPiece);
+  RUN_TEST(test_generateCaptures_ep_included);
+  RUN_TEST(test_generateCaptures_no_quiet_moves);
+  RUN_TEST(test_generateAllMoves_stalemate);
 }

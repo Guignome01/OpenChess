@@ -53,7 +53,7 @@ inline bool moveExists(const BitboardSet& bb, const Piece mailbox[], int fromRow
   MoveList moves;
   ChessRules::getPossibleMoves(bb, mailbox, fromRow, fromCol, state, moves);
   for (int i = 0; i < moves.count; i++) {
-    if (moves.row(i) == toRow && moves.col(i) == toCol)
+    if (moves.targetRow(i) == toRow && moves.targetCol(i) == toCol)
       return true;
   }
   return false;

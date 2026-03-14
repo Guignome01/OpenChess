@@ -46,6 +46,11 @@ class ChessRules {
   // hasAnyLegalMove with pre-found king position (uses pin+check-mask filtering)
   static bool hasAnyLegalMove(const BB& bb, const Piece mailbox[], Color color, const PositionState& state, Square kingSq);
 
+  // Shared implementation for generateAllMoves / generateCaptures.
+  static void generateMovesImpl(const BB& bb, const Piece mailbox[], Color color,
+                                const PositionState& state, MoveList& out,
+                                bool capturesOnly);
+
  public:
   // En passant legality query (used by ChessHash for Zobrist hashing)
   static bool hasLegalEnPassantCapture(const BB& bb, const Piece mailbox[], Color sideToMove, const PositionState& state);
@@ -65,6 +70,19 @@ class ChessRules {
   // Move validation
   static bool isValidMove(const BB& bb, const Piece mailbox[], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state);
   static bool isValidMove(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state, Square kingSq);
+
+  // Bulk legal move generation — populates a MoveList for the entire position.
+  // Used by engine search. Computes pin+check masks once, then iterates all
+  // friendly pieces via bitboard serialization for amortized O(1) filtering.
+  static void generateAllMoves(const BB& bb, const Piece mailbox[],
+                                Color color, const PositionState& state,
+                                MoveList& moves);
+
+  // Capture-only move generation for quiescence search.
+  // Emits captures, EP captures, and capture-promotions only.
+  static void generateCaptures(const BB& bb, const Piece mailbox[],
+                                Color color, const PositionState& state,
+                                MoveList& moves);
 
   // Game state checks
   static bool isCheck(const BB& bb, Color kingColor);
