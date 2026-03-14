@@ -16,7 +16,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (header-only, all constexpr) |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessEval` | Position evaluation: material count + piece-square tables (PSTs) | Stateless namespace |
+| `ChessEval` | Position evaluation: material count + piece-square tables (PSTs). Returns centipawns (`int`). | Stateless namespace |
 | `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
@@ -30,7 +30,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | Interface | Purpose | Concrete impl |
 |-----------|---------|---------------|
 | `IGameStorage` | Persistence: live game files, FEN tables, finalize/discard | `LittleFSStorage` |
-| `IGameObserver` | Board-state notification: `onBoardStateChanged(fen, evaluation)` | `WiFiManagerESP32` |
+| `IGameObserver` | Board-state notification: `onBoardStateChanged(fen, evaluation)` (evaluation in centipawns) | `WiFiManagerESP32` |
 | `ILogger` | Diagnostic output: `info()`, `error()`, formatted helpers | `SerialLogger` |
 | `Log` | Null-safe logger proxy (value type wrapping `ILogger*`) | Defined in `logger.h` |
 

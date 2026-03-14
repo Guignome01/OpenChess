@@ -35,7 +35,7 @@ bool StockfishProvider::checkResult(EngineResult& result) {
   return true;
 }
 
-float StockfishProvider::getEvaluation() {
+int StockfishProvider::getEvaluation() {
   return currentEvaluation_;
 }
 
@@ -109,11 +109,11 @@ void StockfishProvider::taskFunction(void* param) {
     ctx->result.move = std::string(sfResp.bestMove.c_str());
 
     if (sfResp.hasMate)
-      ctx->result.evaluation = sfResp.mateInMoves > 0 ? 100.0f : -100.0f;
+      ctx->result.evaluation = sfResp.mateInMoves > 0 ? 10000 : -10000;
     else
-      ctx->result.evaluation = sfResp.evaluation;
+      ctx->result.evaluation = static_cast<int>(sfResp.evaluation * 100.0f);
 
-    ctx->logger.infof("Stockfish: bestMove=%s, eval=%.2f",
+    ctx->logger.infof("Stockfish: bestMove=%s, eval=%d cp",
                                          sfResp.bestMove.c_str(), ctx->result.evaluation);
   } else {
     ctx->logger.errorf("Stockfish: parse failed: %s", sfResp.errorMessage.c_str());

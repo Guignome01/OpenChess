@@ -140,7 +140,8 @@ class ChessGame {
   uint8_t getCastlingRights() const { return board_.getCastlingRights(); }
   const PositionState& positionState() const { return board_.positionState(); }
   std::string getFen() const { return board_.getFen(); }
-  float getEvaluation() const { return board_.getEvaluation(); }
+  int getEvaluation() const { return board_.getEvaluation(); }
+  float getEvaluationFloat() const { return board_.getEvaluation() / 100.0f; }
 
   // --- Convenience wrappers (chess queries, delegated to board) ---
 

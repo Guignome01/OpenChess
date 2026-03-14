@@ -30,7 +30,7 @@ Providers are composed into `BotMode` via pointer injection (`BotMode` owns the 
 ### Optional Hooks
 - `onPlayerMoveApplied(moveCoord)` — called after a local move is applied. Lichess sends the move to the server. Returns `false` on failure.
 - `onResignConfirmed()` — called after resign. Lichess resigns on server.
-- `getEvaluation()` — returns engine eval for web UI. Default 0 (BotMode falls back to material count).
+- `getEvaluation()` — returns engine eval in centipawns (`int`) for web UI. Default 0 (BotMode falls back to material count).
 
 ## StockfishProvider
 

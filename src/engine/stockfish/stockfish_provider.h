@@ -14,7 +14,7 @@ class StockfishProvider : public EngineProvider {
   bool initialize(EngineInitResult& result) override;
   void requestMove(const std::string& fen) override;
   bool checkResult(EngineResult& result) override;
-  float getEvaluation() override;
+  int getEvaluation() override;
 
  private:
   // Heap-allocated context shared between the caller and the FreeRTOS task.
@@ -29,7 +29,7 @@ class StockfishProvider : public EngineProvider {
 
   StockfishSettings settings_;
   char playerColor_;
-  float currentEvaluation_ = 0.0f;
+  int currentEvaluation_ = 0;
 };
 
 #endif  // STOCKFISH_PROVIDER_H

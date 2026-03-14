@@ -69,7 +69,7 @@ void test_game_threefold_different_castling_rights(void) {
 class TestObserver : public IGameObserver {
  public:
   int callCount = 0;
-  void onBoardStateChanged(const std::string&, float) override { callCount++; }
+  void onBoardStateChanged(const std::string&, int) override { callCount++; }
 };
 
 void test_game_observer_fires_on_move(void) {

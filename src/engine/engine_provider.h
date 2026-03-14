@@ -21,7 +21,7 @@ struct EngineResult {
   enum Type { NONE, MOVE, GAME_ENDED };
   Type type = NONE;
   std::string move;             // UCI coordinate when type == MOVE (e.g., "e2e4")
-  float evaluation = 0.0f;     // Engine eval (Stockfish); 0 = use material count
+  int evaluation = 0;          // Centipawns (positive = White advantage); 0 = use material count
   GameResult gameResult = GameResult::IN_PROGRESS;  // When type == GAME_ENDED
   char winnerColor = ' ';       // When type == GAME_ENDED
 };
@@ -73,9 +73,9 @@ class EngineProvider {
   // Called after resign is confirmed. Lichess uses this to resign on the server.
   virtual void onResignConfirmed() {}
 
-  // Engine evaluation for the web UI. Returns 0 by default (BotMode falls back
-  // to material count).
-  virtual float getEvaluation() { return 0.0f; }
+  // Engine evaluation for the web UI (centipawns). Returns 0 by default
+  // (BotMode falls back to material count).
+  virtual int getEvaluation() { return 0; }
 
  protected:
   Log logger_;

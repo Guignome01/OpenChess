@@ -6,10 +6,10 @@
 namespace ChessEval {
 
 // Evaluate board position using material count + piece-square tables (PSTs).
-// Returns evaluation in pawns (positive = White advantage, negative = Black).
-// PSTs add positional bonuses/penalties in centipawns (e.g. centralized knights,
-// advanced pawns, castled kings score higher). Material values: P=1 N=3 B=3 R=5 Q=9.
-float evaluatePosition(const ChessBitboard::BitboardSet& bb);
+// Returns evaluation in centipawns (positive = White advantage, negative = Black).
+// PSTs add positional bonuses/penalties (e.g. centralized knights,
+// advanced pawns, castled kings score higher). Material: P=100 N=300 B=300 R=500 Q=900.
+int evaluatePosition(const ChessBitboard::BitboardSet& bb);
 
 }  // namespace ChessEval
 

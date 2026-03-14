@@ -21,7 +21,7 @@ const Piece ChessBoard::INITIAL_BOARD[8][8] = {
 ChessBoard::ChessBoard()
     : currentTurn_(Color::WHITE),
       hash_(0),
-      cachedEval_(0.0f),
+      cachedEval_(0),
       fenDirty_(true),
       evalDirty_(true) {
   ChessAttacks::initAttacks();
@@ -200,7 +200,7 @@ std::string ChessBoard::getFen() const {
   return cachedFen_;
 }
 
-float ChessBoard::getEvaluation() const {
+int ChessBoard::getEvaluation() const {
   if (evalDirty_) {
     cachedEval_ = ChessEval::evaluatePosition(bb_);
     evalDirty_ = false;

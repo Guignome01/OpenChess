@@ -50,7 +50,7 @@ void test_board_new_game_fen(void) {
 
 void test_board_initial_evaluation_zero(void) {
   setUpBoard();
-  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, cb.getEvaluation());
+  TEST_ASSERT_EQUAL_INT(0, cb.getEvaluation());
 }
 
 // ---------------------------------------------------------------------------
@@ -636,13 +636,13 @@ void test_board_fen_cache_consistent(void) {
 
 void test_board_eval_cache_consistent(void) {
   setUpBoard();
-  float eval1 = cb.getEvaluation();
-  float eval2 = cb.getEvaluation();
-  TEST_ASSERT_FLOAT_WITHIN(0.001f, eval1, eval2);  // Same value from cache
+  int eval1 = cb.getEvaluation();
+  int eval2 = cb.getEvaluation();
+  TEST_ASSERT_EQUAL_INT(eval1, eval2);  // Same value from cache
 
   // Load asymmetric position (white missing e-pawn) and verify cache updates
   cb.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1");
-  float eval3 = cb.getEvaluation();
+  int eval3 = cb.getEvaluation();
   // White has one fewer pawn → negative evaluation
   TEST_ASSERT_TRUE(eval3 < eval1);
 }
@@ -658,11 +658,11 @@ void test_board_end_game_preserves_fen(void) {
 
 void test_board_eval_after_capture(void) {
   setUpBoard();
-  float initialEval = cb.getEvaluation();
+  int initialEval = cb.getEvaluation();
   // White captures black's e-pawn (material advantage for white)
   cb.loadFEN("rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 2");
   cb.makeMove(4, 3, 3, 4); // d4xe5
-  float evalAfter = cb.getEvaluation();
+  int evalAfter = cb.getEvaluation();
   TEST_ASSERT_TRUE(evalAfter > initialEval); // white gained material
 }
 
@@ -1296,12 +1296,12 @@ void test_board_load_fen_sets_clocks(void) {
 
 void test_board_getEvaluation_updates_after_capture(void) {
   setUpBoard();
-  float evalBefore = cb.getEvaluation();
+  int evalBefore = cb.getEvaluation();
   // Set up a capture scenario
   cb.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
   cb.makeMove(4, 4, 3, 3);  // exd5
-  float evalAfter = cb.getEvaluation();
-  // White captured a pawn, should be up ~1.0
+  int evalAfter = cb.getEvaluation();
+  // White captured a pawn, should be up ~100 cp
   TEST_ASSERT_TRUE(evalAfter > evalBefore);
 }
 
@@ -1359,7 +1359,7 @@ void test_board_reverse_move_restores_fen(void) {
 void test_board_reverse_move_restores_eval(void) {
   setUpBoard();
   cb.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
-  float evalBefore = cb.getEvaluation();
+  int evalBefore = cb.getEvaluation();
   PositionState before = cb.positionState();
   MoveResult r = cb.makeMove(4, 4, 3, 3);  // exd5 capture
   TEST_ASSERT_TRUE(r.valid);
@@ -1369,7 +1369,7 @@ void test_board_reverse_move_restores_eval(void) {
   MoveEntry e = makeBoardEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN, before);
   cb.reverseMove(e);
 
-  TEST_ASSERT_EQUAL_FLOAT(evalBefore, cb.getEvaluation());
+  TEST_ASSERT_EQUAL_INT(evalBefore, cb.getEvaluation());
 }
 
 // ---------------------------------------------------------------------------

@@ -160,7 +160,7 @@ class WiFiManagerESP32 : public IGameObserver {
   void update(); // Called from loop() — handles reconnection
 
   // IGameObserver
-  void onBoardStateChanged(const std::string& fen, float evaluation) override;
+  void onBoardStateChanged(const std::string& fen, int evaluation) override;
 
   // Configuration getters
   // Game selection via web

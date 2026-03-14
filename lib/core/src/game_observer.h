@@ -14,7 +14,8 @@ class IGameObserver {
   virtual ~IGameObserver() = default;
 
   // Called whenever the board state changes.
-  virtual void onBoardStateChanged(const std::string& fen, float evaluation) = 0;
+  // evaluation is in centipawns (positive = White advantage).
+  virtual void onBoardStateChanged(const std::string& fen, int evaluation) = 0;
 };
 
 #endif  // CORE_GAME_OBSERVER_H

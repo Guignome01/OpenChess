@@ -123,9 +123,9 @@ class MockGameObserver : public IGameObserver {
  public:
   int callCount = 0;
   std::string lastFen;
-  float lastEval = 0.0f;
+  int lastEval = 0;
 
-  void onBoardStateChanged(const std::string& fen, float evaluation) override {
+  void onBoardStateChanged(const std::string& fen, int evaluation) override {
     callCount++;
     lastFen = fen;
     lastEval = evaluation;

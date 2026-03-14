@@ -90,7 +90,7 @@ constexpr const int8_t* PST[6] = {
 
 namespace ChessEval {
 
-float evaluatePosition(const ChessBitboard::BitboardSet& bb) {
+int evaluatePosition(const ChessBitboard::BitboardSet& bb) {
   using namespace ChessBitboard;
 
   int score = 0;
@@ -111,7 +111,7 @@ float evaluatePosition(const ChessBitboard::BitboardSet& bb) {
     }
   }
 
-  return static_cast<float>(score) / 100.0f;
+  return score;
 }
 
 }  // namespace ChessEval

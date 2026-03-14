@@ -873,9 +873,9 @@ LichessConfig WiFiManagerESP32::getLichessConfig() {
 // TODO: cached fields are written here (main loop task) and read by
 // getBoardUpdateJSON() (async_tcp task) without synchronization. Add a portMUX_TYPE
 // spinlock around both the write and read sites to eliminate the data race.
-void WiFiManagerESP32::onBoardStateChanged(const std::string& fen, float evaluation) {
+void WiFiManagerESP32::onBoardStateChanged(const std::string& fen, int evaluation) {
   currentFen = fen;
-  boardEvaluation = evaluation;
+  boardEvaluation = evaluation / 100.0f;
 
   if (game_) {
     cachedMoveIndex_ = game_->currentMoveIndex();

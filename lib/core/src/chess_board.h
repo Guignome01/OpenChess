@@ -57,7 +57,7 @@ class ChessBoard {
   const PositionState& positionState() const { return state_; }
 
   std::string getFen() const;
-  float getEvaluation() const;
+  int getEvaluation() const;
 
   // Expose bitboard and mailbox for core-internal callers (ChessNotation, etc.)
   const ChessBitboard::BitboardSet& bitboards() const { return bb_; }
@@ -146,7 +146,7 @@ class ChessBoard {
 
   // FEN / evaluation cache (mutable: updated lazily from const getters)
   mutable std::string cachedFen_;
-  mutable float cachedEval_;
+  mutable int cachedEval_;
   mutable bool fenDirty_;
   mutable bool evalDirty_;
   void invalidateCache();
