@@ -191,4 +191,75 @@ Bitboard lineBB(Square s1, Square s2) {
   return (bishopAttacks(s1, 0) & bishopAttacks(s2, 0)) | endpoints;
 }
 
+// ---------------------------------------------------------------------------
+// Attacked-by bitboard computation
+// ---------------------------------------------------------------------------
+// Builds per-piece-type attack maps for both colors in a single pass.
+// Pawns use bulk shift (entire bitboard shifted diagonally) — no per-square
+// loop. Leapers (knight, king) use precomputed table lookup per square.
+// Sliders (bishop, rook, queen) use classical ray loops per square.
+
+AttackInfo computeAttackInfo(const BitboardSet& bb) {
+  using namespace ChessPiece;
+
+  AttackInfo info = {};
+
+  for (int c = 0; c < 2; ++c) {
+    Color color = static_cast<Color>(c);
+
+    // --- Pawns (bulk shift, no per-square loop) ---
+    Bitboard pawns = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::PAWN))];
+    if (c == 0) {
+      // White pawns attack NE and NW.
+      info.byPiece[c][raw(PieceType::PAWN)] = shiftNE(pawns) | shiftNW(pawns);
+    } else {
+      // Black pawns attack SE and SW.
+      info.byPiece[c][raw(PieceType::PAWN)] = shiftSE(pawns) | shiftSW(pawns);
+    }
+
+    // --- Knights (table lookup per square) ---
+    Bitboard knights = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::KNIGHT))];
+    Bitboard knightAtk = 0;
+    Bitboard tmp = knights;
+    while (tmp) { knightAtk |= KNIGHT_ATTACKS[popLsb(tmp)]; }
+    info.byPiece[c][raw(PieceType::KNIGHT)] = knightAtk;
+
+    // --- Bishops (classical rays per square) ---
+    Bitboard bishops = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::BISHOP))];
+    Bitboard bishopAtk = 0;
+    tmp = bishops;
+    while (tmp) { bishopAtk |= bishopAttacks(popLsb(tmp), bb.occupied); }
+    info.byPiece[c][raw(PieceType::BISHOP)] = bishopAtk;
+
+    // --- Rooks (classical rays per square) ---
+    Bitboard rooks = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::ROOK))];
+    Bitboard rookAtk = 0;
+    tmp = rooks;
+    while (tmp) { rookAtk |= rookAttacks(popLsb(tmp), bb.occupied); }
+    info.byPiece[c][raw(PieceType::ROOK)] = rookAtk;
+
+    // --- Queens (combined slider rays per square) ---
+    Bitboard queens = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::QUEEN))];
+    Bitboard queenAtk = 0;
+    tmp = queens;
+    while (tmp) { queenAtk |= queenAttacks(popLsb(tmp), bb.occupied); }
+    info.byPiece[c][raw(PieceType::QUEEN)] = queenAtk;
+
+    // --- King (single table lookup) ---
+    Bitboard king = bb.byPiece[pieceZobristIndex(makePiece(color, PieceType::KING))];
+    info.byPiece[c][raw(PieceType::KING)] = king ? KING_ATTACKS[lsb(king)] : 0;
+
+    // --- Color union ---
+    info.byColor[c] = info.byPiece[c][raw(PieceType::PAWN)]
+                     | info.byPiece[c][raw(PieceType::KNIGHT)]
+                     | info.byPiece[c][raw(PieceType::BISHOP)]
+                     | info.byPiece[c][raw(PieceType::ROOK)]
+                     | info.byPiece[c][raw(PieceType::QUEEN)]
+                     | info.byPiece[c][raw(PieceType::KING)];
+  }
+
+  info.allAttacks = info.byColor[0] | info.byColor[1];
+  return info;
+}
+
 }  // namespace ChessAttacks

@@ -60,6 +60,30 @@ Bitboard xrayRookAttacks(Bitboard occupied, Bitboard friendly, Square sq);
 // Bishop attacks from `sq` shooting through exactly one layer of friendly pieces.
 Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq);
 
+// ---------------------------------------------------------------------------
+// Attacked-by bitboards (on-demand evaluation helper)
+// ---------------------------------------------------------------------------
+// Computes per-piece-type and per-color attack maps from scratch.
+// Called once per evaluation, not per move — avoids complicating
+// makeMove/reverseMove with incremental update logic.
+//
+// Usage: king safety, mobility scoring, move ordering.
+// PieceType::NONE (index 0) slots are unused; indices 1–6 for PAWN..KING.
+
+struct AttackInfo {
+  Bitboard byPiece[2][7];  // [color][pieceType] — squares attacked by that piece type
+  Bitboard byColor[2];     // [color] — union of all piece attacks for that color
+  Bitboard allAttacks;     // union of both colors
+};
+
+// Build full attack maps for both colors from the given position.
+// Requires initAttacks() to have been called.
+AttackInfo computeAttackInfo(const ChessBitboard::BitboardSet& bb);
+
+// ---------------------------------------------------------------------------
+// Ray geometry functions
+// ---------------------------------------------------------------------------
+
 // Squares strictly between s1 and s2 on the same rank, file, or diagonal
 // (exclusive of both endpoints). Returns 0 if s1 and s2 are not colinear.
 Bitboard rayBetween(Square s1, Square s2);

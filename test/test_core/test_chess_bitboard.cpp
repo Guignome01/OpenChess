@@ -7,6 +7,7 @@
 
 using namespace ChessBitboard;
 using namespace ChessAttacks;
+using namespace ChessPiece;
 
 // ---------------------------------------------------------------------------
 // Helper: build a Bitboard from a list of squares
@@ -561,6 +562,109 @@ static void test_lineBB_includes_endpoints(void) {
   TEST_ASSERT_NOT_EQUAL(0, line & squareBB(f1));
 }
 
+// ---------------------------------------------------------------------------
+// computeAttackInfo — per-piece-type attack bitboards
+// ---------------------------------------------------------------------------
+
+// Verify white knight attacks cover specific squares in the initial position.
+// Knights on b1 and g1 attack a3/c3 and f3/h3 respectively.
+static void test_attackInfo_initial_position(void) {
+  initAttacks();
+  BitboardSet bb;
+  Piece mailbox[64] = {};
+  setupInitialBoard(bb, mailbox);
+
+  AttackInfo info = computeAttackInfo(bb);
+
+  // White knights on b1/g1 attack: a3, c3, f3, h3
+  Bitboard wnAtk = info.byPiece[0][raw(PieceType::KNIGHT)];
+  TEST_ASSERT_NOT_EQUAL(0, wnAtk & squareBB(squareOf(5, 0)));  // a3
+  TEST_ASSERT_NOT_EQUAL(0, wnAtk & squareBB(squareOf(5, 2)));  // c3
+  TEST_ASSERT_NOT_EQUAL(0, wnAtk & squareBB(squareOf(5, 5)));  // f3
+  TEST_ASSERT_NOT_EQUAL(0, wnAtk & squareBB(squareOf(5, 7)));  // h3
+
+  // Black knights on b8/g8 attack: a6, c6, f6, h6
+  Bitboard bnAtk = info.byPiece[1][raw(PieceType::KNIGHT)];
+  TEST_ASSERT_NOT_EQUAL(0, bnAtk & squareBB(squareOf(2, 0)));  // a6
+  TEST_ASSERT_NOT_EQUAL(0, bnAtk & squareBB(squareOf(2, 2)));  // c6
+  TEST_ASSERT_NOT_EQUAL(0, bnAtk & squareBB(squareOf(2, 5)));  // f6
+  TEST_ASSERT_NOT_EQUAL(0, bnAtk & squareBB(squareOf(2, 7)));  // h6
+}
+
+// White pawns on rank 2 attack rank 3 squares (bulk shift check).
+static void test_attackInfo_pawn_attacks_bulk(void) {
+  initAttacks();
+  BitboardSet bb;
+  Piece mailbox[64] = {};
+  setupInitialBoard(bb, mailbox);
+
+  AttackInfo info = computeAttackInfo(bb);
+
+  // White pawns on a2–h2 attack rank 3. The union should cover b3–g3 (inner)
+  // and a3/h3 (edges: a2 only attacks b3, h2 only attacks g3).
+  Bitboard wpAtk = info.byPiece[0][raw(PieceType::PAWN)];
+
+  // Every square on rank 3 should be attacked by at least one white pawn.
+  // a3 ← b2 pawn attacks NW; b3 ← a2 (NE) + c2 (NW); ... h3 ← g2 (NE)
+  for (int col = 0; col < 8; ++col)
+    TEST_ASSERT_NOT_EQUAL(0, wpAtk & squareBB(squareOf(5, col)));
+
+  // No white pawn attacks should appear on rank 4 or rank 2.
+  TEST_ASSERT_EQUAL_UINT64(0, wpAtk & RANK_4);
+  TEST_ASSERT_EQUAL_UINT64(0, wpAtk & RANK_2);
+}
+
+// byColor[WHITE] is the union of all white piece type attacks.
+static void test_attackInfo_color_union(void) {
+  initAttacks();
+  BitboardSet bb;
+  Piece mailbox[64] = {};
+  setupInitialBoard(bb, mailbox);
+
+  AttackInfo info = computeAttackInfo(bb);
+
+  Bitboard expected = 0;
+  for (int pt = 1; pt <= 6; ++pt)
+    expected |= info.byPiece[0][pt];
+  TEST_ASSERT_EQUAL_UINT64(expected, info.byColor[0]);
+
+  // Same for black.
+  expected = 0;
+  for (int pt = 1; pt <= 6; ++pt)
+    expected |= info.byPiece[1][pt];
+  TEST_ASSERT_EQUAL_UINT64(expected, info.byColor[1]);
+
+  // allAttacks is the union of both colors.
+  TEST_ASSERT_EQUAL_UINT64(info.byColor[0] | info.byColor[1], info.allAttacks);
+}
+
+// Board with only kings: attacks are just the king attack patterns.
+static void test_attackInfo_empty_board_only_kings(void) {
+  initAttacks();
+  BitboardSet bb;
+
+  // White king on e1, black king on e8.
+  Square e1 = squareOf(7, 4), e8 = squareOf(0, 4);
+  bb.setPiece(e1, Piece::W_KING);
+  bb.setPiece(e8, Piece::B_KING);
+
+  AttackInfo info = computeAttackInfo(bb);
+
+  // Only king attacks should be nonzero.
+  TEST_ASSERT_EQUAL_UINT64(KING_ATTACKS[e1], info.byPiece[0][raw(PieceType::KING)]);
+  TEST_ASSERT_EQUAL_UINT64(KING_ATTACKS[e8], info.byPiece[1][raw(PieceType::KING)]);
+
+  // All other piece type attacks should be zero.
+  for (int pt = 1; pt <= 5; ++pt) {
+    TEST_ASSERT_EQUAL_UINT64(0, info.byPiece[0][pt]);
+    TEST_ASSERT_EQUAL_UINT64(0, info.byPiece[1][pt]);
+  }
+
+  // byColor is just king attacks.
+  TEST_ASSERT_EQUAL_UINT64(KING_ATTACKS[e1], info.byColor[0]);
+  TEST_ASSERT_EQUAL_UINT64(KING_ATTACKS[e8], info.byColor[1]);
+}
+
 void register_chess_bitboard_tests() {
   // Square mapping
   RUN_TEST(test_squareOf_corners);
@@ -638,4 +742,10 @@ void register_chess_bitboard_tests() {
   RUN_TEST(test_lineBB_diagonal);
   RUN_TEST(test_lineBB_non_colinear);
   RUN_TEST(test_lineBB_includes_endpoints);
+
+  // computeAttackInfo
+  RUN_TEST(test_attackInfo_initial_position);
+  RUN_TEST(test_attackInfo_pawn_attacks_bulk);
+  RUN_TEST(test_attackInfo_color_union);
+  RUN_TEST(test_attackInfo_empty_board_only_kings);
 }
