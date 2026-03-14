@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 
+#include "chess_bitboard.h"
 #include "types.h"
 
 namespace ChessUtils {
@@ -182,22 +183,22 @@ inline bool isValidPromotionChar(char c) {
 }
 
 // ---------------------------------------------------------------------------
-// Board transform — minimal move application on a raw board array.
+// Board transform — minimal move application on BitboardSet + mailbox.
 // Moves the piece, handles castling rook, and removes en-passant captured pawn.
 // Sets capturedPiece to the piece actually captured (including EP captures).
 // Does NOT update PositionState, promotion, or MoveResult — callers handle those.
 // ---------------------------------------------------------------------------
-void applyBoardTransform(Piece board[8][8], int fromRow, int fromCol,
-                         int toRow, int toCol,
+void applyBoardTransform(ChessBitboard::BitboardSet& bb, Piece mailbox[],
+                         ChessBitboard::Square from, ChessBitboard::Square to,
                          const EnPassantInfo& ep, const CastlingInfo& castle,
                          Piece& capturedPiece);
 
-// Evaluate board position using simple material count
+// Evaluate board position using simple material count via bitboard popcount.
 // Returns evaluation in pawns (positive = White advantage, negative = Black advantage)
-float evaluatePosition(const Piece board[8][8]);
+float evaluatePosition(const ChessBitboard::BitboardSet& bb);
 
 // Format the board as a human-readable text block for debugging.
-std::string boardToText(const Piece board[8][8]);
+std::string boardToText(const Piece mailbox[]);
 
 }  // namespace ChessUtils
 

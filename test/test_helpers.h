@@ -7,31 +7,51 @@
 #include <chess_notation.h>
 #include <chess_board.h>
 #include <chess_game.h>
+#include <chess_bitboard.h>
 
 #include <cstring>
 
+using namespace ChessBitboard;
+
 /// Set up the standard initial chess position.
-inline void setupInitialBoard(Piece board[8][8]) {
-  memcpy(board, ChessBoard::INITIAL_BOARD, sizeof(ChessBoard::INITIAL_BOARD));
+inline void setupInitialBoard(BitboardSet& bb, Piece mailbox[]) {
+  bb.clear();
+  memset(mailbox, 0, 64);
+  for (int row = 0; row < 8; ++row)
+    for (int col = 0; col < 8; ++col) {
+      Piece p = ChessBoard::INITIAL_BOARD[row][col];
+      if (p != Piece::NONE) {
+        Square sq = squareOf(row, col);
+        bb.setPiece(sq, p);
+        mailbox[sq] = p;
+      }
+    }
 }
 
 /// Clear the board (all empty squares).
-inline void clearBoard(Piece board[8][8]) {
-  memset(board, 0, 64 * sizeof(Piece));  // Piece::NONE == 0
+inline void clearBoard(BitboardSet& bb, Piece mailbox[]) {
+  bb.clear();
+  memset(mailbox, 0, 64);
 }
 
 /// Place a single piece on a cleared board at the given algebraic position.
-/// Example: placePiece(board, Piece::W_KING, "e1")
-inline void placePiece(Piece board[8][8], Piece piece, const char* square) {
+/// Example: placePiece(bb, mailbox, Piece::W_KING, "e1")
+inline void placePiece(BitboardSet& bb, Piece mailbox[], Piece piece, const char* square) {
   int col = square[0] - 'a';
   int row = 8 - (square[1] - '0');
-  board[row][col] = piece;
+  Square sq = squareOf(row, col);
+  if (mailbox[sq] != Piece::NONE) {
+    bb.removePiece(sq, mailbox[sq]);
+    mailbox[sq] = Piece::NONE;
+  }
+  bb.setPiece(sq, piece);
+  mailbox[sq] = piece;
 }
 
-/// Return whether a given move exists in the rules's possible‐move list.
-inline bool moveExists(Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state = {}) {
+/// Return whether a given move exists in the rules's possible-move list.
+inline bool moveExists(const BitboardSet& bb, const Piece mailbox[], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state = {}) {
   MoveList moves;
-  ChessRules::getPossibleMoves(board, fromRow, fromCol, state, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, fromRow, fromCol, state, moves);
   for (int i = 0; i < moves.count; i++) {
     if (moves.row(i) == toRow && moves.col(i) == toCol)
       return true;
@@ -39,7 +59,7 @@ inline bool moveExists(Piece board[8][8], int fromRow, int fromCol, int toRow, i
   return false;
 }
 
-/// Algebraic square to (row, col). "e4" → (4, 4).
+/// Algebraic square to (row, col). "e4" -> (4, 4).
 inline void sq(const char* s, int& row, int& col) {
   col = s[0] - 'a';
   row = 8 - (s[1] - '0');

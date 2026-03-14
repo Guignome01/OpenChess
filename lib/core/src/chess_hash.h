@@ -3,16 +3,19 @@
 
 // Zobrist hashing for position comparison and threefold repetition detection.
 // Keys are generated at compile time via a deterministic xorshift64 PRNG.
+// Square indexing uses LERF (a1=0, h8=63), matching chess_bitboard.h.
 
 #include <stdint.h>
 
-#include "chess_iterator.h"
-#include "chess_rules.h"
+#include "chess_bitboard.h"
 #include "types.h"
 
 #ifndef PROGMEM
 #define PROGMEM
 #endif
+
+// Forward-declare the legality check used by computeHash (defined in ChessRules).
+class ChessRules;
 
 namespace ChessHash {
 
@@ -56,28 +59,14 @@ struct Keys {
 static constexpr Keys KEYS PROGMEM = Keys();
 
 // ---------------------------------------------------------------------------
-// Hash computation
+// Full-board hash computation (for initialization and debug verification).
+// Uses BitboardSet + mailbox with LERF square indexing.
+// The EP legality check (hasLegalEnPassantCapture) is defined in ChessRules —
+// this function is NOT inline because it needs the full ChessRules definition.
 // ---------------------------------------------------------------------------
 
-inline uint64_t computeHash(const Piece board[8][8], Color turn,
-                            const PositionState& state) {
-  uint64_t hash = 0;
-
-  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
-    int idx = ChessPiece::pieceZobristIndex(piece);
-    hash ^= KEYS.pieces[idx][row * 8 + col];
-  });
-
-  hash ^= KEYS.castling[state.castlingRights];
-
-  if (ChessRules::hasLegalEnPassantCapture(board, turn, state)) {
-    hash ^= KEYS.enPassant[state.epCol];
-  }
-
-  if (turn == Color::BLACK) hash ^= KEYS.sideToMove;
-
-  return hash;
-}
+uint64_t computeHash(const ChessBitboard::BitboardSet& bb, const Piece mailbox[],
+                     Color turn, const PositionState& state);
 
 }  // namespace ChessHash
 

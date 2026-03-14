@@ -1,12 +1,13 @@
 #include "chess_notation.h"
 
 #include <cctype>
-#include <cstring>
 
 #include "chess_history.h"  // MoveEntry
 #include "chess_iterator.h"
 #include "chess_rules.h"
 #include "chess_utils.h"
+
+using namespace ChessBitboard;
 
 namespace ChessNotation {
 
@@ -82,8 +83,8 @@ static char sanPieceLetter(Piece piece) {
   return (type == PieceType::PAWN) ? '\0' : ChessPiece::pieceTypeToChar(type);
 }
 
-std::string toSAN(const Piece board[8][8], const PositionState& state,
-                  const MoveEntry& move) {
+std::string toSAN(const BitboardSet& bb, const Piece mailbox[],
+                  const PositionState& state, const MoveEntry& move) {
   // Castling
   if (move.isCastling) {
     return castlingNotation(move);
@@ -114,12 +115,12 @@ std::string toSAN(const Piece board[8][8], const PositionState& state,
     bool needFile = false;
     bool needRank = false;
 
-    ChessIterator::forEachPiece(board, [&](int r, int c, Piece other) {
+    ChessIterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece other) {
       if (r == move.fromRow && c == move.fromCol) return;
       if (ChessPiece::pieceType(other) != type) return;
       if (ChessPiece::pieceColor(other) != color) return;
 
-      if (!ChessRules::isValidMove(board, r, c, move.toRow, move.toCol, state))
+      if (!ChessRules::isValidMove(bb, mailbox, r, c, move.toRow, move.toCol, state))
         return;
 
       if (c != move.fromCol)
@@ -250,12 +251,14 @@ static bool isPieceLetter(char c) {
 }
 
 // Find and validate a castling move for the given side.
-static bool findCastlingMove(const Piece board[8][8], const PositionState& state,
+static bool findCastlingMove(const BitboardSet& bb, const Piece mailbox[],
+                             const PositionState& state,
                              Color currentTurn, bool kingSide,
                              int& fromRow, int& fromCol, int& toRow, int& toCol,
                              char& promotion) {
   int row = ChessPiece::homeRow(currentTurn);
-  Piece king = board[row][4];
+  Square kingSq = squareOf(row, 4);
+  Piece king = mailbox[kingSq];
   if (ChessPiece::pieceType(king) != PieceType::KING || ChessPiece::pieceColor(king) != currentTurn)
     return false;
   if (!ChessUtils::hasCastlingRight(state.castlingRights, currentTurn, kingSide))
@@ -263,10 +266,11 @@ static bool findCastlingMove(const Piece board[8][8], const PositionState& state
   fromRow = row; fromCol = 4;
   toRow = row;   toCol = kingSide ? 6 : 2;
   promotion = ' ';
-  return ChessRules::isValidMove(board, fromRow, fromCol, toRow, toCol, state);
+  return ChessRules::isValidMove(bb, mailbox, fromRow, fromCol, toRow, toCol, state);
 }
 
-bool parseSAN(const Piece board[8][8], const PositionState& state,
+bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
+              const PositionState& state,
               Color currentTurn, const std::string& san,
               int& fromRow, int& fromCol,
               int& toRow, int& toCol,
@@ -281,10 +285,10 @@ bool parseSAN(const Piece board[8][8], const PositionState& state,
   stripCheckSuffix(castleStr);
 
   if (castleStr == "O-O" || castleStr == "0-0")
-    return findCastlingMove(board, state, currentTurn, true, fromRow, fromCol, toRow, toCol, promotion);
+    return findCastlingMove(bb, mailbox, state, currentTurn, true, fromRow, fromCol, toRow, toCol, promotion);
 
   if (castleStr == "O-O-O" || castleStr == "0-0-0")
-    return findCastlingMove(board, state, currentTurn, false, fromRow, fromCol, toRow, toCol, promotion);
+    return findCastlingMove(bb, mailbox, state, currentTurn, false, fromRow, fromCol, toRow, toCol, promotion);
 
   // Strip check/checkmate suffixes
   std::string s = san;
@@ -345,15 +349,15 @@ bool parseSAN(const Piece board[8][8], const PositionState& state,
   int matchRow = -1, matchCol = -1;
   int matchCount = 0;
 
-  ChessIterator::forEachPiece(board, [&](int r, int c, Piece p) {
-    if (ChessPiece::pieceType(p) != targetType) return;
-    if (ChessPiece::pieceColor(p) != currentTurn) return;
+    ChessIterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece p) {
+      if (ChessPiece::pieceType(p) != targetType) return;
+      if (ChessPiece::pieceColor(p) != currentTurn) return;
 
-    if (hintFile >= 0 && c != hintFile) return;
-    if (hintRank >= 0 && r != hintRank) return;
+      if (hintFile >= 0 && c != hintFile) return;
+      if (hintRank >= 0 && r != hintRank) return;
 
-    if (!ChessRules::isValidMove(board, r, c, toRow, toCol, state))
-      return;
+      if (!ChessRules::isValidMove(bb, mailbox, r, c, toRow, toCol, state))
+        return;
 
     matchRow = r;
     matchCol = c;
@@ -403,7 +407,8 @@ static bool looksLikeLAN(const std::string& move) {
   return false;
 }
 
-bool parseMove(const Piece board[8][8], const PositionState& state,
+bool parseMove(const BitboardSet& bb, const Piece mailbox[],
+               const PositionState& state,
                Color currentTurn, const std::string& move,
                int& fromRow, int& fromCol,
                int& toRow, int& toCol,
@@ -423,7 +428,7 @@ bool parseMove(const Piece board[8][8], const PositionState& state,
   }
 
   // 3. Try SAN (requires board context)
-  if (parseSAN(board, state, currentTurn, move, fromRow, fromCol, toRow, toCol, promotion))
+  if (parseSAN(bb, mailbox, state, currentTurn, move, fromRow, fromCol, toRow, toCol, promotion))
     return true;
 
   return false;

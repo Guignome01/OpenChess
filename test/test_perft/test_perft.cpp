@@ -50,13 +50,12 @@ static PerftResult perft(ChessBoard& cb, int depth) {
     return result;
   }
 
-  const auto& board = cb.getBoard();
   Color turn = cb.currentTurn();
   PositionState prevState = cb.positionState();
 
   for (int row = 0; row < 8; row++) {
     for (int col = 0; col < 8; col++) {
-      Piece piece = board[row][col];
+      Piece piece = cb.getSquare(row, col);
       if (piece == Piece::NONE) continue;
       if (ChessPiece::pieceColor(piece) != turn) continue;
 
@@ -74,7 +73,7 @@ static PerftResult perft(ChessBoard& cb, int depth) {
 
         for (int p = 0; p < promoCount; p++) {
           char promoPiece = isPromo ? promos[p] : ' ';
-          Piece targetPiece = board[toRow][toCol];
+          Piece targetPiece = cb.getSquare(toRow, toCol);
 
           MoveResult mr = cb.makeMove(row, col, toRow, toCol, promoPiece);
           if (!mr.valid) continue;

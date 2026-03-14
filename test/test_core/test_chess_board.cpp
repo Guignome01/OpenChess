@@ -6,7 +6,8 @@
 #include <types.h>
 
 // Shared globals from test_core.cpp
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 static ChessBoard cb;
@@ -23,8 +24,10 @@ static void setUpBoard(void) {
 
 void test_board_new_game_board(void) {
   setUpBoard();
-  const Piece (&b)[8][8] = cb.getBoard();
-  TEST_ASSERT_EQUAL_MEMORY(ChessBoard::INITIAL_BOARD, b, sizeof(ChessBoard::INITIAL_BOARD));
+  // Verify each square matches INITIAL_BOARD
+  for (int row = 0; row < 8; row++)
+    for (int col = 0; col < 8; col++)
+      TEST_ASSERT_ENUM_EQ(ChessBoard::INITIAL_BOARD[row][col], cb.getSquare(row, col));
 }
 
 void test_board_new_game_turn(void) {
@@ -63,8 +66,8 @@ void test_board_e2e4(void) {
   TEST_ASSERT_FALSE(r.isEnPassant);
   TEST_ASSERT_FALSE(r.isPromotion);
   TEST_ASSERT_ENUM_EQ(Color::BLACK, cb.currentTurn());
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[6][4]); // e2 empty
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[4][4]); // e4 has pawn
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(6, 4)); // e2 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(4, 4)); // e4 has pawn
 }
 
 void test_board_illegal_move_rejected(void) {
@@ -149,7 +152,7 @@ void test_board_simple_capture(void) {
   MoveResult r = cb.makeMove(4, 3, 3, 4); // d4xe5
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCapture);
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[3][4]); // e5 now has white pawn
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(3, 4)); // e5 now has white pawn
 }
 
 // ---------------------------------------------------------------------------
@@ -165,8 +168,8 @@ void test_board_en_passant_white(void) {
   TEST_ASSERT_TRUE(r.isEnPassant);
   TEST_ASSERT_TRUE(r.isCapture);
   TEST_ASSERT_EQUAL_INT(3, r.epCapturedRow); // captured pawn was on row 3, col 3
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[3][3]); // d5 cleared
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getBoard()[2][3]); // d6 has white pawn
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(3, 3)); // d5 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, cb.getSquare(2, 3)); // d6 has white pawn
 }
 
 void test_board_en_passant_black(void) {
@@ -176,8 +179,8 @@ void test_board_en_passant_black(void) {
   MoveResult r = cb.makeMove(4, 3, 5, 4); // d4xe3 en passant
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isEnPassant);
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[4][4]); // e4 cleared
-  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, cb.getBoard()[5][4]); // e3 has black pawn
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(4, 4)); // e4 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, cb.getSquare(5, 4)); // e3 has black pawn
 }
 
 void test_board_ep_target_set_after_double_push(void) {
@@ -207,10 +210,10 @@ void test_board_white_kingside_castle(void) {
   MoveResult r = cb.makeMove(7, 4, 7, 6); // e1g1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getBoard()[7][6]); // king on g1
-  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getBoard()[7][5]); // rook on f1
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][4]); // e1 empty
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][7]); // h1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getSquare(7, 6)); // king on g1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getSquare(7, 5)); // rook on f1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(7, 4)); // e1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(7, 7)); // h1 empty
 }
 
 void test_board_white_queenside_castle(void) {
@@ -219,9 +222,9 @@ void test_board_white_queenside_castle(void) {
   MoveResult r = cb.makeMove(7, 4, 7, 2); // e1c1
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getBoard()[7][2]); // king on c1
-  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getBoard()[7][3]); // rook on d1
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[7][0]); // a1 empty
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, cb.getSquare(7, 2)); // king on c1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, cb.getSquare(7, 3)); // rook on d1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(7, 0)); // a1 empty
 }
 
 void test_board_black_kingside_castle(void) {
@@ -230,8 +233,8 @@ void test_board_black_kingside_castle(void) {
   MoveResult r = cb.makeMove(0, 4, 0, 6); // e8g8
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getBoard()[0][6]); // king on g8
-  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getBoard()[0][5]); // rook on f8
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getSquare(0, 6)); // king on g8
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getSquare(0, 5)); // rook on f8
 }
 
 void test_board_castling_revokes_rights(void) {
@@ -259,9 +262,9 @@ void test_board_black_queenside_castle(void) {
   MoveResult r = cb.makeMove(0, 4, 0, 2); // e8c8
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isCastling);
-  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getBoard()[0][2]); // king on c8
-  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getBoard()[0][3]); // rook on d8
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getBoard()[0][0]); // a8 empty
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING, cb.getSquare(0, 2)); // king on c8
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK, cb.getSquare(0, 3)); // rook on d8
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, cb.getSquare(0, 0)); // a8 empty
 }
 
 void test_board_rook_captured_revokes_castling(void) {
@@ -285,7 +288,7 @@ void test_board_auto_queen_promotion(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
   TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, r.promotedTo);
-  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getSquare(0, 4));
 }
 
 void test_board_knight_promotion(void) {
@@ -295,7 +298,7 @@ void test_board_knight_promotion(void) {
   TEST_ASSERT_TRUE(r.valid);
   TEST_ASSERT_TRUE(r.isPromotion);
   TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, r.promotedTo); // uppercase for white
-  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, cb.getSquare(0, 4));
 }
 
 void test_board_black_promotion(void) {
@@ -316,7 +319,7 @@ void test_board_promotion_with_capture(void) {
   TEST_ASSERT_TRUE(r.isCapture);
   TEST_ASSERT_TRUE(r.isPromotion);
   TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, r.promotedTo);
-  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getBoard()[0][4]);
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN, cb.getSquare(0, 4));
 }
 
 // ---------------------------------------------------------------------------

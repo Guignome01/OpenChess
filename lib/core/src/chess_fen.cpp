@@ -4,7 +4,6 @@
 #include <cstring>
 #include <string>
 
-#include "chess_iterator.h"
 #include "chess_utils.h"
 
 namespace ChessFEN {
@@ -18,29 +17,33 @@ static std::string nextToken(std::string& remaining) {
   return token;
 }
 
-std::string boardToFEN(const Piece board[8][8], Color currentTurn, const PositionState* state) {
+std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionState* state) {
+  using namespace ChessBitboard;
   std::string fen;
 
   // Board position — rank 8 first (row 0), rank 1 last (row 7).
   int emptyCount = 0;
-  ChessIterator::forEachSquare(board, [&](int row, int col, Piece piece) {
-    if (col == 0 && row > 0) {
+  for (int row = 0; row < 8; ++row) {
+    if (row > 0) {
       if (emptyCount > 0) {
         fen += std::to_string(emptyCount);
         emptyCount = 0;
       }
       fen += '/';
     }
-    if (piece == Piece::NONE) {
-      emptyCount++;
-    } else {
-      if (emptyCount > 0) {
-        fen += std::to_string(emptyCount);
-        emptyCount = 0;
+    for (int col = 0; col < 8; ++col) {
+      Piece piece = mailbox[squareOf(row, col)];
+      if (piece == Piece::NONE) {
+        emptyCount++;
+      } else {
+        if (emptyCount > 0) {
+          fen += std::to_string(emptyCount);
+          emptyCount = 0;
+        }
+        fen += ChessPiece::pieceToChar(piece);
       }
-      fen += ChessPiece::pieceToChar(piece);
     }
-  });
+  }
   if (emptyCount > 0)
     fen += std::to_string(emptyCount);
 
@@ -78,12 +81,15 @@ std::string boardToFEN(const Piece board[8][8], Color currentTurn, const Positio
   return fen;
 }
 
-void fenToBoard(const std::string& fen, Piece board[8][8], Color& currentTurn, PositionState* state) {
+void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece mailbox[],
+                Color& currentTurn, PositionState* state) {
+  using namespace ChessBitboard;
   std::string remaining = fen;
   std::string boardPart = nextToken(remaining);
 
   // Clear board
-  memset(board, 0, 64 * sizeof(Piece));
+  bb.clear();
+  memset(mailbox, 0, 64 * sizeof(Piece));
 
   // Parse ranks (rank 8 first, rank 1 last)
   int row = 0;
@@ -98,7 +104,9 @@ void fenToBoard(const std::string& fen, Piece board[8][8], Color& currentTurn, P
     } else {
       Piece p = ChessPiece::charToPiece(c);
       if (p != Piece::NONE && ChessUtils::isValidSquare(row, col)) {
-        board[row][col] = p;
+        Square sq = squareOf(row, col);
+        bb.setPiece(sq, p);
+        mailbox[sq] = p;
         col++;
       }
     }

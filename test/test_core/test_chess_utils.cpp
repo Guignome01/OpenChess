@@ -2,7 +2,8 @@
 
 #include "../test_helpers.h"
 
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -10,25 +11,25 @@ extern bool needsDefaultKings;
 // ---------------------------------------------------------------------------
 
 void test_evaluation_initial_is_zero(void) {
-  setupInitialBoard(board);
-  float eval = ChessUtils::evaluatePosition(board);
+  setupInitialBoard(bb, mailbox);
+  float eval = ChessUtils::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
 
 void test_evaluation_white_up_queen(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_QUEEN, "d1");
-  placePiece(board, Piece::B_KING, "e8");
-  float eval = ChessUtils::evaluatePosition(board);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "d1");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  float eval = ChessUtils::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 9.0f, eval); // White has +9 for queen
 }
 
 void test_evaluation_equal_material(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "a1");
-  placePiece(board, Piece::B_KING, "e8");
-  placePiece(board, Piece::B_ROOK, "a8");
-  float eval = ChessUtils::evaluatePosition(board);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "a8");
+  float eval = ChessUtils::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
 
@@ -84,19 +85,19 @@ void test_no_fifty_move_rule(void) {
 // ---------------------------------------------------------------------------
 
 void test_has_legal_moves_initial(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState flags{0x0F, -1, -1};
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::WHITE, flags));
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::BLACK, flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(bb, mailbox, Color::WHITE, flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(bb, mailbox, Color::BLACK, flags));
 }
 
 void test_no_legal_moves_stalemate(void) {
   // Same stalemate position from check_mechanics
-  placePiece(board, Piece::B_KING, "a8");
-  placePiece(board, Piece::W_QUEEN, "b6");
-  placePiece(board, Piece::W_KING, "c6");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "b6");
+  placePiece(bb, mailbox, Piece::W_KING, "c6");
   PositionState flags{0x00, -1, -1, 0, 1};
-  TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(board, Color::BLACK, flags));
+  TEST_ASSERT_FALSE(ChessRules::hasAnyLegalMove(bb, mailbox, Color::BLACK, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -104,16 +105,16 @@ void test_no_legal_moves_stalemate(void) {
 // ---------------------------------------------------------------------------
 
 void test_evaluation_black_advantage(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::B_KING, "e8");
-  placePiece(board, Piece::B_QUEEN, "d8"); // black queen, no white queen
-  float eval = ChessUtils::evaluatePosition(board);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::B_QUEEN, "d8"); // black queen, no white queen
+  float eval = ChessUtils::evaluatePosition(bb);
   TEST_ASSERT_TRUE(eval < 0.0f); // negative = black advantage
 }
 
 void test_evaluation_empty_board(void) {
   // board is already cleared by setUp
-  float eval = ChessUtils::evaluatePosition(board);
+  float eval = ChessUtils::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
 
@@ -123,11 +124,11 @@ void test_evaluation_empty_board(void) {
 
 void test_hasAnyLegalMove_in_check_with_escape(void) {
   // King in check but can escape
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::B_ROOK, "e8"); // rook checks
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "e8"); // rook checks
   PositionState flags{0x00, -1, -1, 0, 1};
   // King can escape to d1, d2, f1, f2
-  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(board, Color::WHITE, flags));
+  TEST_ASSERT_TRUE(ChessRules::hasAnyLegalMove(bb, mailbox, Color::WHITE, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -515,8 +516,8 @@ void test_gameResultName_all_values(void) {
 // ---------------------------------------------------------------------------
 
 void test_boardToText_initial_position(void) {
-  setupInitialBoard(board);
-  std::string text = ChessUtils::boardToText(board);
+  setupInitialBoard(bb, mailbox);
+  std::string text = ChessUtils::boardToText(mailbox);
   TEST_ASSERT_TRUE(text.length() > 0);
   // Check that back ranks have expected piece chars
   TEST_ASSERT_TRUE(text.find('r') != std::string::npos);  // black rook
@@ -526,7 +527,7 @@ void test_boardToText_initial_position(void) {
 }
 
 void test_boardToText_empty_board(void) {
-  std::string text = ChessUtils::boardToText(board);
+  std::string text = ChessUtils::boardToText(mailbox);
   TEST_ASSERT_TRUE(text.length() > 0);
   // Empty board rows should contain only dots (no piece chars between rank labels)
   // Each rank line looks like "8 . . . . . . . .  8\n"
@@ -548,51 +549,51 @@ void test_boardToText_empty_board(void) {
 // ---------------------------------------------------------------------------
 
 void test_applyBoardTransform_simple_move(void) {
-  placePiece(board, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
   ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
   ChessUtils::CastlingInfo castle{false, -1, -1};
   Piece captured = Piece::NONE;
-  ChessUtils::applyBoardTransform(board, 6, 4, 4, 4, ep, castle, captured);
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[4][4]);
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[6][4]);
+  ChessUtils::applyBoardTransform(bb, mailbox, squareOf(6, 4), squareOf(4, 4), ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, mailbox[squareOf(4, 4)]);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(6, 4)]);
   TEST_ASSERT_ENUM_EQ(Piece::NONE, captured);
 }
 
 void test_applyBoardTransform_capture(void) {
-  placePiece(board, Piece::W_PAWN, "e4");
-  placePiece(board, Piece::B_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
   ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
   ChessUtils::CastlingInfo castle{false, -1, -1};
   Piece captured = Piece::NONE;
-  ChessUtils::applyBoardTransform(board, 4, 4, 3, 3, ep, castle, captured);
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[3][3]);
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[4][4]);
+  ChessUtils::applyBoardTransform(bb, mailbox, squareOf(4, 4), squareOf(3, 3), ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, mailbox[squareOf(3, 3)]);
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(4, 4)]);
   TEST_ASSERT_ENUM_EQ(Piece::B_PAWN, captured);
 }
 
 void test_applyBoardTransform_en_passant(void) {
-  placePiece(board, Piece::W_PAWN, "e5");
-  placePiece(board, Piece::B_PAWN, "d5");  // captured pawn on row 3
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");  // captured pawn on row 3
   ChessUtils::EnPassantInfo ep{true, 3, -1, -1};  // EP capture, captured pawn on row 3
   ChessUtils::CastlingInfo castle{false, -1, -1};
   Piece captured = Piece::NONE;
-  ChessUtils::applyBoardTransform(board, 3, 4, 2, 3, ep, castle, captured);
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, board[2][3]);  // pawn moved to d6
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[3][4]);     // source cleared
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[3][3]);     // captured pawn removed
+  ChessUtils::applyBoardTransform(bb, mailbox, squareOf(3, 4), squareOf(2, 3), ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN, mailbox[squareOf(2, 3)]);  // pawn moved to d6
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(3, 4)]);     // source cleared
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(3, 3)]);     // captured pawn removed
 }
 
 void test_applyBoardTransform_castling(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
   ChessUtils::EnPassantInfo ep{false, -1, -1, -1};
   ChessUtils::CastlingInfo castle{true, 7, 5};  // kingside: rook h1→f1
   Piece captured = Piece::NONE;
-  ChessUtils::applyBoardTransform(board, 7, 4, 7, 6, ep, castle, captured);
-  TEST_ASSERT_ENUM_EQ(Piece::W_KING, board[7][6]);   // king on g1
-  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, board[7][5]);   // rook on f1
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[7][4]);      // e1 cleared
-  TEST_ASSERT_ENUM_EQ(Piece::NONE, board[7][7]);      // h1 cleared
+  ChessUtils::applyBoardTransform(bb, mailbox, squareOf(7, 4), squareOf(7, 6), ep, castle, captured);
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING, mailbox[squareOf(7, 6)]);   // king on g1
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK, mailbox[squareOf(7, 5)]);   // rook on f1
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(7, 4)]);      // e1 cleared
+  TEST_ASSERT_ENUM_EQ(Piece::NONE, mailbox[squareOf(7, 7)]);      // h1 cleared
 }
 
 void register_chess_utils_tests() {

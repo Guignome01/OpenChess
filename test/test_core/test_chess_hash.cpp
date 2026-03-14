@@ -5,7 +5,8 @@
 
 #include "../test_helpers.h"
 
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -68,79 +69,83 @@ void test_chess_hash_piece_index_invalid(void) {
 // ---------------------------------------------------------------------------
 
 void test_computeHash_deterministic(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState st = PositionState::initial();
-  uint64_t h1 = ChessHash::computeHash(board, Color::WHITE, st);
-  uint64_t h2 = ChessHash::computeHash(board, Color::WHITE, st);
+  uint64_t h1 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
+  uint64_t h2 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
   TEST_ASSERT_EQUAL_HEX64(h1, h2);
   TEST_ASSERT_NOT_EQUAL(0ULL, h1);
 }
 
 void test_computeHash_different_positions(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState st = PositionState::initial();
-  uint64_t h1 = ChessHash::computeHash(board, Color::WHITE, st);
+  uint64_t h1 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
 
   // Move e2 to e4
-  board[4][4] = board[6][4];
-  board[6][4] = Piece::NONE;
+  Piece pawn = mailbox[squareOf(6, 4)];
+  bb.removePiece(squareOf(6, 4), pawn);
+  mailbox[squareOf(6, 4)] = Piece::NONE;
+  bb.setPiece(squareOf(4, 4), pawn);
+  mailbox[squareOf(4, 4)] = pawn;
   st.epRow = 5;
   st.epCol = 4;
-  uint64_t h2 = ChessHash::computeHash(board, Color::BLACK, st);
+  uint64_t h2 = ChessHash::computeHash(bb, mailbox, Color::BLACK, st);
   TEST_ASSERT_NOT_EQUAL(h1, h2);
 }
 
 void test_computeHash_same_position_same_hash(void) {
   // Set up identical boards separately
-  Piece board2[8][8];
-  setupInitialBoard(board);
-  setupInitialBoard(board2);
+  BitboardSet bb2;
+  Piece mailbox2[64];
+  setupInitialBoard(bb, mailbox);
+  setupInitialBoard(bb2, mailbox2);
   PositionState st = PositionState::initial();
-  uint64_t h1 = ChessHash::computeHash(board, Color::WHITE, st);
-  uint64_t h2 = ChessHash::computeHash(board2, Color::WHITE, st);
+  uint64_t h1 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
+  uint64_t h2 = ChessHash::computeHash(bb2, mailbox2, Color::WHITE, st);
   TEST_ASSERT_EQUAL_HEX64(h1, h2);
 }
 
 void test_computeHash_turn_sensitivity(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState st = PositionState::initial();
-  uint64_t hw = ChessHash::computeHash(board, Color::WHITE, st);
-  uint64_t hb = ChessHash::computeHash(board, Color::BLACK, st);
+  uint64_t hw = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
+  uint64_t hb = ChessHash::computeHash(bb, mailbox, Color::BLACK, st);
   TEST_ASSERT_NOT_EQUAL(hw, hb);
 }
 
 void test_computeHash_castling_sensitivity(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState st1 = PositionState::initial();  // KQkq = 0x0F
   PositionState st2 = PositionState::initial();
   st2.castlingRights = 0x05;  // Kk only
-  uint64_t h1 = ChessHash::computeHash(board, Color::WHITE, st1);
-  uint64_t h2 = ChessHash::computeHash(board, Color::WHITE, st2);
+  uint64_t h1 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st1);
+  uint64_t h2 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st2);
   TEST_ASSERT_NOT_EQUAL(h1, h2);
 }
 
 void test_computeHash_en_passant_sensitivity(void) {
   // Position where white pawn on e5, black pawn on d5 — EP capturable on d6
-  clearBoard(board);
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::B_KING, "e8");
-  placePiece(board, Piece::W_PAWN, "e5");
-  placePiece(board, Piece::B_PAWN, "d5");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
 
   PositionState st1{0x00, -1, -1, 0, 1};  // no EP
   PositionState st2{0x00, 2, 3, 0, 1};    // EP on d6 (row=2, col=3)
 
-  uint64_t h1 = ChessHash::computeHash(board, Color::WHITE, st1);
-  uint64_t h2 = ChessHash::computeHash(board, Color::WHITE, st2);
+  uint64_t h1 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st1);
+  uint64_t h2 = ChessHash::computeHash(bb, mailbox, Color::WHITE, st2);
   TEST_ASSERT_NOT_EQUAL(h1, h2);
 }
 
 void test_computeHash_king_vs_king(void) {
-  clearBoard(board);
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::B_KING, "e8");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
   PositionState st{0x00, -1, -1, 0, 1};
-  uint64_t h = ChessHash::computeHash(board, Color::WHITE, st);
+  uint64_t h = ChessHash::computeHash(bb, mailbox, Color::WHITE, st);
   TEST_ASSERT_NOT_EQUAL(0ULL, h);
 }
 
@@ -154,7 +159,7 @@ void test_computeHash_incremental_vs_full(void) {
   cb.makeMove(7, 6, 5, 5);  // Nf3
 
   // Full recompute from scratch
-  uint64_t full = ChessHash::computeHash(cb.getBoard(), cb.currentTurn(), cb.positionState());
+  uint64_t full = ChessHash::computeHash(cb.bitboards(), cb.mailbox(), cb.currentTurn(), cb.positionState());
 
   // The board's internal hash is stored in hashHistory — the last entry
   // We can verify by loading the same FEN into a fresh board
@@ -163,7 +168,7 @@ void test_computeHash_incremental_vs_full(void) {
   cb2.loadFEN(fen);
 
   // Both boards should produce the same hash from scratch
-  uint64_t full2 = ChessHash::computeHash(cb2.getBoard(), cb2.currentTurn(), cb2.positionState());
+  uint64_t full2 = ChessHash::computeHash(cb2.bitboards(), cb2.mailbox(), cb2.currentTurn(), cb2.positionState());
   TEST_ASSERT_EQUAL_HEX64(full, full2);
 }
 
@@ -172,6 +177,8 @@ void test_computeHash_incremental_vs_full(void) {
 // ---------------------------------------------------------------------------
 
 void register_chess_hash_tests() {
+  needsDefaultKings = false;
+
   // Key generation
   RUN_TEST(test_chess_hash_keys_pieces_first);
   RUN_TEST(test_chess_hash_keys_pieces_last);

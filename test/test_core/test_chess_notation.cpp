@@ -2,7 +2,8 @@
 
 #include "../test_helpers.h"
 
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ===========================================================================
@@ -103,7 +104,7 @@ void test_toSAN_pawn_push(void) {
   ChessBoard b;
   b.newGame();
   MoveEntry m = makeEntry(6, 4, 4, 4, Piece::W_PAWN);
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("e4", san.c_str());
 }
 
@@ -111,7 +112,7 @@ void test_toSAN_knight_move(void) {
   ChessBoard b;
   b.newGame();
   MoveEntry m = makeEntry(7, 6, 5, 5, Piece::W_KNIGHT);  // Ng1-f3
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Nf3", san.c_str());
 }
 
@@ -121,7 +122,7 @@ void test_toSAN_pawn_capture(void) {
   b.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
   MoveEntry m = makeEntry(4, 4, 3, 3, Piece::W_PAWN, Piece::B_PAWN);
   m.isCapture = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("exd5", san.c_str());
 }
 
@@ -130,7 +131,7 @@ void test_toSAN_kingside_castling(void) {
   b.loadFEN("r1bqk1nr/ppppbppp/2n5/4p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4");
   MoveEntry m = makeEntry(7, 4, 7, 6, Piece::W_KING);
   m.isCastling = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("O-O", san.c_str());
 }
 
@@ -139,7 +140,7 @@ void test_toSAN_queenside_castling(void) {
   b.loadFEN("r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 5");
   MoveEntry m = makeEntry(7, 4, 7, 2, Piece::W_KING);
   m.isCastling = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("O-O-O", san.c_str());
 }
 
@@ -148,7 +149,7 @@ void test_toSAN_promotion(void) {
   b.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
   MoveEntry m = makeEntry(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, Piece::W_QUEEN);
   m.isPromotion = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("e8=Q", san.c_str());
 }
 
@@ -162,7 +163,7 @@ void test_toSAN_knight_disambiguation_by_file(void) {
   // Knights on c3 and g3, both can reach e4
   b.loadFEN("4k3/8/8/8/8/2N3N1/8/4K3 w - - 0 1");
   MoveEntry m = makeEntry(5, 2, 4, 4, Piece::W_KNIGHT);  // Nc3-e4
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Nce4", san.c_str());
 }
 
@@ -171,7 +172,7 @@ void test_toSAN_knight_disambiguation_by_rank(void) {
   ChessBoard b;
   b.loadFEN("4k3/8/4N3/8/8/8/4N3/4K3 w - - 0 1");
   MoveEntry m = makeEntry(6, 4, 4, 3, Piece::W_KNIGHT);  // Ne2-d4
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("N2d4", san.c_str());
 }
 
@@ -180,7 +181,7 @@ void test_toSAN_rook_capture(void) {
   b.loadFEN("4k3/8/8/4p3/8/8/8/4K2R w K - 0 1");
   MoveEntry m = makeEntry(7, 7, 3, 4, Piece::W_ROOK, Piece::B_PAWN);
   m.isCapture = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Rxe5", san.c_str());
 }
 
@@ -314,7 +315,7 @@ void test_parseSAN_pawn_push(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "e4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "e4", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(6, fr);  // e2
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(4, tr);  // e4
@@ -326,7 +327,7 @@ void test_parseSAN_knight_move(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Nf3", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Nf3", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);  // g1
   TEST_ASSERT_EQUAL_INT(6, fc);
   TEST_ASSERT_EQUAL_INT(5, tr);  // f3
@@ -338,7 +339,7 @@ void test_parseSAN_pawn_capture(void) {
   b.loadFEN("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "exd5", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "exd5", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(4, fr);  // e4
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(3, tr);  // d5
@@ -350,7 +351,7 @@ void test_parseSAN_kingside_castling(void) {
   b.loadFEN("r1bqk1nr/ppppbppp/2n5/4p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "O-O", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "O-O", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);  // e1
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);  // g1
@@ -362,7 +363,7 @@ void test_parseSAN_queenside_castling(void) {
   b.loadFEN("r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 5");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "O-O-O", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "O-O-O", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);  // e1
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);  // c1
@@ -374,7 +375,7 @@ void test_parseSAN_promotion(void) {
   b.loadFEN("8/4P3/8/8/8/8/4p3/4K2k w - - 0 1");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "e8=Q", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "e8=Q", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(1, fr);  // e7
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(0, tr);  // e8
@@ -388,7 +389,7 @@ void test_parseSAN_with_check_suffix(void) {
   int fr, fc, tr, tc;
   char promo;
   // "Nf3+" — the '+' should be stripped, parsed as Nf3
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Nf3+", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Nf3+", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(6, fc);
   TEST_ASSERT_EQUAL_INT(5, tr);
@@ -400,7 +401,7 @@ void test_parseSAN_with_checkmate_suffix(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Nf3#", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Nf3#", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(6, fc);
 }
@@ -410,7 +411,7 @@ void test_parseSAN_empty_string(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_FALSE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "", fr, fc, tr, tc, promo));
+  TEST_ASSERT_FALSE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "", fr, fc, tr, tc, promo));
 }
 
 void test_parseSAN_disambiguation_by_file(void) {
@@ -419,7 +420,7 @@ void test_parseSAN_disambiguation_by_file(void) {
   b.loadFEN("4k3/8/8/8/8/2N3N1/8/4K3 w - - 0 1");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Nce4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Nce4", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(5, fr);  // c3
   TEST_ASSERT_EQUAL_INT(2, fc);
   TEST_ASSERT_EQUAL_INT(4, tr);  // e4
@@ -432,7 +433,7 @@ void test_parseSAN_castling_with_zeros(void) {
   b.loadFEN("r1bqk1nr/ppppbppp/2n5/4p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "0-0", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "0-0", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);
@@ -448,7 +449,7 @@ void test_parseMove_coordinate(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.getBoard(), b.positionState(), b.currentTurn(), "e2e4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "e2e4", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(6, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(4, tr);
@@ -460,7 +461,7 @@ void test_parseMove_lan(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.getBoard(), b.positionState(), b.currentTurn(), "Ng1-f3", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Ng1-f3", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(6, fc);
   TEST_ASSERT_EQUAL_INT(5, tr);
@@ -472,7 +473,7 @@ void test_parseMove_san(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.getBoard(), b.positionState(), b.currentTurn(), "Nf3", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Nf3", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(6, fc);
   TEST_ASSERT_EQUAL_INT(5, tr);
@@ -485,7 +486,7 @@ void test_parseMove_san_castling(void) {
   b.loadFEN("r1bqk1nr/ppppbppp/2n5/4p3/4P3/5N2/PPPPBPPP/RNBQK2R w KQkq - 4 4");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.getBoard(), b.positionState(), b.currentTurn(), "O-O", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseMove(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "O-O", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);
@@ -497,7 +498,7 @@ void test_parseMove_empty_string(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_FALSE(ChessNotation::parseMove(b.getBoard(), b.positionState(), b.currentTurn(), "", fr, fc, tr, tc, promo));
+  TEST_ASSERT_FALSE(ChessNotation::parseMove(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "", fr, fc, tr, tc, promo));
 }
 
 // ===========================================================================
@@ -534,13 +535,13 @@ void test_roundtrip_san_scholar_mate(void) {
     m.isCastling = s.castle;
     m.isEnPassant = s.ep;
 
-    std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+    std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
     TEST_ASSERT_EQUAL_STRING(s.expectedSAN, san.c_str());
 
     // Parse back
     int pfr, pfc, ptr, ptc;
     char pp;
-    TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), san, pfr, pfc, ptr, ptc, pp));
+    TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), san, pfr, pfc, ptr, ptc, pp));
     TEST_ASSERT_EQUAL_INT(s.fr, pfr);
     TEST_ASSERT_EQUAL_INT(s.fc, pfc);
     TEST_ASSERT_EQUAL_INT(s.tr, ptr);
@@ -563,7 +564,7 @@ void test_toSAN_en_passant(void) {
   MoveEntry m = makeEntry(3, 4, 2, 3, Piece::W_PAWN, Piece::B_PAWN);
   m.isEnPassant = true;
   m.epCapturedRow = 3;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("exd6", san.c_str());
 }
 
@@ -574,7 +575,7 @@ void test_toSAN_promotion_with_capture(void) {
   MoveEntry m = makeEntry(1, 3, 0, 4, Piece::W_PAWN, Piece::B_ROOK, Piece::W_QUEEN);
   m.isCapture = true;
   m.isPromotion = true;
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("dxe8=Q", san.c_str());
 }
 
@@ -586,7 +587,7 @@ void test_toSAN_full_disambiguation(void) {
   ChessBoard b;
   b.loadFEN("4k3/8/8/3Q4/8/8/8/Q2Q3K w - - 0 1");
   MoveEntry m = makeEntry(7, 3, 4, 3, Piece::W_QUEEN);  // Qd1-d4
-  std::string san = ChessNotation::toSAN(b.getBoard(), b.positionState(), m);
+  std::string san = ChessNotation::toSAN(b.bitboards(), b.mailbox(), b.positionState(), m);
   TEST_ASSERT_EQUAL_STRING("Qd1d4", san.c_str());
 }
 
@@ -595,7 +596,7 @@ void test_parseSAN_en_passant_capture(void) {
   b.loadFEN("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "exd6", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "exd6", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(3, fr);  // e5
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(2, tr);  // d6
@@ -607,7 +608,7 @@ void test_parseSAN_promotion_with_capture(void) {
   b.loadFEN("4rb2/3P4/8/8/8/8/8/4K2k w - - 0 1");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "dxe8=Q", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "dxe8=Q", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(1, fr);  // d7
   TEST_ASSERT_EQUAL_INT(3, fc);
   TEST_ASSERT_EQUAL_INT(0, tr);  // e8
@@ -621,7 +622,7 @@ void test_parseSAN_invalid_no_matching_piece(void) {
   b.newGame();
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_FALSE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "Ne4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_FALSE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "Ne4", fr, fc, tr, tc, promo));
 }
 
 void test_parseLAN_pawn_capture(void) {
@@ -640,7 +641,7 @@ void test_parseSAN_disambiguation_by_rank(void) {
   b.loadFEN("4k3/8/4N3/8/8/8/4N3/4K3 w - - 0 1");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "N2d4", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "N2d4", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(6, fr);  // e2
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(4, tr);  // d4
@@ -652,7 +653,7 @@ void test_parseSAN_queenside_castling_with_zeros(void) {
   b.loadFEN("r3kbnr/pppqpppp/2n5/3p1b2/3P1B2/2N5/PPPQPPPP/R3KBNR w KQkq - 6 5");
   int fr, fc, tr, tc;
   char promo;
-  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.getBoard(), b.positionState(), b.currentTurn(), "0-0-0", fr, fc, tr, tc, promo));
+  TEST_ASSERT_TRUE(ChessNotation::parseSAN(b.bitboards(), b.mailbox(), b.positionState(), b.currentTurn(), "0-0-0", fr, fc, tr, tc, promo));
   TEST_ASSERT_EQUAL_INT(7, fr);  // e1
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(7, tr);  // c1

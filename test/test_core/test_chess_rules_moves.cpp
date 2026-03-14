@@ -3,7 +3,8 @@
 
 #include "../test_helpers.h"
 
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -11,74 +12,74 @@ extern bool needsDefaultKings;
 // ---------------------------------------------------------------------------
 
 void test_white_pawn_single_push(void) {
-  placePiece(board, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
   int r, c;
   sq("e2", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, r - 1, c)); // e3
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, r - 1, c)); // e3
 }
 
 void test_white_pawn_double_push_from_start(void) {
-  placePiece(board, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
   int r, c;
   sq("e2", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, r - 2, c)); // e4
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, r - 2, c)); // e4
 }
 
 void test_white_pawn_no_double_push_from_rank3(void) {
-  placePiece(board, Piece::W_PAWN, "e3");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e3");
   int r, c;
   sq("e3", r, c);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e5 double push
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, r - 2, c)); // e5 double push
 }
 
 void test_white_pawn_blocked(void) {
-  placePiece(board, Piece::W_PAWN, "e4");
-  placePiece(board, Piece::B_PAWN, "e5"); // blocker
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e5"); // blocker
   int r, c;
   sq("e4", r, c);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, r - 1, c));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, r - 1, c));
 }
 
 void test_white_pawn_double_push_blocked_on_first_sq(void) {
-  placePiece(board, Piece::W_PAWN, "e2");
-  placePiece(board, Piece::B_PAWN, "e3"); // block first square
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e3"); // block first square
   int r, c;
   sq("e2", r, c);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e4
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, r - 2, c)); // e4
 }
 
 void test_white_pawn_capture_diagonal(void) {
-  placePiece(board, Piece::W_PAWN, "d4");
-  placePiece(board, Piece::B_PAWN, "e5"); // capturable
+  placePiece(bb, mailbox, Piece::W_PAWN, "d4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e5"); // capturable
   int r, c;
   sq("d4", r, c);
   int tr, tc;
   sq("e5", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 void test_white_pawn_no_capture_own_piece(void) {
-  placePiece(board, Piece::W_PAWN, "d4");
-  placePiece(board, Piece::W_KNIGHT, "e5"); // own piece
+  placePiece(bb, mailbox, Piece::W_PAWN, "d4");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "e5"); // own piece
   int r, c;
   sq("d4", r, c);
   int tr, tc;
   sq("e5", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 void test_black_pawn_single_push(void) {
-  placePiece(board, Piece::B_PAWN, "e7");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e7");
   int r, c;
   sq("e7", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, r + 1, c)); // e6
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, r + 1, c)); // e6
 }
 
 void test_black_pawn_double_push_from_start(void) {
-  placePiece(board, Piece::B_PAWN, "e7");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e7");
   int r, c;
   sq("e7", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, r + 2, c)); // e5
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, r + 2, c)); // e5
 }
 
 // ---------------------------------------------------------------------------
@@ -86,43 +87,43 @@ void test_black_pawn_double_push_from_start(void) {
 // ---------------------------------------------------------------------------
 
 void test_knight_center_moves(void) {
-  placePiece(board, Piece::W_KNIGHT, "d4");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(8, moves.count); // Knight in center has 8 moves
 }
 
 void test_knight_corner_moves(void) {
-  placePiece(board, Piece::W_KNIGHT, "a1");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "a1");
   int r, c;
   sq("a1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(2, moves.count); // Corner knight has 2 moves
 }
 
 void test_knight_captures_enemy(void) {
-  placePiece(board, Piece::W_KNIGHT, "d4");
-  placePiece(board, Piece::B_PAWN, "e6"); // enemy on one of the squares
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "d4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e6"); // enemy on one of the squares
   int r, c;
   sq("d4", r, c);
   int tr, tc;
   sq("e6", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 void test_knight_blocked_by_own(void) {
-  placePiece(board, Piece::W_KNIGHT, "d4");
-  placePiece(board, Piece::W_PAWN, "e6"); // own piece on target
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "d4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e6"); // own piece on target
   int r, c;
   sq("d4", r, c);
   int tr, tc;
   sq("e6", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 // ---------------------------------------------------------------------------
@@ -130,40 +131,40 @@ void test_knight_blocked_by_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_bishop_center_moves(void) {
-  placePiece(board, Piece::W_BISHOP, "d4");
+  placePiece(bb, mailbox, Piece::W_BISHOP, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(13, moves.count); // d4 bishop on empty board
 }
 
 void test_bishop_blocked_by_own(void) {
-  placePiece(board, Piece::W_BISHOP, "c1");
-  placePiece(board, Piece::W_PAWN, "d2"); // own piece blocks
-  placePiece(board, Piece::W_PAWN, "b2"); // own piece blocks
+  placePiece(bb, mailbox, Piece::W_BISHOP, "c1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d2"); // own piece blocks
+  placePiece(bb, mailbox, Piece::W_PAWN, "b2"); // own piece blocks
   int r, c;
   sq("c1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void test_bishop_captures_and_stops(void) {
-  placePiece(board, Piece::W_BISHOP, "a1");
-  placePiece(board, Piece::B_PAWN, "d4"); // enemy blocks diagonal
+  placePiece(bb, mailbox, Piece::W_BISHOP, "a1");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d4"); // enemy blocks diagonal
   int r, c;
   sq("a1", r, c);
   int tr, tc;
   sq("d4", tr, tc);
   // Can capture d4
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
   // But cannot go past d4 to e5
   int tr2, tc2;
   sq("e5", tr2, tc2);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr2, tc2));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr2, tc2));
 }
 
 // ---------------------------------------------------------------------------
@@ -171,24 +172,24 @@ void test_bishop_captures_and_stops(void) {
 // ---------------------------------------------------------------------------
 
 void test_rook_center_moves(void) {
-  placePiece(board, Piece::W_ROOK, "d4");
+  placePiece(bb, mailbox, Piece::W_ROOK, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(14, moves.count); // Rook in center on empty board
 }
 
 void test_rook_blocked_by_own(void) {
-  placePiece(board, Piece::W_ROOK, "a1");
-  placePiece(board, Piece::W_PAWN, "a2"); // above
-  placePiece(board, Piece::W_PAWN, "b1"); // right
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "a2"); // above
+  placePiece(bb, mailbox, Piece::W_PAWN, "b1"); // right
   int r, c;
   sq("a1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
@@ -197,12 +198,12 @@ void test_rook_blocked_by_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_queen_center_moves(void) {
-  placePiece(board, Piece::W_QUEEN, "d4");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(27, moves.count); // 13 bishop + 14 rook
 }
 
@@ -211,35 +212,35 @@ void test_queen_center_moves(void) {
 // ---------------------------------------------------------------------------
 
 void test_king_center_moves(void) {
-  placePiece(board, Piece::W_KING, "d4");
+  placePiece(bb, mailbox, Piece::W_KING, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(8, moves.count); // King in center has 8 moves
 }
 
 void test_king_corner_moves(void) {
-  placePiece(board, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
   int r, c;
   sq("a1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(3, moves.count); // Corner king has 3 moves
 }
 
 void test_king_no_move_onto_own(void) {
-  placePiece(board, Piece::W_KING, "a1");
-  placePiece(board, Piece::W_PAWN, "a2");
-  placePiece(board, Piece::W_PAWN, "b2");
-  placePiece(board, Piece::W_PAWN, "b1");
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "a2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "b2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "b1");
   int r, c;
   sq("a1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
@@ -248,76 +249,76 @@ void test_king_no_move_onto_own(void) {
 // ---------------------------------------------------------------------------
 
 void test_black_pawn_diagonal_capture(void) {
-  placePiece(board, Piece::B_PAWN, "d5");
-  placePiece(board, Piece::W_PAWN, "e4"); // white piece to capture
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4"); // white piece to capture
   int r, c;
   sq("d5", r, c);
   int tr, tc;
   sq("e4", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 void test_black_knight_center(void) {
-  clearBoard(board);
-  placePiece(board, Piece::B_KING, "a8");
-  placePiece(board, Piece::W_KING, "a1");
-  placePiece(board, Piece::B_KNIGHT, "d4");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::B_KNIGHT, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(8, moves.count);
 }
 
 void test_black_rook_center(void) {
-  clearBoard(board);
-  placePiece(board, Piece::B_KING, "a8");
-  placePiece(board, Piece::W_KING, "a1");
-  placePiece(board, Piece::B_ROOK, "d4");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(14, moves.count);
 }
 
 void test_black_bishop_center(void) {
-  clearBoard(board);
-  placePiece(board, Piece::B_KING, "a8");
-  placePiece(board, Piece::W_KING, "a1");
-  placePiece(board, Piece::B_BISHOP, "d4");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::B_BISHOP, "d4");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(13, moves.count);
 }
 
 void test_rook_capture_and_stop(void) {
-  placePiece(board, Piece::W_ROOK, "d4");
-  placePiece(board, Piece::B_PAWN, "d7"); // enemy rook captures d7
+  placePiece(bb, mailbox, Piece::W_ROOK, "d4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d7"); // enemy rook captures d7
   int r, c;
   sq("d4", r, c);
   int tr, tc;
   sq("d7", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
   // Cannot continue past d7 to d8
   int tr2, tc2;
   sq("d8", tr2, tc2);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr2, tc2));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr2, tc2));
 }
 
 void test_white_pawn_double_push_blocked_second_sq(void) {
-  placePiece(board, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
   // e3 is empty, e4 is blocked
-  placePiece(board, Piece::B_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e4");
   int r, c;
   sq("e2", r, c);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, r - 2, c)); // e4 blocked
-  TEST_ASSERT_TRUE(moveExists(board, r, c, r - 1, c));  // e3 still ok
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, r - 2, c)); // e4 blocked
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, r - 1, c));  // e3 still ok
 }
 
 // ---------------------------------------------------------------------------
@@ -325,70 +326,70 @@ void test_white_pawn_double_push_blocked_second_sq(void) {
 // ---------------------------------------------------------------------------
 
 void test_pawn_a_file_capture(void) {
-  placePiece(board, Piece::W_PAWN, "a4");
-  placePiece(board, Piece::B_PAWN, "b5"); // can capture right
+  placePiece(bb, mailbox, Piece::W_PAWN, "a4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "b5"); // can capture right
   int r, c;
   sq("a4", r, c);
   int tr, tc;
   sq("b5", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
   // No left capture possible (off-board)
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   // Should have: a5 (push) + b5 (capture) = 2
   TEST_ASSERT_EQUAL_INT(2, moves.count);
 }
 
 void test_pawn_h_file_capture(void) {
-  placePiece(board, Piece::W_PAWN, "h4");
-  placePiece(board, Piece::B_PAWN, "g5"); // can capture left
+  placePiece(bb, mailbox, Piece::W_PAWN, "h4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "g5"); // can capture left
   int r, c;
   sq("h4", r, c);
   int tr, tc;
   sq("g5", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc));
   // Should have: h5 (push) + g5 (capture) = 2
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(2, moves.count);
 }
 
 void test_knight_edge_b1(void) {
-  placePiece(board, Piece::W_KNIGHT, "b1");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "b1");
   int r, c;
   sq("b1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(3, moves.count); // a3, c3, d2
 }
 
 void test_queen_blocked(void) {
-  placePiece(board, Piece::W_QUEEN, "d4");
+  placePiece(bb, mailbox, Piece::W_QUEEN, "d4");
   // Surround with own pieces on all 8 directions
-  placePiece(board, Piece::W_PAWN, "d5");
-  placePiece(board, Piece::W_PAWN, "d3");
-  placePiece(board, Piece::W_PAWN, "c4");
-  placePiece(board, Piece::W_PAWN, "e4");
-  placePiece(board, Piece::W_PAWN, "c5");
-  placePiece(board, Piece::W_PAWN, "e5");
-  placePiece(board, Piece::W_PAWN, "c3");
-  placePiece(board, Piece::W_PAWN, "e3");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d3");
+  placePiece(bb, mailbox, Piece::W_PAWN, "c4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "c5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "c3");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e3");
   int r, c;
   sq("d4", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(0, moves.count);
 }
 
 void test_bishop_corner_a1(void) {
-  placePiece(board, Piece::W_BISHOP, "a1");
+  placePiece(bb, mailbox, Piece::W_BISHOP, "a1");
   int r, c;
   sq("a1", r, c);
 
   MoveList moves;
-  ChessRules::getPossibleMoves(board, r, c, {}, moves);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, {}, moves);
   TEST_ASSERT_EQUAL_INT(7, moves.count); // a1-h8 diagonal
 }
 
@@ -397,29 +398,29 @@ void test_bishop_corner_a1(void) {
 // ---------------------------------------------------------------------------
 
 void test_initial_position_white_moves(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState flags{0x0F, -1, -1};
 
   // Each of the 8 pawns has 2 moves, each of 2 knights has 2 moves = 20 total
   int totalMoves = 0;
-  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
+  ChessIterator::forEachPiece(bb, mailbox, [&](int row, int col, Piece piece) {
     if (!ChessPiece::isWhite(piece)) return;
     MoveList moves;
-    ChessRules::getPossibleMoves(board, row, col, flags, moves);
+    ChessRules::getPossibleMoves(bb, mailbox, row, col, flags, moves);
     totalMoves += moves.count;
   });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);
 }
 
 void test_initial_position_black_moves(void) {
-  setupInitialBoard(board);
+  setupInitialBoard(bb, mailbox);
   PositionState flags{0x0F, -1, -1};
 
   int totalMoves = 0;
-  ChessIterator::forEachPiece(board, [&](int row, int col, Piece piece) {
+  ChessIterator::forEachPiece(bb, mailbox, [&](int row, int col, Piece piece) {
     if (!ChessPiece::isBlack(piece)) return;
     MoveList moves;
-    ChessRules::getPossibleMoves(board, row, col, flags, moves);
+    ChessRules::getPossibleMoves(bb, mailbox, row, col, flags, moves);
     totalMoves += moves.count;
   });
   TEST_ASSERT_EQUAL_INT(20, totalMoves);

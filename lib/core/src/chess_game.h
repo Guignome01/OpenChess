@@ -131,7 +131,8 @@ class ChessGame {
 
   // --- Board pass-throughs ---
 
-  const Piece (&getBoard() const)[8][8] { return board_.getBoard(); }
+  const ChessBitboard::BitboardSet& bitboards() const { return board_.bitboards(); }
+  const Piece* mailbox() const { return board_.mailbox(); }
   Piece getSquare(int row, int col) const { return board_.getSquare(row, col); }
   Color currentTurn() const { return board_.currentTurn(); }
   int kingRow(Color c) const { return board_.kingRow(c); }
@@ -170,17 +171,17 @@ class ChessGame {
 
   template <typename Fn>
   void forEachSquare(Fn&& fn) const {
-    ChessIterator::forEachSquare(board_.getBoard(), static_cast<Fn&&>(fn));
+    ChessIterator::forEachSquare(board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   void forEachPiece(Fn&& fn) const {
-    ChessIterator::forEachPiece(board_.getBoard(), static_cast<Fn&&>(fn));
+    ChessIterator::forEachPiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   bool somePiece(Fn&& fn) const {
-    return ChessIterator::somePiece(board_.getBoard(), static_cast<Fn&&>(fn));
+    return ChessIterator::somePiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   int moveNumber() const { return board_.moveNumber(); }

@@ -59,3 +59,7 @@ Common commands:
 | Run one test suite | `pio test -e native -f test_core` |
 
 Serial monitor runs at **115200 baud** (configured in `platformio.ini`).
+
+## References
+
+- [Chess Programming Wiki](https://www.chessprogramming.org/Main_Page) — comprehensive resource for chess engine programming: board representations (bitboards, mailbox), move generation, search algorithms, evaluation, and endgame tablebases.

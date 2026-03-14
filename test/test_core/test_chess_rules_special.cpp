@@ -2,7 +2,8 @@
 
 #include "../test_helpers.h"
 
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------
@@ -10,83 +11,83 @@ extern bool needsDefaultKings;
 // ---------------------------------------------------------------------------
 
 void test_white_kingside_castle_available(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
   PositionState flags{0x0F, -1, -1}; // all rights
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_white_queenside_castle_available(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("c1", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_black_kingside_castle_available(void) {
-  placePiece(board, Piece::B_KING, "e8");
-  placePiece(board, Piece::B_ROOK, "h8");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "h8");
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e8", r, c);
   int tr, tc;
   sq("g8", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_castle_blocked_by_piece(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
-  placePiece(board, Piece::W_KNIGHT, "g1"); // knight blocks
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "g1"); // knight blocks
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_castle_through_check_forbidden(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
-  placePiece(board, Piece::B_ROOK, "f8"); // rook controls f1 — king passes through check
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "f8"); // rook controls f1 — king passes through check
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_castle_while_in_check_forbidden(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
-  placePiece(board, Piece::B_ROOK, "e8"); // rook gives check on e-file
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "e8"); // rook gives check on e-file
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_no_castle_right_revoked(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
   PositionState flags{0x00, -1, -1, 0, 1}; // no rights
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 // ---------------------------------------------------------------------------
@@ -95,40 +96,40 @@ void test_no_castle_right_revoked(void) {
 
 void test_en_passant_white_captures(void) {
   // White pawn on e5, Black pawn just double-pushed to d5
-  placePiece(board, Piece::W_PAWN, "e5");
-  placePiece(board, Piece::B_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
   int epR, epC;
   sq("d6", epR, epC);
   PositionState flags{0x0F, epR, epC}; // d6
 
   int r, c;
   sq("e5", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, epR, epC, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, epR, epC, flags));
 }
 
 void test_en_passant_black_captures(void) {
-  placePiece(board, Piece::B_PAWN, "d4");
-  placePiece(board, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
   int epR, epC;
   sq("e3", epR, epC);
   PositionState flags{0x0F, epR, epC}; // e3
 
   int r, c;
   sq("d4", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, epR, epC, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, epR, epC, flags));
 }
 
 void test_en_passant_not_available(void) {
   // Pawns adjacent but no en passant target set
-  placePiece(board, Piece::W_PAWN, "e5");
-  placePiece(board, Piece::B_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d5");
   // Default flags — no en passant
 
   int r, c;
   sq("e5", r, c);
   int tr, tc;
   sq("d6", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc));
 }
 
 // ---------------------------------------------------------------------------
@@ -192,54 +193,54 @@ void test_getEnPassantCapturedPawnRow(void) {
 // ---------------------------------------------------------------------------
 
 void test_black_queenside_castle_available(void) {
-  placePiece(board, Piece::B_KING, "e8");
-  placePiece(board, Piece::B_ROOK, "a8");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "a8");
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e8", r, c);
   int tr, tc;
   sq("c8", tr, tc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_castle_destination_under_attack(void) {
   // g1 attacked by black rook on g8, but f1 is safe
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
-  placePiece(board, Piece::B_ROOK, "g8"); // attacks g1 (destination)
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "g8"); // attacks g1 (destination)
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("g1", tr, tc);
-  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_queenside_blocked_b1(void) {
   // b1 must be empty (rook passes through it)
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "a1");
-  placePiece(board, Piece::W_KNIGHT, "b1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "b1");
   PositionState flags{0x0F, -1, -1};
   int r, c;
   sq("e1", r, c);
   int tr, tc;
   sq("c1", tr, tc);
-  TEST_ASSERT_FALSE(moveExists(board, r, c, tr, tc, flags));
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, tr, tc, flags));
 }
 
 void test_partial_castling_rights_kingside_only(void) {
-  placePiece(board, Piece::W_KING, "e1");
-  placePiece(board, Piece::W_ROOK, "h1");
-  placePiece(board, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "h1");
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
   PositionState flags{0x01, -1, -1}; // only white kingside (K)
   int r, c;
   sq("e1", r, c);
   int ktr, ktc, qtr, qtc;
   sq("g1", ktr, ktc);
   sq("c1", qtr, qtc);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, ktr, ktc, flags));  // kingside OK
-  TEST_ASSERT_FALSE(moveExists(board, r, c, qtr, qtc, flags)); // queenside NO
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, ktr, ktc, flags));  // kingside OK
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, r, c, qtr, qtc, flags)); // queenside NO
 }
 
 // ---------------------------------------------------------------------------
@@ -249,40 +250,40 @@ void test_partial_castling_rights_kingside_only(void) {
 void test_ep_capture_leaves_king_in_check(void) {
   // Horizontal pin: white K on a5, P on d5, black p on e5 (just double-pushed),
   // black rook on h5. EP capture d5→e6 removes e5 pawn, exposes king along rank 5.
-  clearBoard(board);
-  placePiece(board, Piece::W_KING, "a5");
-  placePiece(board, Piece::B_KING, "a8");
-  placePiece(board, Piece::W_PAWN, "d5");
-  placePiece(board, Piece::B_PAWN, "e5");
-  placePiece(board, Piece::B_ROOK, "h5");
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::W_KING, "a5");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_ROOK, "h5");
   int epR, epC;
   sq("e6", epR, epC);
   PositionState flags{0x00, epR, epC, 0, 1};
   int r, c;
   sq("d5", r, c);
-  TEST_ASSERT_FALSE(ChessRules::isValidMove(board, r, c, epR, epC, flags));
+  TEST_ASSERT_FALSE(ChessRules::isValidMove(bb, mailbox, r, c, epR, epC, flags));
 }
 
 void test_ep_a_file_boundary(void) {
-  placePiece(board, Piece::W_PAWN, "a5");
-  placePiece(board, Piece::B_PAWN, "b5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "a5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "b5");
   int epR, epC;
   sq("b6", epR, epC);
   PositionState flags{0x0F, epR, epC};
   int r, c;
   sq("a5", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, epR, epC, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, epR, epC, flags));
 }
 
 void test_ep_h_file_boundary(void) {
-  placePiece(board, Piece::W_PAWN, "h5");
-  placePiece(board, Piece::B_PAWN, "g5");
+  placePiece(bb, mailbox, Piece::W_PAWN, "h5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "g5");
   int epR, epC;
   sq("g6", epR, epC);
   PositionState flags{0x0F, epR, epC};
   int r, c;
   sq("h5", r, c);
-  TEST_ASSERT_TRUE(moveExists(board, r, c, epR, epC, flags));
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, r, c, epR, epC, flags));
 }
 
 // ---------------------------------------------------------------------------

@@ -3,19 +3,21 @@
 
 #include <string>
 
+#include "chess_bitboard.h"
 #include "types.h"
 
 namespace ChessFEN {
 
 // Convert board state to FEN notation.
-// board: 8x8 array (row 0 = rank 8, col 0 = file a).
+// mailbox: flat 64-element array (LERF indexing, a1=0 h8=63).
 // currentTurn: Color::WHITE or Color::BLACK.
 // state: optional PositionState for castling, en passant, clocks.
-std::string boardToFEN(const Piece board[8][8], Color currentTurn, const PositionState* state = nullptr);
+std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionState* state = nullptr);
 
-// Parse FEN notation and populate board, turn, and state.
+// Parse FEN notation and populate bitboards, mailbox, turn, and state.
 // Lenient parser — does not reject invalid FEN. Use validateFEN() first for untrusted input.
-void fenToBoard(const std::string& fen, Piece board[8][8], Color& currentTurn, PositionState* state = nullptr);
+void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece mailbox[],
+                Color& currentTurn, PositionState* state = nullptr);
 
 // Validate FEN string format.
 // Checks: non-empty, 7 slashes, each rank sums to 8, valid piece chars,

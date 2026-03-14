@@ -196,7 +196,8 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
 
     // Generate notation before applying the move
     if (format == MoveFormat::SAN) {
-      out[i] = ChessNotation::toSAN(tempBoard.getBoard(), tempBoard.positionState(), m);
+      out[i] = ChessNotation::toSAN(tempBoard.bitboards(), tempBoard.mailbox(),
+                                     tempBoard.positionState(), m);
     } else {
       out[i] = ChessNotation::toLAN(m);
     }
@@ -229,8 +230,8 @@ bool ChessGame::parseCoordinate(const std::string& move, int& fromRow, int& from
 
 bool ChessGame::parseMove(const std::string& move, int& fromRow, int& fromCol,
                           int& toRow, int& toCol, char& promotion) const {
-  return ChessNotation::parseMove(board_.getBoard(), board_.positionState(),
-                                  board_.currentTurn(),
+  return ChessNotation::parseMove(board_.bitboards(), board_.mailbox(),
+                                  board_.positionState(), board_.currentTurn(),
                                   move, fromRow, fromCol, toRow, toCol, promotion);
 }
 

@@ -4,8 +4,8 @@
 
 #include "chess_fen.h"
 #include "chess_history.h"
-#include "chess_iterator.h"
-#include "chess_rules.h"
+
+using namespace ChessBitboard;
 
 const Piece ChessBoard::INITIAL_BOARD[8][8] = {
     {Piece::B_ROOK, Piece::B_KNIGHT, Piece::B_BISHOP, Piece::B_QUEEN, Piece::B_KING, Piece::B_BISHOP, Piece::B_KNIGHT, Piece::B_ROOK},
@@ -20,12 +20,24 @@ const Piece ChessBoard::INITIAL_BOARD[8][8] = {
 
 ChessBoard::ChessBoard()
     : currentTurn_(Color::WHITE),
+      hash_(0),
       cachedEval_(0.0f),
       fenDirty_(true),
       evalDirty_(true) {
-  memcpy(squares_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
-  kingSquare_[0][0] = 7; kingSquare_[0][1] = 4;  // White king at e1
-  kingSquare_[1][0] = 0; kingSquare_[1][1] = 4;  // Black king at e8
+  ChessAttacks::initAttacks();
+  bb_.clear();
+  memset(mailbox_, 0, sizeof(mailbox_));
+  for (int row = 0; row < 8; ++row)
+    for (int col = 0; col < 8; ++col) {
+      Piece p = INITIAL_BOARD[row][col];
+      if (p != Piece::NONE) {
+        Square sq = squareOf(row, col);
+        bb_.setPiece(sq, p);
+        mailbox_[sq] = p;
+      }
+    }
+  kingSquare_[0] = squareOf(7, 4);  // White king at e1
+  kingSquare_[1] = squareOf(0, 4);  // Black king at e8
 }
 
 // ---------------------------------------------------------------------------
@@ -33,12 +45,23 @@ ChessBoard::ChessBoard()
 // ---------------------------------------------------------------------------
 
 void ChessBoard::newGame() {
-  memcpy(squares_, INITIAL_BOARD, sizeof(INITIAL_BOARD));
+  bb_.clear();
+  memset(mailbox_, 0, sizeof(mailbox_));
+  for (int row = 0; row < 8; ++row)
+    for (int col = 0; col < 8; ++col) {
+      Piece p = INITIAL_BOARD[row][col];
+      if (p != Piece::NONE) {
+        Square sq = squareOf(row, col);
+        bb_.setPiece(sq, p);
+        mailbox_[sq] = p;
+      }
+    }
   currentTurn_ = Color::WHITE;
   state_ = PositionState::initial();
   hashHistory_.count = 0;
-  kingSquare_[0][0] = 7; kingSquare_[0][1] = 4;
-  kingSquare_[1][0] = 0; kingSquare_[1][1] = 4;
+  kingSquare_[0] = squareOf(7, 4);
+  kingSquare_[1] = squareOf(0, 4);
+  hash_ = ChessHash::computeHash(bb_, mailbox_, currentTurn_, state_);
   invalidateCache();
   recordPosition();
 }
@@ -46,15 +69,16 @@ void ChessBoard::newGame() {
 bool ChessBoard::loadFEN(const std::string& fen) {
   if (!ChessFEN::validateFEN(fen)) return false;
 
-  ChessFEN::fenToBoard(fen, squares_, currentTurn_, &state_);
+  ChessFEN::fenToBoard(fen, bb_, mailbox_, currentTurn_, &state_);
   hashHistory_.count = 0;
-  // Scan for king positions after loading arbitrary FEN
-  for (int r = 0; r < 8; r++)
-    for (int c = 0; c < 8; c++) {
-      Piece p = squares_[r][c];
-      if (p == Piece::W_KING) { kingSquare_[0][0] = r; kingSquare_[0][1] = c; }
-      else if (p == Piece::B_KING) { kingSquare_[1][0] = r; kingSquare_[1][1] = c; }
-    }
+
+  // Locate king positions from bitboards
+  int wkIdx = ChessPiece::pieceZobristIndex(Piece::W_KING);
+  int bkIdx = ChessPiece::pieceZobristIndex(Piece::B_KING);
+  kingSquare_[0] = bb_.byPiece[wkIdx] ? lsb(bb_.byPiece[wkIdx]) : SQ_NONE;
+  kingSquare_[1] = bb_.byPiece[bkIdx] ? lsb(bb_.byPiece[bkIdx]) : SQ_NONE;
+
+  hash_ = ChessHash::computeHash(bb_, mailbox_, currentTurn_, state_);
   invalidateCache();
   recordPosition();
   return true;
@@ -65,39 +89,33 @@ bool ChessBoard::loadFEN(const std::string& fen) {
 // ---------------------------------------------------------------------------
 
 MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  // Validate coordinates
   if (!ChessUtils::isValidSquare(fromRow, fromCol) || !ChessUtils::isValidSquare(toRow, toCol))
     return invalidMoveResult();
 
-  Piece piece = squares_[fromRow][fromCol];
+  Piece piece = getSquare(fromRow, fromCol);
   if (piece == Piece::NONE) return invalidMoveResult();
-
-  // Validate turn
   if (ChessPiece::pieceColor(piece) != currentTurn_) return invalidMoveResult();
 
-  // Validate move legality via rules
-  if (!ChessRules::isValidMove(squares_, fromRow, fromCol, toRow, toCol, state_)) return invalidMoveResult();
+  if (!ChessRules::isValidMove(bb_, mailbox_, fromRow, fromCol, toRow, toCol, state_))
+    return invalidMoveResult();
 
-  // Build result and apply
   MoveResult result;
   result.valid = true;
   applyMoveToBoard(fromRow, fromCol, toRow, toCol, promotion, result);
 
-  // Advance turn and record position for repetition detection
   advanceTurn();
   recordPosition();
   char winner = ' ';
   GameResult endResult = ChessRules::isGameOver(
-      squares_, currentTurn_, state_, hashHistory_, winner);
+      bb_, mailbox_, currentTurn_, state_, hashHistory_, winner);
   result.gameResult = endResult;
   result.winnerColor = winner;
 
-  // Check detection: checkmate implies check; otherwise test explicitly
   result.isCheck = false;
   if (endResult == GameResult::CHECKMATE) {
     result.isCheck = true;
   } else if (endResult == GameResult::IN_PROGRESS &&
-             ChessRules::isCheck(squares_, currentTurn_, kingRow(currentTurn_), kingCol(currentTurn_))) {
+             ChessRules::isSquareUnderAttack(bb_, kingSquare_[ChessPiece::raw(currentTurn_)], currentTurn_)) {
     result.isCheck = true;
   }
 
@@ -110,46 +128,55 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
 // ---------------------------------------------------------------------------
 
 void ChessBoard::reverseMove(const MoveEntry& entry) {
-  // Restore the piece to its original square (before promotion)
-  squares_[entry.fromRow][entry.fromCol] = entry.piece;
+  Square from = squareOf(entry.fromRow, entry.fromCol);
+  Square to = squareOf(entry.toRow, entry.toCol);
 
-  // Clear destination
-  squares_[entry.toRow][entry.toCol] = Piece::NONE;
+  // Get what's currently at destination (may be promoted piece)
+  Piece currentAtTo = mailbox_[to];
+
+  // Remove piece from destination
+  bb_.removePiece(to, currentAtTo);
+  mailbox_[to] = Piece::NONE;
+
+  // Restore original piece at source
+  bb_.setPiece(from, entry.piece);
+  mailbox_[from] = entry.piece;
 
   // Restore captured piece
   if (entry.isEnPassant) {
-    // En passant: captured pawn was on epCapturedRow, same col as destination
-    squares_[entry.epCapturedRow][entry.toCol] = entry.captured;
+    Square epSq = squareOf(entry.epCapturedRow, entry.toCol);
+    bb_.setPiece(epSq, entry.captured);
+    mailbox_[epSq] = entry.captured;
   } else if (entry.isCapture) {
-    squares_[entry.toRow][entry.toCol] = entry.captured;
+    bb_.setPiece(to, entry.captured);
+    mailbox_[to] = entry.captured;
   }
 
-  // Reverse castling rook move
+  // Reverse castling rook
   if (entry.isCastling) {
     auto castle = ChessUtils::checkCastling(entry.fromRow, entry.fromCol,
                                              entry.toRow, entry.toCol, entry.piece);
     if (castle.isCastling) {
-      // Move rook back: it's currently at rookToCol, restore to rookFromCol
-      Piece rook = squares_[entry.toRow][castle.rookToCol];
-      squares_[entry.toRow][castle.rookFromCol] = rook;
-      squares_[entry.toRow][castle.rookToCol] = Piece::NONE;
+      Square rookTo = squareOf(entry.toRow, castle.rookToCol);
+      Square rookFrom = squareOf(entry.toRow, castle.rookFromCol);
+      Piece rook = mailbox_[rookTo];
+      bb_.movePiece(rookTo, rookFrom, rook);
+      mailbox_[rookFrom] = rook;
+      mailbox_[rookTo] = Piece::NONE;
     }
   }
 
-  // Restore position state from before the move
+  // Restore state
   state_ = entry.prevState;
-
-  // Switch turn back and restore king cache
   currentTurn_ = ChessPiece::pieceColor(entry.piece);
-  if (ChessPiece::pieceType(entry.piece) == PieceType::KING) {
-    int ci = ChessPiece::raw(currentTurn_);
-    kingSquare_[ci][0] = entry.fromRow;
-    kingSquare_[ci][1] = entry.fromCol;
-  }
 
-  // Pop last Zobrist position
+  if (ChessPiece::pieceType(entry.piece) == PieceType::KING)
+    kingSquare_[ChessPiece::raw(currentTurn_)] = from;
+
+  // Pop hash and recompute (reverseMove is not a hot path)
   if (hashHistory_.count > 0)
     hashHistory_.count--;
+  hash_ = ChessHash::computeHash(bb_, mailbox_, currentTurn_, state_);
 
   invalidateCache();
 }
@@ -165,7 +192,7 @@ MoveResult ChessBoard::applyMoveEntry(const MoveEntry& entry) {
 
 std::string ChessBoard::getFen() const {
   if (fenDirty_) {
-    cachedFen_ = ChessFEN::boardToFEN(squares_, currentTurn_, &state_);
+    cachedFen_ = ChessFEN::boardToFEN(mailbox_, currentTurn_, &state_);
     fenDirty_ = false;
   }
   return cachedFen_;
@@ -173,12 +200,11 @@ std::string ChessBoard::getFen() const {
 
 float ChessBoard::getEvaluation() const {
   if (evalDirty_) {
-    cachedEval_ = ChessUtils::evaluatePosition(squares_);
+    cachedEval_ = ChessUtils::evaluatePosition(bb_);
     evalDirty_ = false;
   }
   return cachedEval_;
 }
-
 
 void ChessBoard::invalidateCache() {
   fenDirty_ = true;
@@ -186,64 +212,107 @@ void ChessBoard::invalidateCache() {
 }
 
 // ---------------------------------------------------------------------------
-// Internal: apply move to board
+// Internal: apply move to board with incremental Zobrist hash
 // ---------------------------------------------------------------------------
 
-void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result) {
-  Piece piece = squares_[fromRow][fromCol];
-  Piece capturedPiece = squares_[toRow][toCol];
+void ChessBoard::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol,
+                                   char promotion, MoveResult& result) {
+  Square from = squareOf(fromRow, fromCol);
+  Square to = squareOf(toRow, toCol);
+  Piece piece = mailbox_[from];
+  Piece capturedPiece = mailbox_[to];
 
-  // --- En passant analysis (for state update + result) ---
+  // --- Analyze ---
   auto ep = ChessUtils::checkEnPassant(fromRow, fromCol, toRow, toCol, piece, capturedPiece);
   result.isEnPassant = ep.isCapture;
   result.epCapturedRow = ep.capturedPawnRow;
   result.isPromotion = false;
   result.promotedTo = Piece::NONE;
 
-  state_.epRow = ep.nextEpRow;
-  state_.epCol = ep.nextEpCol;
-
-  // --- Castling analysis (for result) ---
   auto castle = ChessUtils::checkCastling(fromRow, fromCol, toRow, toCol, piece);
   result.isCastling = castle.isCastling;
 
-  // Update halfmove clock (reset on pawn move or capture, otherwise increment)
+  // --- Hash: remove old state keys ---
+  hash_ ^= ChessHash::KEYS.castling[state_.castlingRights];
+  if (state_.epRow >= 0 && state_.epCol >= 0 &&
+      ChessRules::hasLegalEnPassantCapture(bb_, mailbox_, currentTurn_, state_))
+    hash_ ^= ChessHash::KEYS.enPassant[state_.epCol];
+
+  // --- Update EP state ---
+  state_.epRow = ep.nextEpRow;
+  state_.epCol = ep.nextEpCol;
+
+  // --- Halfmove clock ---
   if (ChessPiece::pieceType(piece) == PieceType::PAWN || capturedPiece != Piece::NONE || ep.isCapture)
     state_.halfmoveClock = 0;
   else
     state_.halfmoveClock++;
 
-  // --- Apply the physical board transform (piece move + castling rook + EP removal) ---
+  // --- Apply board transform ---
   Piece actualCapture;
-  ChessUtils::applyBoardTransform(squares_, fromRow, fromCol, toRow, toCol, ep, castle, actualCapture);
+  ChessUtils::applyBoardTransform(bb_, mailbox_, from, to, ep, castle, actualCapture);
   result.isCapture = (actualCapture != Piece::NONE);
 
-  // Update castling rights
+  // --- Hash: piece movements ---
+  int pieceIdx = ChessPiece::pieceZobristIndex(piece);
+  hash_ ^= ChessHash::KEYS.pieces[pieceIdx][from];
+  hash_ ^= ChessHash::KEYS.pieces[pieceIdx][to];
+
+  if (actualCapture != Piece::NONE) {
+    int capIdx = ChessPiece::pieceZobristIndex(actualCapture);
+    Square capSq = ep.isCapture ? squareOf(ep.capturedPawnRow, colOf(to)) : to;
+    hash_ ^= ChessHash::KEYS.pieces[capIdx][capSq];
+  }
+
+  if (castle.isCastling) {
+    Piece rook = ChessPiece::makePiece(ChessPiece::pieceColor(piece), PieceType::ROOK);
+    int rookIdx = ChessPiece::pieceZobristIndex(rook);
+    Square rookFrom = squareOf(fromRow, castle.rookFromCol);
+    Square rookTo = squareOf(fromRow, castle.rookToCol);
+    hash_ ^= ChessHash::KEYS.pieces[rookIdx][rookFrom];
+    hash_ ^= ChessHash::KEYS.pieces[rookIdx][rookTo];
+  }
+
+  // --- Update castling rights ---
   state_.castlingRights = ChessUtils::updateCastlingRights(
       state_.castlingRights, fromRow, fromCol, toRow, toCol, piece, actualCapture);
 
-  // Pawn promotion
+  // --- Promotion ---
   if (ChessPiece::isPromotion(piece, toRow)) {
     result.isPromotion = true;
     Color pieceColor = ChessPiece::pieceColor(piece);
-    if (promotion != ' ' && promotion != '\0') {
-      result.promotedTo = ChessPiece::makePiece(pieceColor, ChessPiece::charToPieceType(promotion));
-    } else {
-      // Auto-queen
-      result.promotedTo = ChessPiece::makePiece(pieceColor, PieceType::QUEEN);
-    }
-    squares_[toRow][toCol] = result.promotedTo;
+    Piece promotedTo;
+    if (promotion != ' ' && promotion != '\0')
+      promotedTo = ChessPiece::makePiece(pieceColor, ChessPiece::charToPieceType(promotion));
+    else
+      promotedTo = ChessPiece::makePiece(pieceColor, PieceType::QUEEN);
+    result.promotedTo = promotedTo;
+
+    bb_.removePiece(to, piece);
+    bb_.setPiece(to, promotedTo);
+    mailbox_[to] = promotedTo;
+
+    // Hash: swap pawn → promoted piece at destination
+    hash_ ^= ChessHash::KEYS.pieces[pieceIdx][to];
+    hash_ ^= ChessHash::KEYS.pieces[ChessPiece::pieceZobristIndex(promotedTo)][to];
   }
 
-  // Update king cache if a king moved
-  if (ChessPiece::pieceType(piece) == PieceType::KING) {
-    int ci = ChessPiece::raw(ChessPiece::pieceColor(piece));
-    kingSquare_[ci][0] = toRow;
-    kingSquare_[ci][1] = toCol;
-  }
+  // --- Hash: add new state keys ---
+  hash_ ^= ChessHash::KEYS.castling[state_.castlingRights];
+
+  // Toggle side to move
+  hash_ ^= ChessHash::KEYS.sideToMove;
+
+  // New EP key (checking with the next side to move = opponent)
+  Color nextSide = ~currentTurn_;
+  if (state_.epRow >= 0 && state_.epCol >= 0 &&
+      ChessRules::hasLegalEnPassantCapture(bb_, mailbox_, nextSide, state_))
+    hash_ ^= ChessHash::KEYS.enPassant[state_.epCol];
+
+  // --- Update king cache ---
+  if (ChessPiece::pieceType(piece) == PieceType::KING)
+    kingSquare_[ChessPiece::raw(ChessPiece::pieceColor(piece))] = to;
 }
-
-
 
 // ---------------------------------------------------------------------------
 // Internal: turn advancement + position recording
@@ -255,16 +324,10 @@ void ChessBoard::advanceTurn() {
   currentTurn_ = ~currentTurn_;
 }
 
-// ---------------------------------------------------------------------------
-// Internal: position recording (Zobrist hashing for threefold repetition)
-// ---------------------------------------------------------------------------
-
 void ChessBoard::recordPosition() {
   if (state_.halfmoveClock == 0 && hashHistory_.count > 0)
     hashHistory_.count = 0;
 
-  if (hashHistory_.count < HashHistory::MAX_SIZE) {
-    hashHistory_.keys[hashHistory_.count++] =
-        ChessHash::computeHash(squares_, currentTurn_, state_);
-  }
+  if (hashHistory_.count < HashHistory::MAX_SIZE)
+    hashHistory_.keys[hashHistory_.count++] = hash_;
 }

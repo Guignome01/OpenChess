@@ -14,7 +14,8 @@
 #include <vector>
 
 // Shared globals from test_core.cpp
-extern Piece board[8][8];
+extern ChessBitboard::BitboardSet bb;
+extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
 // ---------------------------------------------------------------------------

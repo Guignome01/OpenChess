@@ -3,6 +3,7 @@
 
 #include <cstdint>
 
+#include "chess_bitboard.h"
 #include "chess_piece.h"
 
 // Complete position state for chess operations.
@@ -96,21 +97,24 @@ static constexpr float MAX_USAGE_PERCENT = 0.80f;
 static constexpr int MAX_MOVES_PER_PIECE = 28;
 
 // Fixed-capacity list of target squares for a single piece's moves.
-// Replaces the coupled (int& moveCount, int moves[][2]) out-param pattern.
+// Stores LERF square indices internally; exposes row(i)/col(i) for
+// firmware compatibility and square(i) for internal bitboard code.
 struct MoveList {
   int count = 0;
 
   void add(int r, int c) {
-    data_[count][0] = r;
-    data_[count][1] = c;
-    count++;
+    targets_[count++] = ChessBitboard::squareOf(r, c);
   }
-  int row(int i) const { return data_[i][0]; }
-  int col(int i) const { return data_[i][1]; }
+  void addSquare(ChessBitboard::Square sq) {
+    targets_[count++] = sq;
+  }
+  int row(int i) const { return ChessBitboard::rowOf(targets_[i]); }
+  int col(int i) const { return ChessBitboard::colOf(targets_[i]); }
+  ChessBitboard::Square square(int i) const { return targets_[i]; }
   void clear() { count = 0; }
 
  private:
-  int data_[MAX_MOVES_PER_PIECE][2];
+  ChessBitboard::Square targets_[MAX_MOVES_PER_PIECE];
 };
 
 // Fixed-capacity Zobrist hash history for threefold repetition detection.

@@ -1,6 +1,9 @@
 #ifndef CORE_CHESS_RULES_H
 #define CORE_CHESS_RULES_H
 
+#include "chess_attacks.h"
+#include "chess_bitboard.h"
+#include "chess_utils.h"
 #include "types.h"
 
 // ---------------------------
@@ -9,58 +12,73 @@
 // Pure chess logic — evaluates positions, generates moves, detects check/mate.
 // All position-dependent state (castling, en passant, clocks) is owned by the
 // caller (ChessBoard) and passed in via PositionState where needed.
+//
+// Board representation: BitboardSet (piece bitboards + occupancy) plus a
+// parallel Piece mailbox[64] for O(1) piece identity on any square.
 class ChessRules {
  private:
-  // Helper functions for move generation
-  static void addPawnMoves(const Piece board[8][8], int row, int col, Color pieceColor, const PositionState& state, MoveList& moves);
-  static void addRookMoves(const Piece board[8][8], int row, int col, Color pieceColor, MoveList& moves);
-  static void addKnightMoves(const Piece board[8][8], int row, int col, Color pieceColor, MoveList& moves);
-  static void addBishopMoves(const Piece board[8][8], int row, int col, Color pieceColor, MoveList& moves);
-  static void addQueenMoves(const Piece board[8][8], int row, int col, Color pieceColor, MoveList& moves);
-  static void addSlidingMoves(const Piece board[8][8], int row, int col, Color pieceColor, const int directions[][2], int dirCount, MoveList& moves);
-  static void addKingMoves(const Piece board[8][8], int row, int col, Color pieceColor, const PositionState& state, MoveList& moves, bool includeCastling);
+  using BB = ChessBitboard::BitboardSet;
+  using Bitboard = ChessBitboard::Bitboard;
+  using Square = ChessBitboard::Square;
 
-  static void addCastlingMoves(const Piece board[8][8], int row, int col, Color pieceColor, uint8_t castlingRights, MoveList& moves);
+  // Pseudo-legal move generation per piece type
+  static void addPawnMoves(const BB& bb, const Piece mailbox[], Square sq, Color pieceColor, const PositionState& state, MoveList& moves);
+  static void addKnightMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves);
+  static void addBishopMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves);
+  static void addRookMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves);
+  static void addQueenMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves);
+  static void addKingMoves(const BB& bb, const Piece mailbox[], Square sq, Color pieceColor, const PositionState& state, MoveList& moves, bool includeCastling);
+  static void addCastlingMoves(const BB& bb, const Piece mailbox[], Square sq, Color pieceColor, uint8_t castlingRights, MoveList& moves);
 
-  static bool isSquareOccupiedByOpponent(const Piece board[8][8], int row, int col, Color pieceColor);
-  static bool isSquareEmpty(const Piece board[8][8], int row, int col);
+  static void getPseudoLegalMoves(const BB& bb, const Piece mailbox[], Square sq, const PositionState& state, MoveList& moves, bool includeCastling = true);
 
-  // Check detection helpers
-  static void getPseudoLegalMoves(const Piece board[8][8], int row, int col, const PositionState& state, MoveList& moves, bool includeCastling = true);
-  static bool leavesInCheck(const Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state);
-  static bool leavesInCheck(const Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state, int kingRow, int kingCol);
+  // Check detection: apply move on a bitboard-only copy (no mailbox needed).
+  static bool leavesInCheck(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state);
+  static bool leavesInCheck(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state, Square kingSq);
+
+  // BB-only move application for leavesInCheck (avoids mailbox copy)
+  static void applyMoveBB(BB& bb, Square from, Square to,
+                          Piece piece, Piece capturedPiece,
+                          const ChessUtils::EnPassantInfo& ep,
+                          const ChessUtils::CastlingInfo& castle);
 
   // Early-exit legal move check for a single piece
-  static bool hasLegalMove(const Piece board[8][8], int row, int col, const PositionState& state, int kingRow, int kingCol);
+  static bool hasLegalMove(const BB& bb, const Piece mailbox[], Square sq, const PositionState& state, Square kingSq);
 
   // hasAnyLegalMove with pre-found king position
-  static bool hasAnyLegalMove(const Piece board[8][8], Color color, const PositionState& state, int kingRow, int kingCol);
+  static bool hasAnyLegalMove(const BB& bb, const Piece mailbox[], Color color, const PositionState& state, Square kingSq);
 
  public:
-  // En passant legality query (used by ChessBoard for Zobrist hashing)
-  static bool hasLegalEnPassantCapture(const Piece board[8][8], Color sideToMove, const PositionState& state);
+  // En passant legality query (used by ChessHash for Zobrist hashing)
+  static bool hasLegalEnPassantCapture(const BB& bb, const Piece mailbox[], Color sideToMove, const PositionState& state);
 
-  // Square attack detection
-  static bool isSquareUnderAttack(const Piece board[8][8], int row, int col, Color defendingColor);
+  // Square attack detection using precomputed tables + ray loops.
+  // Only needs the bitboard set — no mailbox required.
+  static bool isSquareUnderAttack(const BB& bb, Square sq, Color defendingColor);
+
+  // Row/col overload for callers using board coordinates.
+  static bool isSquareUnderAttack(const BB& bb, int row, int col, Color defendingColor) {
+    return isSquareUnderAttack(bb, ChessBitboard::squareOf(row, col), defendingColor);
+  }
 
   // Main move generation function (returns only legal moves)
-  static void getPossibleMoves(const Piece board[8][8], int row, int col, const PositionState& state, MoveList& moves);
+  static void getPossibleMoves(const BB& bb, const Piece mailbox[], int row, int col, const PositionState& state, MoveList& moves);
 
   // Move validation
-  static bool isValidMove(const Piece board[8][8], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state);
+  static bool isValidMove(const BB& bb, const Piece mailbox[], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state);
 
   // Game state checks
-  static bool isCheck(const Piece board[8][8], Color kingColor);
-  static bool isCheck(const Piece board[8][8], Color kingColor, int kingRow, int kingCol);
-  static bool hasAnyLegalMove(const Piece board[8][8], Color color, const PositionState& state);
-  static bool isCheckmate(const Piece board[8][8], Color kingColor, const PositionState& state);
-  static bool isStalemate(const Piece board[8][8], Color colorToMove, const PositionState& state);
-  static bool isInsufficientMaterial(const Piece board[8][8]);
+  static bool isCheck(const BB& bb, Color kingColor);
+  static bool isCheck(const BB& bb, Square kingSq, Color kingColor);
+  static bool hasAnyLegalMove(const BB& bb, const Piece mailbox[], Color color, const PositionState& state);
+  static bool isCheckmate(const BB& bb, const Piece mailbox[], Color kingColor, const PositionState& state);
+  static bool isStalemate(const BB& bb, const Piece mailbox[], Color colorToMove, const PositionState& state);
+  static bool isInsufficientMaterial(const BB& bb);
   static bool isThreefoldRepetition(const HashHistory& hashes);
   static bool isFiftyMoveRule(const PositionState& state);
-  static bool isDraw(const Piece board[8][8], Color colorToMove, const PositionState& state,
+  static bool isDraw(const BB& bb, const Piece mailbox[], Color colorToMove, const PositionState& state,
                      const HashHistory& hashes);
-  static GameResult isGameOver(const Piece board[8][8], Color colorToMove, const PositionState& state,
+  static GameResult isGameOver(const BB& bb, const Piece mailbox[], Color colorToMove, const PositionState& state,
                                const HashHistory& hashes, char& winner);
 };
 
