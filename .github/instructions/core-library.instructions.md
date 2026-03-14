@@ -20,7 +20,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, square-color masks (`DARK_SQUARES`, `LIGHT_SQUARES`), directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
-| `ChessAttacks` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), classical ray functions (`rookAttacks`, `bishopAttacks`, `queenAttacks`), x-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`), `rayBetween(s1, s2)` | Stateless namespace (~2.5 KiB tables, initialized once via `initAttacks()`) |
+| `ChessAttacks` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), classical ray functions (`rookAttacks`, `bishopAttacks`, `queenAttacks`), x-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`), `rayBetween(s1, s2)` (strictly between, exclusive), `lineBB(s1, s2)` (full line through both, inclusive, edge-to-edge) | Stateless namespace (~2.5 KiB tables, initialized once via `initAttacks()`) |
 | `ChessHash` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |

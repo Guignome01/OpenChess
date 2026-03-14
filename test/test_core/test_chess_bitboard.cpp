@@ -522,6 +522,45 @@ static void test_square_color_no_overlap(void) {
   TEST_ASSERT_EQUAL_UINT64(~0ULL, DARK_SQUARES | LIGHT_SQUARES);
 }
 
+// ---------------------------------------------------------------------------
+// lineBB — full line through two colinear squares
+// ---------------------------------------------------------------------------
+
+// Same rank: line through a1-h1 covers all of rank 1.
+static void test_lineBB_same_rank(void) {
+  Square a1 = squareOf(7, 0), h1 = squareOf(7, 7);
+  TEST_ASSERT_EQUAL_UINT64(RANK_1, lineBB(a1, h1));
+}
+
+// Same file: line through a1-a8 covers all of file a.
+static void test_lineBB_same_file(void) {
+  Square a1 = squareOf(7, 0), a8 = squareOf(0, 0);
+  TEST_ASSERT_EQUAL_UINT64(FILE_A, lineBB(a1, a8));
+}
+
+// Diagonal: line through a1-h8 covers the full a1-h8 diagonal.
+static void test_lineBB_diagonal(void) {
+  Square a1 = squareOf(7, 0), h8 = squareOf(0, 7);
+  Bitboard expected = 0;
+  for (int i = 0; i < 8; i++)
+    expected |= squareBB(squareOf(7 - i, i));
+  TEST_ASSERT_EQUAL_UINT64(expected, lineBB(a1, h8));
+}
+
+// Non-colinear squares return 0.
+static void test_lineBB_non_colinear(void) {
+  Square a1 = squareOf(7, 0), b3 = squareOf(5, 1);
+  TEST_ASSERT_EQUAL_UINT64(0, lineBB(a1, b3));
+}
+
+// Both endpoints are included in the result.
+static void test_lineBB_includes_endpoints(void) {
+  Square c1 = squareOf(7, 2), f1 = squareOf(7, 5);
+  Bitboard line = lineBB(c1, f1);
+  TEST_ASSERT_NOT_EQUAL(0, line & squareBB(c1));
+  TEST_ASSERT_NOT_EQUAL(0, line & squareBB(f1));
+}
+
 void register_chess_bitboard_tests() {
   // Square mapping
   RUN_TEST(test_squareOf_corners);
@@ -592,4 +631,11 @@ void register_chess_bitboard_tests() {
   RUN_TEST(test_square_color_b1_light);
   RUN_TEST(test_square_color_popcount);
   RUN_TEST(test_square_color_no_overlap);
+
+  // lineBB
+  RUN_TEST(test_lineBB_same_rank);
+  RUN_TEST(test_lineBB_same_file);
+  RUN_TEST(test_lineBB_diagonal);
+  RUN_TEST(test_lineBB_non_colinear);
+  RUN_TEST(test_lineBB_includes_endpoints);
 }

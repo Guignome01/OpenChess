@@ -64,6 +64,11 @@ Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq);
 // (exclusive of both endpoints). Returns 0 if s1 and s2 are not colinear.
 Bitboard rayBetween(Square s1, Square s2);
 
+// Full line through s1 and s2, extending to both board edges, inclusive of
+// both endpoints. Returns 0 if s1 and s2 are not colinear (different rank,
+// file, and diagonal). Used for pin detection and alignment checks.
+Bitboard lineBB(Square s1, Square s2);
+
 }  // namespace ChessAttacks
 
 #endif  // CORE_CHESS_ATTACKS_H

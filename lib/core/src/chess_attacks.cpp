@@ -143,19 +143,52 @@ Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq) {
   return bishopAttacks(sq, occupied ^ blockers);
 }
 
+// ---------------------------------------------------------------------------
+// Ray geometry functions
+// ---------------------------------------------------------------------------
+// rayBetween and lineBB exploit a slider-intersection trick:
+//   - Slider attacks from s1 with s2 as the only blocker gives the ray from
+//     s1 toward s2, stopping AT s2 (inclusive).
+//   - Intersecting the ray from s1→s2 with the ray from s2→s1 yields the
+//     squares strictly between them (rayBetween, exclusive of endpoints).
+//   - Slider attacks with empty occupancy give the full unobstructed ray to
+//     the board edge. Intersecting those from both squares gives all squares
+//     on their shared line, minus the endpoints (lineBB adds them back).
+// Both check colinearity first: s1 and s2 must share a rank, file, or
+// diagonal (|dr| == |dc| for diagonals). Non-colinear pairs return 0.
+
 Bitboard rayBetween(Square s1, Square s2) {
   int r1 = static_cast<int>(s1) / 8, c1 = static_cast<int>(s1) % 8;
   int r2 = static_cast<int>(s2) / 8, c2 = static_cast<int>(s2) % 8;
   int dr = r2 - r1, dc = c2 - c1;
 
-  // Must be colinear: same rank, file, or diagonal.
+  // Colinearity check: orthogonal if dr==0 or dc==0, diagonal if |dr|==|dc|.
   if (dr != 0 && dc != 0 && (dr < 0 ? -dr : dr) != (dc < 0 ? -dc : dc))
     return 0;
 
+  // Use each square as the sole blocker for the other's ray.
+  // The intersection is the squares strictly between them.
   Bitboard b1 = squareBB(s1), b2 = squareBB(s2);
   if (dr == 0 || dc == 0)
     return rookAttacks(s1, b2) & rookAttacks(s2, b1);
   return bishopAttacks(s1, b2) & bishopAttacks(s2, b1);
+}
+
+Bitboard lineBB(Square s1, Square s2) {
+  int r1 = static_cast<int>(s1) / 8, c1 = static_cast<int>(s1) % 8;
+  int r2 = static_cast<int>(s2) / 8, c2 = static_cast<int>(s2) % 8;
+  int dr = r2 - r1, dc = c2 - c1;
+
+  // Colinearity check (same as rayBetween).
+  if (dr != 0 && dc != 0 && (dr < 0 ? -dr : dr) != (dc < 0 ? -dc : dc))
+    return 0;
+
+  // Empty occupancy (0) gives full unobstructed rays to the board edge.
+  // Intersecting from both squares yields the shared line minus endpoints.
+  Bitboard endpoints = squareBB(s1) | squareBB(s2);
+  if (dr == 0 || dc == 0)
+    return (rookAttacks(s1, 0) & rookAttacks(s2, 0)) | endpoints;
+  return (bishopAttacks(s1, 0) & bishopAttacks(s2, 0)) | endpoints;
 }
 
 }  // namespace ChessAttacks
