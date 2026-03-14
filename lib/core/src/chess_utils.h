@@ -193,10 +193,6 @@ void applyBoardTransform(ChessBitboard::BitboardSet& bb, Piece mailbox[],
                          const EnPassantInfo& ep, const CastlingInfo& castle,
                          Piece& capturedPiece);
 
-// Evaluate board position using simple material count via bitboard popcount.
-// Returns evaluation in pawns (positive = White advantage, negative = Black advantage)
-float evaluatePosition(const ChessBitboard::BitboardSet& bb);
-
 // Format the board as a human-readable text block for debugging.
 std::string boardToText(const Piece mailbox[]);
 

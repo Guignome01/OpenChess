@@ -41,17 +41,6 @@ void applyBoardTransform(ChessBitboard::BitboardSet& bb, Piece mailbox[],
   }
 }
 
-float evaluatePosition(const ChessBitboard::BitboardSet& bb) {
-  // Piece values indexed by pieceZobristIndex offset (P=0 N=1 B=2 R=3 Q=4 K=5)
-  static constexpr float VALUES[] = {1.0f, 3.0f, 3.0f, 5.0f, 9.0f, 0.0f};
-  float eval = 0.0f;
-  for (int i = 0; i < 6; ++i) {
-    eval += VALUES[i] * ChessBitboard::popcount(bb.byPiece[i]);      // white
-    eval -= VALUES[i] * ChessBitboard::popcount(bb.byPiece[i + 6]);  // black
-  }
-  return eval;
-}
-
 std::string boardToText(const Piece mailbox[]) {
   std::string result = "====== BOARD ======\n";
   for (int row = 0; row < 8; ++row) {

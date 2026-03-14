@@ -6,6 +6,7 @@
 
 #include "chess_attacks.h"
 #include "chess_bitboard.h"
+#include "chess_evaluation.h"
 #include "chess_hash.h"
 #include "chess_iterator.h"
 #include "chess_rules.h"

@@ -1,5 +1,6 @@
 #include <unity.h>
 
+#include "../../lib/core/src/chess_evaluation.h"
 #include "../test_helpers.h"
 
 extern ChessBitboard::BitboardSet bb;
@@ -12,7 +13,7 @@ extern bool needsDefaultKings;
 
 void test_evaluation_initial_is_zero(void) {
   setupInitialBoard(bb, mailbox);
-  float eval = ChessUtils::evaluatePosition(bb);
+  float eval = ChessEval::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
 
@@ -20,8 +21,8 @@ void test_evaluation_white_up_queen(void) {
   placePiece(bb, mailbox, Piece::W_KING, "e1");
   placePiece(bb, mailbox, Piece::W_QUEEN, "d1");
   placePiece(bb, mailbox, Piece::B_KING, "e8");
-  float eval = ChessUtils::evaluatePosition(bb);
-  TEST_ASSERT_FLOAT_WITHIN(0.01f, 9.0f, eval); // White has +9 for queen
+  float eval = ChessEval::evaluatePosition(bb);
+  TEST_ASSERT_TRUE(eval > 8.0f);  // 9.0 material - small PST penalty for queen on d1
 }
 
 void test_evaluation_equal_material(void) {
@@ -29,8 +30,8 @@ void test_evaluation_equal_material(void) {
   placePiece(bb, mailbox, Piece::W_ROOK, "a1");
   placePiece(bb, mailbox, Piece::B_KING, "e8");
   placePiece(bb, mailbox, Piece::B_ROOK, "a8");
-  float eval = ChessUtils::evaluatePosition(bb);
-  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
+  float eval = ChessEval::evaluatePosition(bb);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);  // symmetric placement → zero
 }
 
 // ---------------------------------------------------------------------------
@@ -108,13 +109,13 @@ void test_evaluation_black_advantage(void) {
   placePiece(bb, mailbox, Piece::W_KING, "e1");
   placePiece(bb, mailbox, Piece::B_KING, "e8");
   placePiece(bb, mailbox, Piece::B_QUEEN, "d8"); // black queen, no white queen
-  float eval = ChessUtils::evaluatePosition(bb);
+  float eval = ChessEval::evaluatePosition(bb);
   TEST_ASSERT_TRUE(eval < 0.0f); // negative = black advantage
 }
 
 void test_evaluation_empty_board(void) {
   // board is already cleared by setUp
-  float eval = ChessUtils::evaluatePosition(bb);
+  float eval = ChessEval::evaluatePosition(bb);
   TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.0f, eval);
 }
 

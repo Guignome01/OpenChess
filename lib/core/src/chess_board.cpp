@@ -202,7 +202,7 @@ std::string ChessBoard::getFen() const {
 
 float ChessBoard::getEvaluation() const {
   if (evalDirty_) {
-    cachedEval_ = ChessUtils::evaluatePosition(bb_);
+    cachedEval_ = ChessEval::evaluatePosition(bb_);
     evalDirty_ = false;
   }
   return cachedEval_;

@@ -16,7 +16,8 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (header-only, all constexpr) |
 | `ChessRules` | Move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, material evaluation, `gameResultName()` | Stateless namespace |
+| `ChessEval` | Position evaluation: material count + piece-square tables (PSTs) | Stateless namespace |
+| `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
 | `ChessAttacks` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), classical ray functions (`rookAttacks`, `bishopAttacks`, `queenAttacks`), x-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`), `rayBetween(s1, s2)` | Stateless namespace (~2.5 KiB tables, initialized once via `initAttacks()`) |
