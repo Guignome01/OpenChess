@@ -120,7 +120,7 @@ struct MoveList {
 // Fixed-capacity Zobrist hash history for threefold repetition detection.
 // Replaces the coupled (uint64_t*, int) parameter pattern.
 struct HashHistory {
-  static constexpr int MAX_SIZE = 256;
+  static constexpr int MAX_SIZE = 512;
 
   uint64_t keys[MAX_SIZE];
   int count = 0;
