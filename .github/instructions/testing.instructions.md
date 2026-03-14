@@ -85,7 +85,7 @@ Shared utilities available to all test files:
 Move generation for each piece type (pawn, knight, bishop, rook, queen, king). Blocked paths, captures, initial pawn double-push, edge of board. Starting position move counts.
 
 ### Rules — Check (`test_chess_rules_check.cpp`)
-Check detection from every piece type. Checkmate positions. Stalemate positions. Move legality when king is in check — blocking, capturing attacker, king escape. King position finder.
+Check detection from every piece type. Checkmate positions. Stalemate positions. Move legality when king is in check — blocking, capturing attacker, king escape. Pin-aware generation: pinned piece cannot leave pin ray; pinned piece can move along pin ray; diagonal pin; double check (only king can move); single-check slider blocking (checkMask filtering); knight check no blocking; two-friendly shielding not pinned; EP horizontal pin. Idempotency (repeated calls produce identical results). King position finder.
 
 ### Rules — Special (`test_chess_rules_special.cpp`)
 Castling: rights preservation, blocking pieces, through-check prevention, both colors, queenside/kingside. En passant: standard capture, edge cases. Promotion: all piece types. Helper functions.
@@ -124,4 +124,4 @@ Zobrist key determinism. `pieceZobristIndex` mapping. `computeHash` stability. H
 Exhaustive move-tree enumeration for 6 positions from the Chess Programming Wiki. Positions 1–4 verify detailed leaf-level counters: nodes, captures, en passant, castles, promotions, checks, and checkmates. Positions 5–6 verify node counts only (no wiki reference counters). Catches compensating bugs that node-only perft misses (e.g. a missed capture offset by a phantom quiet move).
 
 ### Bitboard (`test_chess_bitboard.cpp`)
-Square mapping roundtrip (`squareOf(rowOf(sq), colOf(sq)) == sq` for all 64). LERF anchor values (`squareOf(0,0) == SQ_A8`, `squareOf(7,0) == SQ_A1`). Bit manipulation (`popcount`, `lsb`, `popLsb`). Leaper attack tables (knight on e4, king on a1, pawn attacks per color). Slider ray functions (rook/bishop on empty board and with blockers). `BitboardSet` mutations (`setPiece`/`removePiece`/`movePiece` consistency, aggregate bitboard correctness).
+Square mapping roundtrip (`squareOf(rowOf(sq), colOf(sq)) == sq` for all 64). LERF anchor values (`squareOf(0,0) == SQ_A8`, `squareOf(7,0) == SQ_A1`). Bit manipulation (`popcount`, `lsb`, `popLsb`). Leaper attack tables (knight on e4, king on a1, pawn attacks per color). Slider ray functions (rook/bishop on empty board and with blockers). X-ray attack functions (`xrayRookAttacks`: north through blocker, no-friendly-blocker; `xrayBishopAttacks`: diagonal through blocker). `rayBetween`: same file, same rank, same diagonal, anti-diagonal, adjacent (returns 0), non-colinear (returns 0). `BitboardSet` mutations (`setPiece`/`removePiece`/`movePiece` consistency, aggregate bitboard correctness).

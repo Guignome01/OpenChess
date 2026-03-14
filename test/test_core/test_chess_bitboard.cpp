@@ -407,6 +407,91 @@ static void test_queen_attacks_e4_empty(void) {
 // Registration
 // ---------------------------------------------------------------------------
 
+// X-ray attacks (used for pin detection in Phase 2)
+static void test_xray_rook_north_through_blocker(void) {
+  // King on e1, friendly rook on e4, enemy rook on e8.
+  // Regular rook attack from e1 stops at e4. X-ray passes through to e8.
+  Square e1 = squareOf(7, 4), e4 = squareOf(4, 4), e8 = squareOf(0, 4);
+  Bitboard occ = squareBB(e1) | squareBB(e4) | squareBB(e8);
+  Bitboard friendly = squareBB(e4);
+
+  Bitboard regular = rookAttacks(e1, occ);
+  Bitboard xray = xrayRookAttacks(occ, friendly, e1);
+
+  TEST_ASSERT_TRUE(regular & squareBB(e4));   // e4 visible normally
+  TEST_ASSERT_FALSE(regular & squareBB(e8));  // e8 blocked by e4
+  TEST_ASSERT_TRUE(xray & squareBB(e8));      // e8 visible through xray
+}
+
+static void test_xray_rook_no_friendly_blocker(void) {
+  // With no friendly pieces, xray equals regular rook attacks.
+  Square e4 = squareOf(4, 4);
+  Bitboard occ = squareBB(e4);
+  TEST_ASSERT_EQUAL_UINT64(rookAttacks(e4, occ), xrayRookAttacks(occ, 0, e4));
+}
+
+static void test_xray_bishop_diagonal_through_blocker(void) {
+  // King on a1, friendly bishop on c3, enemy queen on e5.
+  // Regular bishop attack from a1 stops at c3. X-ray passes through to e5.
+  Square a1 = squareOf(7, 0), c3 = squareOf(5, 2), e5 = squareOf(3, 4);
+  Bitboard occ = squareBB(a1) | squareBB(c3) | squareBB(e5);
+  Bitboard friendly = squareBB(c3);
+
+  Bitboard regular = bishopAttacks(a1, occ);
+  Bitboard xray = xrayBishopAttacks(occ, friendly, a1);
+
+  TEST_ASSERT_TRUE(regular & squareBB(c3));   // c3 visible normally
+  TEST_ASSERT_FALSE(regular & squareBB(e5));  // e5 blocked by c3
+  TEST_ASSERT_TRUE(xray & squareBB(e5));      // e5 visible through xray
+}
+
+static void test_ray_between_same_file(void) {
+  Square e1 = squareOf(7, 4), e4 = squareOf(4, 4);
+  Square e2 = squareOf(6, 4), e3 = squareOf(5, 4);
+  Bitboard between = rayBetween(e1, e4);
+  TEST_ASSERT_TRUE(between & squareBB(e2));
+  TEST_ASSERT_TRUE(between & squareBB(e3));
+  TEST_ASSERT_FALSE(between & squareBB(e1));  // endpoint excluded
+  TEST_ASSERT_FALSE(between & squareBB(e4));  // endpoint excluded
+  TEST_ASSERT_EQUAL_INT(2, popcount(between));
+}
+
+static void test_ray_between_same_rank(void) {
+  Square a1 = squareOf(7, 0), d1 = squareOf(7, 3);
+  Square b1 = squareOf(7, 1), c1 = squareOf(7, 2);
+  Bitboard between = rayBetween(a1, d1);
+  TEST_ASSERT_TRUE(between & squareBB(b1));
+  TEST_ASSERT_TRUE(between & squareBB(c1));
+  TEST_ASSERT_EQUAL_INT(2, popcount(between));
+}
+
+static void test_ray_between_same_diagonal(void) {
+  // a1–c3 diagonal: b2 lies between them.
+  Square a1 = squareOf(7, 0), c3 = squareOf(5, 2), b2 = squareOf(6, 1);
+  Bitboard between = rayBetween(a1, c3);
+  TEST_ASSERT_TRUE(between & squareBB(b2));
+  TEST_ASSERT_EQUAL_INT(1, popcount(between));
+}
+
+static void test_ray_between_anti_diagonal(void) {
+  // h1–f3 anti-diagonal: g2 lies between them.
+  Square h1 = squareOf(7, 7), f3 = squareOf(5, 5), g2 = squareOf(6, 6);
+  Bitboard between = rayBetween(h1, f3);
+  TEST_ASSERT_TRUE(between & squareBB(g2));
+  TEST_ASSERT_EQUAL_INT(1, popcount(between));
+}
+
+static void test_ray_between_adjacent_returns_zero(void) {
+  Square e1 = squareOf(7, 4), e2 = squareOf(6, 4);
+  TEST_ASSERT_EQUAL_UINT64(0, rayBetween(e1, e2));
+}
+
+static void test_ray_between_not_colinear_returns_zero(void) {
+  // a1 and b3 share neither rank, file, nor diagonal.
+  Square a1 = squareOf(7, 0), b3 = squareOf(5, 1);
+  TEST_ASSERT_EQUAL_UINT64(0, rayBetween(a1, b3));
+}
+
 void register_chess_bitboard_tests() {
   // Square mapping
   RUN_TEST(test_squareOf_corners);
@@ -458,4 +543,17 @@ void register_chess_bitboard_tests() {
 
   // Queen attacks
   RUN_TEST(test_queen_attacks_e4_empty);
+
+  // X-ray attacks
+  RUN_TEST(test_xray_rook_north_through_blocker);
+  RUN_TEST(test_xray_rook_no_friendly_blocker);
+  RUN_TEST(test_xray_bishop_diagonal_through_blocker);
+
+  // rayBetween
+  RUN_TEST(test_ray_between_same_file);
+  RUN_TEST(test_ray_between_same_rank);
+  RUN_TEST(test_ray_between_same_diagonal);
+  RUN_TEST(test_ray_between_anti_diagonal);
+  RUN_TEST(test_ray_between_adjacent_returns_zero);
+  RUN_TEST(test_ray_between_not_colinear_returns_zero);
 }

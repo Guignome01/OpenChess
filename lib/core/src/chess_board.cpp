@@ -96,7 +96,9 @@ MoveResult ChessBoard::makeMove(int fromRow, int fromCol, int toRow, int toCol, 
   if (piece == Piece::NONE) return invalidMoveResult();
   if (ChessPiece::pieceColor(piece) != currentTurn_) return invalidMoveResult();
 
-  if (!ChessRules::isValidMove(bb_, mailbox_, fromRow, fromCol, toRow, toCol, state_))
+  Square from = squareOf(fromRow, fromCol);
+  Square to = squareOf(toRow, toCol);
+  if (!ChessRules::isValidMove(bb_, mailbox_, from, to, state_, kingSquare_[ChessPiece::raw(currentTurn_)]))
     return invalidMoveResult();
 
   MoveResult result;

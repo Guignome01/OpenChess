@@ -127,4 +127,35 @@ Bitboard bishopAttacks(Square sq, Bitboard occupied) {
   return attacks;
 }
 
+// ---------------------------------------------------------------------------
+// X-ray attack functions (for pin detection)
+// ---------------------------------------------------------------------------
+
+Bitboard xrayRookAttacks(Bitboard occupied, Bitboard friendly, Square sq) {
+  Bitboard attacks = rookAttacks(sq, occupied);
+  Bitboard blockers = attacks & friendly;
+  return rookAttacks(sq, occupied ^ blockers);
+}
+
+Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq) {
+  Bitboard attacks = bishopAttacks(sq, occupied);
+  Bitboard blockers = attacks & friendly;
+  return bishopAttacks(sq, occupied ^ blockers);
+}
+
+Bitboard rayBetween(Square s1, Square s2) {
+  int r1 = static_cast<int>(s1) / 8, c1 = static_cast<int>(s1) % 8;
+  int r2 = static_cast<int>(s2) / 8, c2 = static_cast<int>(s2) % 8;
+  int dr = r2 - r1, dc = c2 - c1;
+
+  // Must be colinear: same rank, file, or diagonal.
+  if (dr != 0 && dc != 0 && (dr < 0 ? -dr : dr) != (dc < 0 ? -dc : dc))
+    return 0;
+
+  Bitboard b1 = squareBB(s1), b2 = squareBB(s2);
+  if (dr == 0 || dc == 0)
+    return rookAttacks(s1, b2) & rookAttacks(s2, b1);
+  return bishopAttacks(s1, b2) & bishopAttacks(s2, b1);
+}
+
 }  // namespace ChessAttacks

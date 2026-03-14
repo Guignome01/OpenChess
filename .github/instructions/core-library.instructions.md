@@ -19,7 +19,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, material evaluation, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
-| `ChessAttacks` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), classical ray functions (`rookAttacks`, `bishopAttacks`, `queenAttacks`) | Stateless namespace (~2.5 KiB tables, initialized once via `initAttacks()`) |
+| `ChessAttacks` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), classical ray functions (`rookAttacks`, `bishopAttacks`, `queenAttacks`), x-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`), `rayBetween(s1, s2)` | Stateless namespace (~2.5 KiB tables, initialized once via `initAttacks()`) |
 | `ChessHash` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
 | `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
 | `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
@@ -114,7 +114,8 @@ These explain *why* the architecture is the way it is — constraints that code 
 - **Cohesive data types**: `MoveList` bundles move array + count (replaces `int& moveCount, int moves[][2]` out-params). `HashHistory` bundles Zobrist keys + count (replaces `uint64_t*, int` pointer-count pairs). `BitboardSet` bundles 12 piece + 2 color + 1 occupancy bitboards. All defined in `types.h` / `chess_bitboard.h`.
 - **Bitboard serialization via popLsb**: iterating pieces uses `while (bb) { sq = popLsb(bb); ... }` — the standard pattern for extracting set bits from a bitboard one at a time.
 - **Attack detection via bitwise AND**: `isSquareUnderAttack` checks `KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx]` etc. — a single AND per piece type replaces ray-walking loops.
-- **Copy-make for legality check**: `leavesInCheck()` copies `BitboardSet` (~120 bytes), applies the move on the copy, and checks the king square. Lightweight because bitboard copy is a flat struct copy.
+- **Pin-aware move generation**: `ChessRules::getPossibleMoves` and `hasAnyLegalMove(kingSq)` compute a `checkMask` and `PinData` (up to 8 pins, one per direction) once per call. Non-king/non-EP moves are filtered via bitwise AND against `pinRayFor(pinData, sq) & checkMask` — no `leavesInCheck` call needed. Only king moves and EP captures still use copy-make (`leavesInCheck`). X-ray helpers (`xrayRookAttacks`, `xrayBishopAttacks`, `rayBetween`) in `ChessAttacks` support pin detection. File-local helpers in `chess_rules.cpp` anonymous namespace: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
+- **Copy-make for legality check**: `leavesInCheck()` copies `BitboardSet` (~120 bytes), applies the move on the copy, and checks the king square. Used for king moves, EP captures, and `isValidMove`. Lightweight because bitboard copy is a flat struct copy.
 
 ## Completion Checklist
 

@@ -32,20 +32,18 @@ class ChessRules {
 
   static void getPseudoLegalMoves(const BB& bb, const Piece mailbox[], Square sq, const PositionState& state, MoveList& moves, bool includeCastling = true);
 
-  // Check detection: apply move on a bitboard-only copy (no mailbox needed).
-  static bool leavesInCheck(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state);
+  // Legality check: copies BitboardSet (~120 bytes), applies move on the copy,
+  // tests if the king is in check. No mailbox copy needed — attack detection
+  // uses bitboards only. Used for king moves, EP captures, and isValidMove.
   static bool leavesInCheck(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state, Square kingSq);
 
-  // BB-only move application for leavesInCheck (avoids mailbox copy)
+  // BB-only forward move application for leavesInCheck (avoids mailbox copy).
   static void applyMoveBB(BB& bb, Square from, Square to,
                           Piece piece, Piece capturedPiece,
                           const ChessUtils::EnPassantInfo& ep,
                           const ChessUtils::CastlingInfo& castle);
 
-  // Early-exit legal move check for a single piece
-  static bool hasLegalMove(const BB& bb, const Piece mailbox[], Square sq, const PositionState& state, Square kingSq);
-
-  // hasAnyLegalMove with pre-found king position
+  // hasAnyLegalMove with pre-found king position (uses pin+check-mask filtering)
   static bool hasAnyLegalMove(const BB& bb, const Piece mailbox[], Color color, const PositionState& state, Square kingSq);
 
  public:
@@ -66,6 +64,7 @@ class ChessRules {
 
   // Move validation
   static bool isValidMove(const BB& bb, const Piece mailbox[], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state);
+  static bool isValidMove(const BB& bb, const Piece mailbox[], Square from, Square to, const PositionState& state, Square kingSq);
 
   // Game state checks
   static bool isCheck(const BB& bb, Color kingColor);

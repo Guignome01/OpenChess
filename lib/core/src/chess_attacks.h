@@ -48,6 +48,22 @@ inline Bitboard queenAttacks(Square sq, Bitboard occupied) {
   return rookAttacks(sq, occupied) | bishopAttacks(sq, occupied);
 }
 
+// ---------------------------------------------------------------------------
+// X-ray attack functions (for pin detection)
+// ---------------------------------------------------------------------------
+
+// Rook attacks from `sq` shooting through exactly one layer of friendly pieces.
+// Returns the extended attack set after removing friendly blockers from occupancy.
+// ANDing with enemy rook/queen bitboards gives potential pinners.
+Bitboard xrayRookAttacks(Bitboard occupied, Bitboard friendly, Square sq);
+
+// Bishop attacks from `sq` shooting through exactly one layer of friendly pieces.
+Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq);
+
+// Squares strictly between s1 and s2 on the same rank, file, or diagonal
+// (exclusive of both endpoints). Returns 0 if s1 and s2 are not colinear.
+Bitboard rayBetween(Square s1, Square s2);
+
 }  // namespace ChessAttacks
 
 #endif  // CORE_CHESS_ATTACKS_H

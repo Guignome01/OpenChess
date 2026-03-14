@@ -312,6 +312,85 @@ void test_diagonal_pin(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Pin-aware generation — checkMask and pin detection scenarios
+// ---------------------------------------------------------------------------
+
+void test_single_check_slider_can_block(void) {
+  // White king e1 in check from black rook e8.
+  // White rook on d4 (not pinned) can interpose at e4 but cannot make unrelated moves.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "e8"); // checks king on e-file
+  placePiece(bb, mailbox, Piece::W_ROOK, "d4"); // can block at e4
+  PositionState flags{0x00, -1, -1, 0, 1};
+  // Moving to e4 interposes the check — legal
+  TEST_ASSERT_TRUE(moveExists(bb, mailbox, 4, 3, 4, 4, flags));
+  // Moving to d5 does not address the check — illegal
+  TEST_ASSERT_FALSE(moveExists(bb, mailbox, 4, 3, 3, 3, flags));
+}
+
+void test_knight_check_no_blocking(void) {
+  // White king e1 in check from black knight f3.
+  // White bishop d4 cannot block (non-colinear) and cannot capture f3 (not on diagonal).
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::B_KNIGHT, "f3"); // knight check — cannot be blocked
+  placePiece(bb, mailbox, Piece::W_BISHOP, "d4"); // not in position to capture f3
+  PositionState flags{0x00, -1, -1, 0, 1};
+  MoveList moves;
+  int r, c;
+  sq("d4", r, c);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, flags, moves);
+  TEST_ASSERT_EQUAL_INT(0, moves.count);
+}
+
+void test_two_friendly_shielding_king_not_pinned(void) {
+  // White king a1, white rook c1, white knight f1, black rook h1.
+  // Two friendlies on rank 1 between king and enemy rook — neither is pinned.
+  placePiece(bb, mailbox, Piece::W_KING, "a1");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_ROOK, "c1");
+  placePiece(bb, mailbox, Piece::W_KNIGHT, "f1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "h1"); // blocked by two friendlies
+  PositionState flags{0x00, -1, -1, 0, 1};
+  // Knight is NOT pinned — it has its 4 normal moves (d2, e3, g3, h2)
+  MoveList moves;
+  int r, c;
+  sq("f1", r, c);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, flags, moves);
+  TEST_ASSERT_EQUAL_INT(4, moves.count);
+}
+
+void test_ep_horizontal_pin_illegal(void) {
+  // White king a5, white pawn d5, black pawn e5 (just moved), black rook h5.
+  // After EP capture dxe6, both d5 and e5 are cleared — king on a5 is exposed to rook on h5.
+  placePiece(bb, mailbox, Piece::W_KING, "a5");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d5");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e5"); // last moved from e7
+  placePiece(bb, mailbox, Piece::B_ROOK, "h5"); // would give check after EP
+  int epR, epC;
+  sq("e6", epR, epC); // EP target square
+  PositionState flags{0x00, epR, epC, 0, 1};
+  TEST_ASSERT_FALSE(ChessRules::hasLegalEnPassantCapture(bb, mailbox, Color::WHITE, flags));
+}
+
+void test_getPossibleMoves_idempotent(void) {
+  // Calling getPossibleMoves twice on the same position must return identical
+  // results (verifies no internal state leaks between calls).
+  placePiece(bb, mailbox, Piece::W_KING, "e4");
+  placePiece(bb, mailbox, Piece::B_KING, "a8");
+  placePiece(bb, mailbox, Piece::B_ROOK, "h5"); // limits some king moves
+  PositionState flags{0x00, -1, -1, 0, 1};
+  int r, c;
+  sq("e4", r, c);
+  MoveList moves1, moves2;
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, flags, moves1);
+  ChessRules::getPossibleMoves(bb, mailbox, r, c, flags, moves2);
+  TEST_ASSERT_EQUAL_INT(moves1.count, moves2.count);
+}
+
+// ---------------------------------------------------------------------------
 // isCheck — 4-param overload (explicit king position)
 // ---------------------------------------------------------------------------
 
@@ -477,6 +556,11 @@ void register_chess_rules_check_tests() {
   RUN_TEST(test_diagonal_pin);
   RUN_TEST(test_discovered_check);
   RUN_TEST(test_double_check_only_king_can_move);
+  RUN_TEST(test_single_check_slider_can_block);
+  RUN_TEST(test_knight_check_no_blocking);
+  RUN_TEST(test_two_friendly_shielding_king_not_pinned);
+  RUN_TEST(test_ep_horizontal_pin_illegal);
+  RUN_TEST(test_getPossibleMoves_idempotent);
 
   // En passant legality
   RUN_TEST(test_hasLegalEnPassantCapture_true);
