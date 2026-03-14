@@ -121,6 +121,13 @@ constexpr Bitboard RANK_6 = RANK_1 << 40;
 constexpr Bitboard RANK_7 = RANK_1 << 48;
 constexpr Bitboard RANK_8 = RANK_1 << 56;
 
+// Square-color masks: a1 is a dark square in chess. LERF bit 0 = a1.
+// Byte 0 (rank 1, bits 0–7): a1=dark, b1=light, c1=dark... → dark bits = 10101010 = 0xAA.
+// Byte 1 (rank 2, bits 8–15): a2=light, b2=dark, ... → dark bits = 01010101 = 0x55.
+// Pattern alternates per rank: 0xAA55AA55AA55AA55.
+constexpr Bitboard DARK_SQUARES  = 0xAA55AA55AA55AA55ULL;
+constexpr Bitboard LIGHT_SQUARES = ~DARK_SQUARES;
+
 // Anti-wrapping masks for directional shifts.
 constexpr Bitboard NOT_FILE_A = ~FILE_A;
 constexpr Bitboard NOT_FILE_H = ~FILE_H;

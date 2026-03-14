@@ -806,11 +806,9 @@ bool ChessRules::isInsufficientMaterial(const BB& bb) {
     Bitboard wb = bb.byPiece[wBishopIdx];
     Bitboard bBish = bb.byPiece[bBishopIdx];
     if (wb && bBish) {
-      // Square color parity: (rank + file) & 1 where rank = sq/8, file = sq%8
-      constexpr Bitboard COLOR_0 = 0x55AA55AA55AA55AAULL;  // a1, c1, b2, d2, ...
-      bool wOnColor0 = (wb & COLOR_0) != 0;
-      bool bOnColor0 = (bBish & COLOR_0) != 0;
-      return wOnColor0 == bOnColor0;
+      bool wOnDark = (wb & DARK_SQUARES) != 0;
+      bool bOnDark = (bBish & DARK_SQUARES) != 0;
+      return wOnDark == bOnDark;
     }
   }
 

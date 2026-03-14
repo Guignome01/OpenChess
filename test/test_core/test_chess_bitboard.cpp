@@ -492,6 +492,36 @@ static void test_ray_between_not_colinear_returns_zero(void) {
   TEST_ASSERT_EQUAL_UINT64(0, rayBetween(a1, b3));
 }
 
+// ---------------------------------------------------------------------------
+// Square-color masks
+// ---------------------------------------------------------------------------
+
+// a1 (row 7, col 0) is a dark square.
+static void test_square_color_a1_dark(void) {
+  Square a1 = squareOf(7, 0);
+  TEST_ASSERT_NOT_EQUAL(0, DARK_SQUARES & squareBB(a1));
+  TEST_ASSERT_EQUAL_UINT64(0, LIGHT_SQUARES & squareBB(a1));
+}
+
+// b1 (row 7, col 1) is a light square.
+static void test_square_color_b1_light(void) {
+  Square b1 = squareOf(7, 1);
+  TEST_ASSERT_NOT_EQUAL(0, LIGHT_SQUARES & squareBB(b1));
+  TEST_ASSERT_EQUAL_UINT64(0, DARK_SQUARES & squareBB(b1));
+}
+
+// Exactly 32 squares of each color.
+static void test_square_color_popcount(void) {
+  TEST_ASSERT_EQUAL(32, popcount(DARK_SQUARES));
+  TEST_ASSERT_EQUAL(32, popcount(LIGHT_SQUARES));
+}
+
+// No overlap between dark and light.
+static void test_square_color_no_overlap(void) {
+  TEST_ASSERT_EQUAL_UINT64(0, DARK_SQUARES & LIGHT_SQUARES);
+  TEST_ASSERT_EQUAL_UINT64(~0ULL, DARK_SQUARES | LIGHT_SQUARES);
+}
+
 void register_chess_bitboard_tests() {
   // Square mapping
   RUN_TEST(test_squareOf_corners);
@@ -556,4 +586,10 @@ void register_chess_bitboard_tests() {
   RUN_TEST(test_ray_between_anti_diagonal);
   RUN_TEST(test_ray_between_adjacent_returns_zero);
   RUN_TEST(test_ray_between_not_colinear_returns_zero);
+
+  // Square-color masks
+  RUN_TEST(test_square_color_a1_dark);
+  RUN_TEST(test_square_color_b1_light);
+  RUN_TEST(test_square_color_popcount);
+  RUN_TEST(test_square_color_no_overlap);
 }
