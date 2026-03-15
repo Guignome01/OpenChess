@@ -15,7 +15,7 @@
 
 #include <cstdint>
 
-#include "chess_piece.h"
+#include "chess_pieces.h"
 
 namespace ChessBitboard {
 

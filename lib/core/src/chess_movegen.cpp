@@ -1,6 +1,8 @@
-#include "chess_attacks.h"
+#include "chess_movegen.h"
 
-namespace ChessAttacks {
+#include "chess_pieces.h"
+
+namespace ChessMovegen {
 
 using namespace ChessBitboard;
 
@@ -70,6 +72,7 @@ void initAttacks() {
   initKnightAttacks();
   initKingAttacks();
   initPawnAttacks();
+  ChessPieces::initPawnMasks();
 }
 
 // ---------------------------------------------------------------------------
@@ -262,4 +265,4 @@ AttackInfo computeAttackInfo(const BitboardSet& bb) {
   return info;
 }
 
-}  // namespace ChessAttacks
+}  // namespace ChessMovegen

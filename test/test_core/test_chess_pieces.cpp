@@ -1,14 +1,18 @@
 #include <unity.h>
 
-#include <chess_piece.h>
+#include <chess_bitboard.h>
+#include <chess_movegen.h>
+#include <chess_pieces.h>
 
 #include "../test_helpers.h"
 
+using namespace ChessBitboard;
 using namespace ChessPiece;
+using namespace ChessPieces;
 
-// ---------------------------------------------------------------------------
-// Bit extraction
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — bit extraction
+// ===========================================================================
 
 static void test_piece_type_extraction(void) {
   TEST_ASSERT_ENUM_EQ(PieceType::PAWN,   pieceType(Piece::W_PAWN));
@@ -41,9 +45,9 @@ static void test_make_piece(void) {
   TEST_ASSERT_ENUM_EQ(Piece::NONE,     makePiece(Color::WHITE, PieceType::NONE));
 }
 
-// ---------------------------------------------------------------------------
-// Predicates
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — predicates
+// ===========================================================================
 
 static void test_piece_predicates(void) {
   TEST_ASSERT_TRUE(isEmpty(Piece::NONE));
@@ -62,9 +66,9 @@ static void test_piece_predicates(void) {
   TEST_ASSERT_FALSE(isColor(Piece::NONE, Color::WHITE));
 }
 
-// ---------------------------------------------------------------------------
-// Color flip
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — color flip
+// ===========================================================================
 
 static void test_color_flip(void) {
   TEST_ASSERT_ENUM_EQ(Color::BLACK, ~Color::WHITE);
@@ -79,9 +83,9 @@ static void test_piece_color_flip(void) {
   TEST_ASSERT_ENUM_EQ(Piece::B_KNIGHT, ~Piece::W_KNIGHT);
 }
 
-// ---------------------------------------------------------------------------
-// FEN char round-trip
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — FEN char round-trip
+// ===========================================================================
 
 static void test_char_to_piece_roundtrip(void) {
   const char chars[] = "PNBRQKpnbrqk";
@@ -102,10 +106,6 @@ static void test_piece_to_char_none(void) {
   TEST_ASSERT_EQUAL_CHAR(' ', pieceToChar(Piece::NONE));
 }
 
-// ---------------------------------------------------------------------------
-// PieceType char conversion
-// ---------------------------------------------------------------------------
-
 static void test_char_to_piece_type(void) {
   TEST_ASSERT_ENUM_EQ(PieceType::PAWN,   charToPieceType('P'));
   TEST_ASSERT_ENUM_EQ(PieceType::PAWN,   charToPieceType('p'));
@@ -123,9 +123,9 @@ static void test_piece_type_to_char(void) {
   TEST_ASSERT_EQUAL_CHAR(' ', pieceTypeToChar(PieceType::NONE));
 }
 
-// ---------------------------------------------------------------------------
-// Material values
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — material values
+// ===========================================================================
 
 static void test_piece_value(void) {
   TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceValue(Piece::W_PAWN));
@@ -134,32 +134,62 @@ static void test_piece_value(void) {
   TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceValue(Piece::W_ROOK));
   TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceValue(Piece::W_QUEEN));
   TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceValue(Piece::W_KING));
-  // Black pieces have same values
   TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceValue(Piece::B_PAWN));
   TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceValue(Piece::B_QUEEN));
   TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceValue(Piece::NONE));
 }
 
-// ---------------------------------------------------------------------------
-// Zobrist index
-// ---------------------------------------------------------------------------
+static void test_piece_value_all_black(void) {
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceValue(Piece::B_PAWN));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_KNIGHT));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_BISHOP));
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceValue(Piece::B_ROOK));
+  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceValue(Piece::B_QUEEN));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceValue(Piece::B_KING));
+}
+
+static void test_pieceTypeValue_all(void) {
+  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceTypeValue(PieceType::PAWN));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::KNIGHT));
+  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::BISHOP));
+  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceTypeValue(PieceType::ROOK));
+  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceTypeValue(PieceType::QUEEN));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::KING));
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::NONE));
+}
+
+static void test_charToPiece_all_valid(void) {
+  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN,   charToPiece('P'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, charToPiece('N'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_BISHOP, charToPiece('B'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK,   charToPiece('R'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN,  charToPiece('Q'));
+  TEST_ASSERT_ENUM_EQ(Piece::W_KING,   charToPiece('K'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN,   charToPiece('p'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_KNIGHT, charToPiece('n'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_BISHOP, charToPiece('b'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK,   charToPiece('r'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_QUEEN,  charToPiece('q'));
+  TEST_ASSERT_ENUM_EQ(Piece::B_KING,   charToPiece('k'));
+}
+
+// ===========================================================================
+// ChessPiece — Zobrist index
+// ===========================================================================
 
 static void test_zobrist_index(void) {
-  // White: P=0 N=1 B=2 R=3 Q=4 K=5
   TEST_ASSERT_EQUAL_INT(0, pieceZobristIndex(Piece::W_PAWN));
   TEST_ASSERT_EQUAL_INT(1, pieceZobristIndex(Piece::W_KNIGHT));
   TEST_ASSERT_EQUAL_INT(5, pieceZobristIndex(Piece::W_KING));
-  // Black: P=6 N=7 B=8 R=9 Q=10 K=11
   TEST_ASSERT_EQUAL_INT(6,  pieceZobristIndex(Piece::B_PAWN));
   TEST_ASSERT_EQUAL_INT(7,  pieceZobristIndex(Piece::B_KNIGHT));
   TEST_ASSERT_EQUAL_INT(11, pieceZobristIndex(Piece::B_KING));
-  // NONE
   TEST_ASSERT_EQUAL_INT(-1, pieceZobristIndex(Piece::NONE));
 }
 
-// ---------------------------------------------------------------------------
-// Color helpers
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — color helpers
+// ===========================================================================
 
 static void test_color_helpers(void) {
   TEST_ASSERT_EQUAL_INT(-1, pawnDirection(Color::WHITE));
@@ -175,10 +205,6 @@ static void test_color_name(void) {
   TEST_ASSERT_EQUAL_STRING("Black", colorName(Color::BLACK));
 }
 
-// ---------------------------------------------------------------------------
-// Color/char conversion
-// ---------------------------------------------------------------------------
-
 static void test_color_char_conversion(void) {
   TEST_ASSERT_ENUM_EQ(Color::WHITE, charToColor('w'));
   TEST_ASSERT_ENUM_EQ(Color::BLACK, charToColor('b'));
@@ -186,9 +212,9 @@ static void test_color_char_conversion(void) {
   TEST_ASSERT_EQUAL_CHAR('b', colorToChar(Color::BLACK));
 }
 
-// ---------------------------------------------------------------------------
-// Zero-initialization safety
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — zero-initialization safety
+// ===========================================================================
 
 static void test_piece_none_is_zero(void) {
   TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(Piece::NONE));
@@ -196,9 +222,9 @@ static void test_piece_none_is_zero(void) {
   TEST_ASSERT_EQUAL_UINT8(0, static_cast<uint8_t>(Color::WHITE));
 }
 
-// ---------------------------------------------------------------------------
-// isPromotion edge cases (Phase 5)
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPiece — isPromotion
+// ===========================================================================
 
 static void test_isPromotion_white_pawn_on_row_0(void) {
   TEST_ASSERT_TRUE(isPromotion(Piece::W_PAWN, 0));
@@ -221,7 +247,6 @@ static void test_isPromotion_black_pawn_on_other_rows(void) {
 }
 
 static void test_isPromotion_non_pawn_pieces(void) {
-  // No non-pawn piece should ever be a promotion, even on the promotion row
   Piece whitePieces[] = {Piece::W_KNIGHT, Piece::W_BISHOP, Piece::W_ROOK,
                          Piece::W_QUEEN, Piece::W_KING};
   for (auto p : whitePieces) {
@@ -239,76 +264,123 @@ static void test_isPromotion_none(void) {
   TEST_ASSERT_FALSE(isPromotion(Piece::NONE, 7));
 }
 
-// ---------------------------------------------------------------------------
-// pieceValue — full black pieces coverage
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// ChessPieces — pawn-structure masks
+// ===========================================================================
 
-static void test_piece_value_all_black(void) {
-  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceValue(Piece::B_PAWN));
-  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_KNIGHT));
-  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceValue(Piece::B_BISHOP));
-  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceValue(Piece::B_ROOK));
-  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceValue(Piece::B_QUEEN));
-  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceValue(Piece::B_KING));
+static void test_passed_pawn_mask_e4(void) {
+  ChessMovegen::initAttacks();
+
+  Square e4 = squareOf(4, 4);
+  Bitboard expected = 0;
+
+  // d5-d8, e5-e8, f5-f8
+  for (int row = 3; row >= 0; --row) {
+    expected |= squareBB(squareOf(row, 3));
+    expected |= squareBB(squareOf(row, 4));
+    expected |= squareBB(squareOf(row, 5));
+  }
+
+  TEST_ASSERT_EQUAL_UINT64(expected, PASSED_PAWN_MASK[raw(Color::WHITE)][e4]);
 }
 
-// ---------------------------------------------------------------------------
-// charToPiece — exhaustive individual mapping
-// ---------------------------------------------------------------------------
+static void test_passed_pawn_e2_blocked(void) {
+  ChessMovegen::initAttacks();
 
-static void test_charToPiece_all_valid(void) {
-  TEST_ASSERT_ENUM_EQ(Piece::W_PAWN,   charToPiece('P'));
-  TEST_ASSERT_ENUM_EQ(Piece::W_KNIGHT, charToPiece('N'));
-  TEST_ASSERT_ENUM_EQ(Piece::W_BISHOP, charToPiece('B'));
-  TEST_ASSERT_ENUM_EQ(Piece::W_ROOK,   charToPiece('R'));
-  TEST_ASSERT_ENUM_EQ(Piece::W_QUEEN,  charToPiece('Q'));
-  TEST_ASSERT_ENUM_EQ(Piece::W_KING,   charToPiece('K'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_PAWN,   charToPiece('p'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_KNIGHT, charToPiece('n'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_BISHOP, charToPiece('b'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_ROOK,   charToPiece('r'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_QUEEN,  charToPiece('q'));
-  TEST_ASSERT_ENUM_EQ(Piece::B_KING,   charToPiece('k'));
+  Square e2 = squareOf(6, 4);
+  Square e4 = squareOf(4, 4);
+  Bitboard enemyPawns = squareBB(e4);
+
+  TEST_ASSERT_FALSE(isPassed(e2, Color::WHITE, enemyPawns));
 }
 
-// ---------------------------------------------------------------------------
-// pieceTypeValue
-// ---------------------------------------------------------------------------
-
-static void test_pieceTypeValue_all(void) {
-  TEST_ASSERT_EQUAL_FLOAT(1.0f, pieceTypeValue(PieceType::PAWN));
-  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::KNIGHT));
-  TEST_ASSERT_EQUAL_FLOAT(3.0f, pieceTypeValue(PieceType::BISHOP));
-  TEST_ASSERT_EQUAL_FLOAT(5.0f, pieceTypeValue(PieceType::ROOK));
-  TEST_ASSERT_EQUAL_FLOAT(9.0f, pieceTypeValue(PieceType::QUEEN));
-  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::KING));
-  TEST_ASSERT_EQUAL_FLOAT(0.0f, pieceTypeValue(PieceType::NONE));
+static void test_isolated_pawn_a_file(void) {
+  ChessMovegen::initAttacks();
+  TEST_ASSERT_EQUAL_UINT64(FILE_B, ISOLATED_PAWN_MASK[0]);
 }
 
-// ---------------------------------------------------------------------------
+static void test_isolated_pawn_d_file(void) {
+  ChessMovegen::initAttacks();
+  TEST_ASSERT_EQUAL_UINT64(FILE_C | FILE_E, ISOLATED_PAWN_MASK[3]);
+}
+
+static void test_doubled_pawn_detection(void) {
+  ChessMovegen::initAttacks();
+
+  Square e2 = squareOf(6, 4);
+  Square e3 = squareOf(5, 4);
+  Bitboard friendly = squareBB(e2) | squareBB(e3);
+
+  TEST_ASSERT_TRUE(isDoubled(e2, Color::WHITE, friendly));
+}
+
+static void test_backward_pawn_detection(void) {
+  ChessMovegen::initAttacks();
+
+  // White pawn on d4. Adjacent pawn on c2 exists but does not support d5.
+  // Enemy pawn on e6 controls d5, making d4 backward by this heuristic.
+  Square d4 = squareOf(4, 3);
+  Square c2 = squareOf(6, 2);
+  Square e6 = squareOf(2, 4);
+
+  Bitboard friendly = squareBB(d4) | squareBB(c2);
+  Bitboard enemyPawns = squareBB(e6);
+  Bitboard enemyPawnAttacks = shiftSE(enemyPawns) | shiftSW(enemyPawns);
+
+  TEST_ASSERT_TRUE(isBackward(d4, Color::WHITE, friendly, enemyPawnAttacks));
+}
+
+static void test_forward_file_mask_a8_white_empty(void) {
+  ChessMovegen::initAttacks();
+
+  Square a8 = squareOf(0, 0);
+  TEST_ASSERT_EQUAL_UINT64(0, FORWARD_FILE_MASK[raw(Color::WHITE)][a8]);
+}
+
+static void test_forward_file_mask_a2_white(void) {
+  ChessMovegen::initAttacks();
+
+  Square a2 = squareOf(6, 0);
+  Bitboard expected = FILE_A & ~(RANK_1 | RANK_2);
+  TEST_ASSERT_EQUAL_UINT64(expected, FORWARD_FILE_MASK[raw(Color::WHITE)][a2]);
+}
+
+// ===========================================================================
 // Registration
-// ---------------------------------------------------------------------------
+// ===========================================================================
 
-void register_chess_piece_tests() {
+void register_chess_pieces_tests() {
+  // ChessPiece — bit extraction and construction
   RUN_TEST(test_piece_type_extraction);
   RUN_TEST(test_piece_color_extraction);
   RUN_TEST(test_make_piece);
   RUN_TEST(test_piece_predicates);
   RUN_TEST(test_color_flip);
   RUN_TEST(test_piece_color_flip);
+
+  // ChessPiece — FEN char conversion
   RUN_TEST(test_char_to_piece_roundtrip);
   RUN_TEST(test_char_to_piece_invalid);
   RUN_TEST(test_piece_to_char_none);
   RUN_TEST(test_char_to_piece_type);
   RUN_TEST(test_piece_type_to_char);
+  RUN_TEST(test_charToPiece_all_valid);
+
+  // ChessPiece — material values
   RUN_TEST(test_piece_value);
+  RUN_TEST(test_piece_value_all_black);
+  RUN_TEST(test_pieceTypeValue_all);
+
+  // ChessPiece — Zobrist index
   RUN_TEST(test_zobrist_index);
+
+  // ChessPiece — color helpers
   RUN_TEST(test_color_helpers);
   RUN_TEST(test_color_name);
   RUN_TEST(test_color_char_conversion);
-  RUN_TEST(test_piece_none_is_zero);
 
-  // isPromotion (Phase 5)
+  // ChessPiece — zero-init and isPromotion
+  RUN_TEST(test_piece_none_is_zero);
   RUN_TEST(test_isPromotion_white_pawn_on_row_0);
   RUN_TEST(test_isPromotion_white_pawn_on_other_rows);
   RUN_TEST(test_isPromotion_black_pawn_on_row_7);
@@ -316,12 +388,13 @@ void register_chess_piece_tests() {
   RUN_TEST(test_isPromotion_non_pawn_pieces);
   RUN_TEST(test_isPromotion_none);
 
-  // pieceValue black pieces (Phase 5)
-  RUN_TEST(test_piece_value_all_black);
-
-  // charToPiece exhaustive (Phase 5)
-  RUN_TEST(test_charToPiece_all_valid);
-
-  // pieceTypeValue
-  RUN_TEST(test_pieceTypeValue_all);
+  // ChessPieces — pawn-structure masks
+  RUN_TEST(test_passed_pawn_mask_e4);
+  RUN_TEST(test_passed_pawn_e2_blocked);
+  RUN_TEST(test_isolated_pawn_a_file);
+  RUN_TEST(test_isolated_pawn_d_file);
+  RUN_TEST(test_doubled_pawn_detection);
+  RUN_TEST(test_backward_pawn_detection);
+  RUN_TEST(test_forward_file_mask_a8_white_empty);
+  RUN_TEST(test_forward_file_mask_a2_white);
 }

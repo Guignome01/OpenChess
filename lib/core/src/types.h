@@ -4,7 +4,6 @@
 #include <cstdint>
 
 #include "chess_bitboard.h"
-#include "chess_piece.h"
 
 // Complete position state for chess operations.
 // ChessRules is stateless; the caller supplies a PositionState for

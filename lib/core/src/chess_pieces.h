@@ -1,14 +1,24 @@
-#ifndef CORE_CHESS_PIECE_H
-#define CORE_CHESS_PIECE_H
+#ifndef CORE_CHESS_PIECES_H
+#define CORE_CHESS_PIECES_H
 
 #include <cstdint>
 
-// Piece encoding types and helpers for the core chess library.
-// Uses a standard bit-layout: Piece = (Color << 3) | PieceType
-// enabling O(1) extraction of type and color via bit operations.
+// Piece types, helpers, and pawn-structure masks for the core chess library.
 //
-// Board squares hold a Piece value; Piece::NONE (0) represents an empty square,
-// which makes zero-initialization equivalent to clearing the board.
+// Section 1 — ChessPiece: type-safe piece representation using a standard
+// bit-layout: Piece = (Color << 3) | PieceType, enabling O(1) extraction
+// of type and color. Piece::NONE (0) represents an empty square, so
+// zero-initialization clears the board.
+//
+// Section 2 — ChessPieces: precomputed pawn-structure masks and helper
+// queries for evaluation (passed / isolated / doubled / backward pawns).
+// Declarations use raw uint64_t/int (matching ChessBitboard::Bitboard and
+// ChessBitboard::Square) to avoid a circular include with chess_bitboard.h,
+// which itself includes this header for ChessPiece types.
+
+// ===========================================================================
+// Section 1: ChessPiece — type-safe piece representation
+// ===========================================================================
 
 namespace ChessPiece {
 
@@ -236,4 +246,35 @@ using ChessPiece::Color;
 using ChessPiece::Piece;
 using ChessPiece::PieceType;
 
-#endif  // CORE_CHESS_PIECE_H
+// ===========================================================================
+// Section 2: ChessPieces — pawn-structure masks and helpers
+// ===========================================================================
+
+namespace ChessPieces {
+
+// Pawn-structure masks, indexed by color and square.
+// Color index: WHITE=0, BLACK=1.
+extern uint64_t PASSED_PAWN_MASK[2][64];
+extern uint64_t ISOLATED_PAWN_MASK[8];
+extern uint64_t FORWARD_FILE_MASK[2][64];
+
+// Initializes all pawn-structure masks once (idempotent).
+void initPawnMasks();
+
+// True if no enemy pawn exists in front of this pawn on same/adjacent files.
+bool isPassed(int sq, Color color, uint64_t enemyPawns);
+
+// True if no friendly pawn exists on adjacent files.
+bool isIsolated(int sq, uint64_t friendlyPawns);
+
+// True if another friendly pawn exists ahead on the same file.
+bool isDoubled(int sq, Color color, uint64_t friendlyPawns);
+
+// Simple backward-pawn heuristic:
+// pawn cannot be supported by adjacent pawns on its next advance square,
+// and that advance square is controlled by enemy pawns.
+bool isBackward(int sq, Color color, uint64_t friendlyPawns, uint64_t enemyPawnAttacks);
+
+}  // namespace ChessPieces
+
+#endif  // CORE_CHESS_PIECES_H

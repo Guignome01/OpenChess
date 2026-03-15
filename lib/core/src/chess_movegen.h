@@ -1,5 +1,5 @@
-#ifndef CORE_CHESS_ATTACKS_H
-#define CORE_CHESS_ATTACKS_H
+#ifndef CORE_CHESS_MOVEGEN_H
+#define CORE_CHESS_MOVEGEN_H
 
 // Precomputed attack tables and slider attack functions.
 //
@@ -16,7 +16,7 @@
 
 #include "chess_bitboard.h"
 
-namespace ChessAttacks {
+namespace ChessMovegen {
 
 using ChessBitboard::Bitboard;
 using ChessBitboard::Square;
@@ -29,7 +29,8 @@ extern Bitboard KNIGHT_ATTACKS[64];
 extern Bitboard KING_ATTACKS[64];
 extern Bitboard PAWN_ATTACKS[2][64];  // [0] = WHITE, [1] = BLACK
 
-// Must be called once before using any attack function.
+// Must be called once before using any attack or pawn-structure function.
+// Initializes leaper tables and calls ChessPieces::initPawnMasks().
 // Safe to call multiple times (idempotent).
 void initAttacks();
 
@@ -93,6 +94,6 @@ Bitboard rayBetween(Square s1, Square s2);
 // file, and diagonal). Used for pin detection and alignment checks.
 Bitboard lineBB(Square s1, Square s2);
 
-}  // namespace ChessAttacks
+}  // namespace ChessMovegen
 
-#endif  // CORE_CHESS_ATTACKS_H
+#endif  // CORE_CHESS_MOVEGEN_H

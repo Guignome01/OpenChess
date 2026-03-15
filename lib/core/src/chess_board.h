@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 
-#include "chess_attacks.h"
+#include "chess_movegen.h"
 #include "chess_bitboard.h"
 #include "chess_evaluation.h"
 #include "chess_hash.h"

@@ -31,7 +31,6 @@ test/
     ├── test_chess_rules_moves.cpp        Move generation per piece type, captures, initial position
     ├── test_chess_rules_check.cpp        Check detection, checkmate, stalemate, move legality under check
     ├── test_chess_rules_special.cpp      Castling, en passant, promotion, helper functions
-    ├── test_chess_piece.cpp              ChessPiece: bit extraction, construction, predicates, FEN chars, Zobrist index
     ├── test_chess_utils.cpp              Evaluation, piece color helpers, 50-move rule, castling rights strings
     ├── test_chess_fen.cpp                FEN round-trip, boardToFEN/fenToBoard, validateFEN
     ├── test_chess_notation.cpp           Coordinate/SAN/LAN output and parsing, roundtrip verification
@@ -41,7 +40,9 @@ test/
     ├── test_chess_game.cpp               ChessGame: lifecycle, draws, observer, history, undo/redo, getHistory
     ├── test_chess_history.cpp            ChessHistory: move log with undo/redo, branch-on-undo
     ├── test_chess_history_recording.cpp  Recording: persistence, header flush, replay, branch-truncation, encode/decode
-    └── test_chess_bitboard.cpp           ChessBitboard + ChessAttacks: square mapping, bit ops, square-color masks, leaper tables, slider rays, BitboardSet mutations, computeAttackInfo
+    ├── test_chess_bitboard.cpp           ChessBitboard: square mapping, bit ops, square-color masks, BitboardSet mutations
+    ├── test_chess_movegen.cpp            ChessMovegen: leaper tables, slider rays, x-ray attacks, geometry rays (`rayBetween`, `lineBB`), computeAttackInfo
+    └── test_chess_pieces.cpp             ChessPiece + ChessPieces: piece types, bit extraction, FEN chars, material values, Zobrist index, color helpers, pawn-structure masks and helpers
 ```
 
 ## File Mirroring Convention
@@ -54,11 +55,12 @@ Each `lib/core/src/` source file has a corresponding `test/test_core/test_*.cpp`
 | `chess_game.cpp` | `test_chess_game.cpp` |
 | `chess_history.cpp` | `test_chess_history.cpp` + `test_chess_history_recording.cpp` |
 | `chess_rules.cpp` | `test_chess_rules_moves.cpp` + `test_chess_rules_check.cpp` + `test_chess_rules_special.cpp` |
-| `chess_piece.h` | `test_chess_piece.cpp` |
+| `chess_pieces.h/cpp` | `test_chess_pieces.cpp` |
 | `chess_utils.cpp` | `test_chess_utils.cpp` |
 | `chess_fen.cpp` | `test_chess_fen.cpp` |
 | `chess_notation.cpp` | `test_chess_notation.cpp` |
-| `chess_bitboard.h` + `chess_attacks.h/cpp` | `test_chess_bitboard.cpp` |
+| `chess_bitboard.h` | `test_chess_bitboard.cpp` |
+| `chess_movegen.h/cpp` | `test_chess_movegen.cpp` |
 
 Place tests in the file that mirrors the tested functionality. When creating a new `lib/core/src/` file, create a matching test file and register its test functions in `test_core.cpp`.
 
@@ -111,8 +113,8 @@ Round-trip: board → FEN → board. `boardToFEN()` output correctness. `fenToBo
 ### Notation (`test_chess_notation.cpp`)
 Coordinate notation output and parsing. SAN output (disambiguation, captures, castling, promotion). LAN output. Auto-format detection from input strings. Round-trip verification: format → parse → same move.
 
-### Piece (`test_chess_piece.cpp`)
-Bit extraction: `pieceType()` for all 12 pieces + NONE, `pieceColor()`. Construction: `makePiece()` round-trips. Predicates: `isEmpty()`, `isWhite()`, `isBlack()`, `isColor()`. Color flip: `~Color`, `~Piece` operator overloads. FEN char round-trip: `charToPiece()`/`pieceToChar()` for all valid chars, invalid chars, NONE. PieceType char conversion. Material values: `pieceValue()` for all piece types. Zobrist index: `pieceZobristIndex()` for all pieces + NONE. Color helpers: `pawnDirection()`, `homeRow()`, `promotionRow()`. `colorName()`, `charToColor()`/`colorToChar()`. Zero-initialization safety (`Piece::NONE`, `PieceType::NONE`, `Color::WHITE` all == 0).
+### Pieces (`test_chess_pieces.cpp`)
+ChessPiece namespace: bit extraction (`pieceType()` for all 12 pieces + NONE, `pieceColor()`), construction (`makePiece()` round-trips), predicates (`isEmpty()`, `isWhite()`, `isBlack()`, `isColor()`), color flip (`~Color`, `~Piece` operator overloads), FEN char round-trip (`charToPiece()`/`pieceToChar()` for all valid chars, invalid chars, NONE), PieceType char conversion, material values (`pieceValue()`, `pieceTypeValue()` for all piece types), Zobrist index (`pieceZobristIndex()` for all pieces + NONE), color helpers (`pawnDirection()`, `homeRow()`, `promotionRow()`, `colorName()`, `charToColor()`/`colorToChar()`), zero-initialization safety, `isPromotion()` edge cases. ChessPieces namespace: pawn-structure masks (passed pawn mask shape, blocked pawn, isolated file masks, doubled pawn detection, backward pawn heuristic, forward file mask boundaries).
 
 ### Iterator (`test_chess_iterator.cpp`)
 `forEachSquare` visits all 64 squares. `forEachPiece` skips empty. `somePiece` early-exit. `findPiece` locates specific pieces with max limit.
@@ -124,4 +126,10 @@ Zobrist key determinism. `pieceZobristIndex` mapping. `computeHash` stability. H
 Exhaustive move-tree enumeration for 6 positions from the Chess Programming Wiki. Positions 1–4 verify detailed leaf-level counters: nodes, captures, en passant, castles, promotions, checks, and checkmates. Positions 5–6 verify node counts only (no wiki reference counters). Catches compensating bugs that node-only perft misses (e.g. a missed capture offset by a phantom quiet move).
 
 ### Bitboard (`test_chess_bitboard.cpp`)
-Square mapping roundtrip (`squareOf(rowOf(sq), colOf(sq)) == sq` for all 64). LERF anchor values (`squareOf(0,0) == SQ_A8`, `squareOf(7,0) == SQ_A1`). Bit manipulation (`popcount`, `lsb`, `popLsb`). Square-color masks (a1 dark, b1 light, popcount 32 each, no overlap). Leaper attack tables (knight on e4, king on a1, pawn attacks per color). Slider ray functions (rook/bishop on empty board and with blockers). X-ray attack functions (`xrayRookAttacks`: north through blocker, no-friendly-blocker; `xrayBishopAttacks`: diagonal through blocker). `rayBetween`: same file, same rank, same diagonal, anti-diagonal, adjacent (returns 0), non-colinear (returns 0). `lineBB`: same rank (full rank), same file (full file), diagonal (full diagonal), non-colinear (returns 0), endpoints included. `BitboardSet` mutations (`setPiece`/`removePiece`/`movePiece` consistency, aggregate bitboard correctness). `computeAttackInfo`: initial position (knight squares, pawn bulk attacks), color union consistency, kings-only board (only king attacks nonzero).
+Square mapping roundtrip (`squareOf(rowOf(sq), colOf(sq)) == sq` for all 64). LERF anchor values (`squareOf(0,0) == SQ_A8`, `squareOf(7,0) == SQ_A1`). Bit manipulation (`popcount`, `lsb`, `popLsb`). Square-color masks (a1 dark, b1 light, popcount 32 each, no overlap). `BitboardSet` mutations (`setPiece`/`removePiece`/`movePiece` consistency, aggregate bitboard correctness).
+
+### Movegen (`test_chess_movegen.cpp`)
+Leaper attack tables (knight on e4, king on a1, pawn attacks per color). Slider ray functions (rook/bishop/queen on empty board and with blockers). X-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`). `rayBetween` geometry (file/rank/diagonal/anti-diagonal/adjacent/non-colinear). `lineBB` geometry (rank/file/diagonal/non-colinear/endpoints). `computeAttackInfo` validation (initial knight attacks, pawn bulk attacks, color unions, kings-only board).
+
+### Pieces (`test_chess_pieces.cpp`)
+Pawn-structure mask initialization and helper queries: `PASSED_PAWN_MASK` shape checks (`e4` lane coverage), passed-pawn detection with blockers (`isPassed`), isolated-file masks (`ISOLATED_PAWN_MASK`), doubled-pawn detection using forward-file masks (`isDoubled` + `FORWARD_FILE_MASK`), backward-pawn heuristic (`isBackward`), and forward-file mask boundary checks.

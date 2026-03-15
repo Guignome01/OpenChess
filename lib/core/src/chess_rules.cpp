@@ -44,13 +44,13 @@ static Bitboard attackersOfSquare(const BB& bb, Square sq, Color attackingColor)
 
   // Leaper attacks: precomputed tables, O(1) per piece type.
   int pawnIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(attackingColor, PieceType::PAWN));
-  attackers |= ChessAttacks::PAWN_ATTACKS[ChessPiece::raw(defending)][sq] & bb.byPiece[pawnIdx];
+  attackers |= ChessMovegen::PAWN_ATTACKS[ChessPiece::raw(defending)][sq] & bb.byPiece[pawnIdx];
 
   int knightIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(attackingColor, PieceType::KNIGHT));
-  attackers |= ChessAttacks::KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx];
+  attackers |= ChessMovegen::KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx];
 
   int kingIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(attackingColor, PieceType::KING));
-  attackers |= ChessAttacks::KING_ATTACKS[sq] & bb.byPiece[kingIdx];
+  attackers |= ChessMovegen::KING_ATTACKS[sq] & bb.byPiece[kingIdx];
 
   // Slider attacks: ray loops to find rook/queen and bishop/queen attackers.
   int rookIdx   = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(attackingColor, PieceType::ROOK));
@@ -58,8 +58,8 @@ static Bitboard attackersOfSquare(const BB& bb, Square sq, Color attackingColor)
   int bishopIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(attackingColor, PieceType::BISHOP));
   Bitboard rookQueens   = bb.byPiece[rookIdx]   | bb.byPiece[queenIdx];
   Bitboard bishopQueens = bb.byPiece[bishopIdx] | bb.byPiece[queenIdx];
-  attackers |= ChessAttacks::rookAttacks(sq, bb.occupied)   & rookQueens;
-  attackers |= ChessAttacks::bishopAttacks(sq, bb.occupied) & bishopQueens;
+  attackers |= ChessMovegen::rookAttacks(sq, bb.occupied)   & rookQueens;
+  attackers |= ChessMovegen::bishopAttacks(sq, bb.occupied) & bishopQueens;
 
   return attackers;
 }
@@ -88,14 +88,14 @@ static PinData computePinData(const BB& bb, Square kingSq, Color sideToMove) {
 
   // X-ray from king through friendly blockers to find potential pinners.
   Bitboard pinners =
-      (ChessAttacks::xrayRookAttacks(bb.occupied, friendly, kingSq)   & enemyRookQueens)
-    | (ChessAttacks::xrayBishopAttacks(bb.occupied, friendly, kingSq) & enemyBishopQueens);
+      (ChessMovegen::xrayRookAttacks(bb.occupied, friendly, kingSq)   & enemyRookQueens)
+    | (ChessMovegen::xrayBishopAttacks(bb.occupied, friendly, kingSq) & enemyBishopQueens);
 
   // For each potential pinner, validate that exactly one friendly piece
   // sits between king and pinner (= the pinned piece).
   while (pinners) {
     Square pinner = popLsb(pinners);
-    Bitboard ray = ChessAttacks::rayBetween(kingSq, pinner) | squareBB(pinner);
+    Bitboard ray = ChessMovegen::rayBetween(kingSq, pinner) | squareBB(pinner);
     Bitboard pinnedBit = ray & friendly;
     if (popcount(pinnedBit) != 1) continue;  // 0 = no blocker, 2+ = shielded
     data.pinRay[data.count] = ray;
@@ -218,7 +218,7 @@ void ChessRules::getPossibleMoves(const BB& bb, const Piece mailbox[],
   Bitboard checkMask = ~0ULL;
   if (checkerCount == 1) {
     Square checker = lsb(checkers);
-    checkMask = ChessAttacks::rayBetween(kingSq, checker) | squareBB(checker);
+    checkMask = ChessMovegen::rayBetween(kingSq, checker) | squareBB(checker);
   }
 
   // --- Generate pseudo-legal moves ---
@@ -290,7 +290,7 @@ void ChessRules::generateMovesImpl(const BB& bb, const Piece mailbox[],
   Bitboard checkMask = ~0ULL;
   if (checkerCount == 1) {
     Square checker = lsb(checkers);
-    checkMask = ChessAttacks::rayBetween(kingSq, checker) | squareBB(checker);
+    checkMask = ChessMovegen::rayBetween(kingSq, checker) | squareBB(checker);
   }
 
   PinData pinData = computePinData(bb, kingSq, color);
@@ -421,7 +421,7 @@ void ChessRules::addPawnMoves(const BB& bb, const Piece mailbox[],
 // ---------------------------------------------------------------------------
 
 void ChessRules::addRookMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
-  Bitboard attacks = ChessAttacks::rookAttacks(sq, bb.occupied);
+  Bitboard attacks = ChessMovegen::rookAttacks(sq, bb.occupied);
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
   Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
   uint8_t from8 = static_cast<uint8_t>(sq);
@@ -433,7 +433,7 @@ void ChessRules::addRookMoves(const BB& bb, Square sq, Color pieceColor, MoveLis
 }
 
 void ChessRules::addBishopMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
-  Bitboard attacks = ChessAttacks::bishopAttacks(sq, bb.occupied);
+  Bitboard attacks = ChessMovegen::bishopAttacks(sq, bb.occupied);
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
   Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
   uint8_t from8 = static_cast<uint8_t>(sq);
@@ -445,7 +445,7 @@ void ChessRules::addBishopMoves(const BB& bb, Square sq, Color pieceColor, MoveL
 }
 
 void ChessRules::addQueenMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
-  Bitboard attacks = ChessAttacks::queenAttacks(sq, bb.occupied);
+  Bitboard attacks = ChessMovegen::queenAttacks(sq, bb.occupied);
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
   Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
   uint8_t from8 = static_cast<uint8_t>(sq);
@@ -457,7 +457,7 @@ void ChessRules::addQueenMoves(const BB& bb, Square sq, Color pieceColor, MoveLi
 }
 
 void ChessRules::addKnightMoves(const BB& bb, Square sq, Color pieceColor, MoveList& moves) {
-  Bitboard attacks = ChessAttacks::KNIGHT_ATTACKS[sq];
+  Bitboard attacks = ChessMovegen::KNIGHT_ATTACKS[sq];
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
   Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
   uint8_t from8 = static_cast<uint8_t>(sq);
@@ -472,7 +472,7 @@ void ChessRules::addKingMoves(const BB& bb, const Piece mailbox[],
                                Square sq, Color pieceColor,
                                const PositionState& state, MoveList& moves,
                                bool includeCastling) {
-  Bitboard attacks = ChessAttacks::KING_ATTACKS[sq];
+  Bitboard attacks = ChessMovegen::KING_ATTACKS[sq];
   attacks &= ~bb.byColor[ChessPiece::raw(pieceColor)];
   Bitboard enemy = bb.byColor[ChessPiece::raw(~pieceColor)];
   uint8_t from8 = static_cast<uint8_t>(sq);
@@ -592,30 +592,30 @@ bool ChessRules::isSquareUnderAttack(const BB& bb, Square sq, Color defendingCol
   // Pawn attacks: PAWN_ATTACKS[defending][sq] gives squares from which
   // an attacking pawn could reach sq.
   int pawnIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::PAWN));
-  if (ChessAttacks::PAWN_ATTACKS[ChessPiece::raw(defendingColor)][sq] & bb.byPiece[pawnIdx])
+  if (ChessMovegen::PAWN_ATTACKS[ChessPiece::raw(defendingColor)][sq] & bb.byPiece[pawnIdx])
     return true;
 
   // Knight attacks
   int knightIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::KNIGHT));
-  if (ChessAttacks::KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx])
+  if (ChessMovegen::KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx])
     return true;
 
   // King attacks
   int kingIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::KING));
-  if (ChessAttacks::KING_ATTACKS[sq] & bb.byPiece[kingIdx])
+  if (ChessMovegen::KING_ATTACKS[sq] & bb.byPiece[kingIdx])
     return true;
 
   // Rook/Queen — orthogonal rays
   int rookIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::ROOK));
   int queenIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::QUEEN));
   Bitboard rookQueens = bb.byPiece[rookIdx] | bb.byPiece[queenIdx];
-  if (ChessAttacks::rookAttacks(sq, bb.occupied) & rookQueens)
+  if (ChessMovegen::rookAttacks(sq, bb.occupied) & rookQueens)
     return true;
 
   // Bishop/Queen — diagonal rays
   int bishopIdx = ChessPiece::pieceZobristIndex(ChessPiece::makePiece(atk, PieceType::BISHOP));
   Bitboard bishopQueens = bb.byPiece[bishopIdx] | bb.byPiece[queenIdx];
-  if (ChessAttacks::bishopAttacks(sq, bb.occupied) & bishopQueens)
+  if (ChessMovegen::bishopAttacks(sq, bb.occupied) & bishopQueens)
     return true;
 
   return false;
@@ -711,7 +711,7 @@ bool ChessRules::hasAnyLegalMove(const BB& bb, const Piece mailbox[],
   Bitboard checkMask = ~0ULL;
   if (checkerCount == 1) {
     Square checker = lsb(checkers);
-    checkMask = ChessAttacks::rayBetween(kingSq, checker) | squareBB(checker);
+    checkMask = ChessMovegen::rayBetween(kingSq, checker) | squareBB(checker);
   }
 
   PinData pinData = computePinData(bb, kingSq, color);

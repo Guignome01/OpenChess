@@ -1,7 +1,7 @@
 #ifndef CORE_CHESS_RULES_H
 #define CORE_CHESS_RULES_H
 
-#include "chess_attacks.h"
+#include "chess_movegen.h"
 #include "chess_bitboard.h"
 #include "chess_utils.h"
 #include "types.h"

@@ -2,7 +2,7 @@
 #define SYSTEM_UTILS_H
 
 #include "led_colors.h"
-#include "chess_piece.h"
+#include "chess_pieces.h"
 
 namespace SystemUtils {
 
