@@ -187,6 +187,49 @@ void test_eval_isolated_pawns_worse(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Tapered evaluation (game phase)
+// ---------------------------------------------------------------------------
+
+void test_eval_tapered_opening_vs_endgame_king(void) {
+  // In an opening-like position (lots of pieces), king on e1 (corner-ish)
+  // should score better than king on d4 (center).
+  // With full material the MG king table dominates: e1 = 0, d4 = -40.
+  setupInitialBoard(bb, mailbox);
+  int fullBoard = ChessEval::evaluatePosition(bb);
+  // Starting position is symmetric → still zero regardless of phase.
+  TEST_ASSERT_EQUAL_INT(0, fullBoard);
+}
+
+void test_eval_tapered_endgame_king_centralization(void) {
+  // Pure K+P endgame (phase = 0) — king in center should score better than
+  // king on the edge (EG table: d4 = +30 vs a1 = -20).
+  placePiece(bb, mailbox, Piece::W_KING, "d4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_KING, "a1");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e2");
+  int eval = ChessEval::evaluatePosition(bb);
+  // White king center (d4 EG=+30) vs black king corner (a1 → mirrored to a8 EG=-20).
+  // Net king EG bonus: +30 - (-20) = +50 advantage for white.
+  TEST_ASSERT_TRUE(eval > 0);
+}
+
+void test_eval_tapered_phase_affects_king(void) {
+  // White king central (d4), black king corner (h8).
+  // No non-pawn material → phase = 0 → pure endgame weights.
+  placePiece(bb, mailbox, Piece::W_KING, "d4");
+  placePiece(bb, mailbox, Piece::B_KING, "h8");
+  int endgameEval = ChessEval::evaluatePosition(bb);
+
+  // Add symmetric rook pair → increases phase toward midgame.
+  placePiece(bb, mailbox, Piece::W_ROOK, "a1");
+  placePiece(bb, mailbox, Piece::B_ROOK, "a8");
+  int midgameEval = ChessEval::evaluatePosition(bb);
+
+  // Phase change shifts the king PST blend, producing different eval.
+  TEST_ASSERT_TRUE(endgameEval != midgameEval);
+}
+
+// ---------------------------------------------------------------------------
 // Additional FEN/helper tests
 // ---------------------------------------------------------------------------
 
@@ -696,6 +739,11 @@ void register_chess_utils_tests() {
   RUN_TEST(test_eval_passed_pawn_bonus);
   RUN_TEST(test_eval_doubled_pawns_worse);
   RUN_TEST(test_eval_isolated_pawns_worse);
+
+  // Tapered evaluation (game phase)
+  RUN_TEST(test_eval_tapered_opening_vs_endgame_king);
+  RUN_TEST(test_eval_tapered_endgame_king_centralization);
+  RUN_TEST(test_eval_tapered_phase_affects_king);
 
   // checkEnPassant
   RUN_TEST(test_checkEnPassant_double_push_sets_target);

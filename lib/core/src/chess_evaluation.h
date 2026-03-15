@@ -5,10 +5,12 @@
 
 namespace ChessEval {
 
-// Evaluate board position using material count, piece-square tables (PSTs),
-// and pawn structure analysis (passed, isolated, doubled, backward pawns,
-// connected passers). Returns evaluation in centipawns (positive = White
-// advantage, negative = Black). Material: P=100 N=300 B=300 R=500 Q=900.
+// Evaluate board position using tapered evaluation: interpolates between
+// midgame and endgame scores based on remaining non-pawn material (game phase).
+// Components: material count, phase-specific piece-square tables (PSTs), and
+// pawn structure analysis (passed, isolated, doubled, backward, connected).
+// Returns evaluation in centipawns (positive = White, negative = Black).
+// Phase: N=1, B=1, R=2, Q=4; max=24 (opening) → 0 (pure endgame).
 int evaluatePosition(const ChessBitboard::BitboardSet& bb);
 
 }  // namespace ChessEval

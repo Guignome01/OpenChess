@@ -31,7 +31,7 @@ test/
     ├── test_chess_rules_moves.cpp        Move generation per piece type, captures, initial position
     ├── test_chess_rules_check.cpp        Check detection, checkmate, stalemate, move legality under check
     ├── test_chess_rules_special.cpp      Castling, en passant, promotion, helper functions
-    ├── test_chess_utils.cpp              Evaluation (material + PST + pawn structure), piece color helpers, 50-move rule, castling rights strings
+    ├── test_chess_utils.cpp              Evaluation (tapered eval, pawn structure, game phase), piece color helpers, 50-move rule, castling rights strings
     ├── test_chess_fen.cpp                FEN round-trip, boardToFEN/fenToBoard, validateFEN
     ├── test_chess_notation.cpp           Coordinate/SAN/LAN output and parsing, roundtrip verification
     ├── test_chess_iterator.cpp           Board iteration: forEachSquare, forEachPiece, somePiece, findPiece
@@ -105,7 +105,7 @@ Move log add/undo/redo. Cursor positioning. Branch-on-undo: adding a move at a b
 Persistence lifecycle with MockGameStorage. Header flush timing. Game replay from storage. Branch-truncation of storage. ChessGame recording integration: startNewGame, endGame, resume, auto-finish. Compact 2-byte encode/decode stability. On-disk format compatibility.
 
 ### Utils (`test_chess_utils.cpp`)
-Material evaluation scoring. Pawn structure evaluation (symmetry, passed pawn bonus, doubled/isolated penalties). Piece color detection. 50-move rule counter. Legal move queries. Castling rights string formatting and parsing.
+Material evaluation scoring. Pawn structure evaluation (symmetry, passed pawn bonus, doubled/isolated penalties). Tapered evaluation (opening symmetry, endgame king centralization, phase-dependent king PST blend). Piece color detection. 50-move rule counter. Legal move queries. Castling rights string formatting and parsing.
 
 ### FEN (`test_chess_fen.cpp`)
 Round-trip: board → FEN → board. `boardToFEN()` output correctness. `fenToBoard()` parsing. `validateFEN()`: valid positions, invalid rank structure, bad piece chars, wrong turn field, invalid castling, bad en passant, bad clocks.

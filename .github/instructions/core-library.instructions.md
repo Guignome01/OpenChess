@@ -16,7 +16,7 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
 | `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (all constexpr), defined in `chess_pieces.h` |
 | `ChessRules` | Per-piece and bulk move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessEval` | Position evaluation: material count + piece-square tables (PSTs) + pawn structure (passed, isolated, doubled, backward, connected passers). Returns centipawns (`int`). | Stateless namespace |
+| `ChessEval` | Tapered evaluation: material + phase-specific PSTs (midgame/endgame for king and pawn, shared for other pieces) + pawn structure (passed, isolated, doubled, backward, connected passers). Game phase from non-pawn material (N=1, B=1, R=2, Q=4; max 24). Returns centipawns (`int`). | Stateless namespace |
 | `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
 | `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
 | `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, square-color masks (`DARK_SQUARES`, `LIGHT_SQUARES`), directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
