@@ -6,13 +6,17 @@
 // Leaper attacks (knight, king, pawn) are stored in lookup tables —
 // one Bitboard per square, computed once at startup via initAttacks().
 //
-// Slider attacks (rook, bishop, queen) use classical ray loops:
-// walk one square at a time in each direction, stopping at the first
-// occupied square. Zero memory overhead, readable, and sufficient for
-// board UI + future puzzle solver. Can be upgraded to magic bitboards
-// later if search profiling demands it.
+// Slider attacks (rook, bishop, queen) use two O(1) techniques:
+//   - Rank attacks: first-rank lookup table (512 bytes, indexed by
+//     file + 6-bit inner occupancy).
+//   - File/diagonal/anti-diagonal attacks: Hyperbola Quintessence —
+//     branchless o^(o-2r) subtraction trick with byte-swap for the
+//     negative ray direction. Diagonal masks (DIAG_MASK[64],
+//     ANTI_DIAG_MASK[64]) are precomputed at startup.
 //
-// Reference: https://www.chessprogramming.org/Bitboards
+// References:
+//   https://www.chessprogramming.org/Bitboards
+//   https://www.chessprogramming.org/Hyperbola_Quintessence
 
 #include "chess_bitboard.h"
 
@@ -68,7 +72,11 @@ Bitboard xrayBishopAttacks(Bitboard occupied, Bitboard friendly, Square sq);
 // Called once per evaluation, not per move — avoids complicating
 // makeMove/reverseMove with incremental update logic.
 //
-// Usage: king safety, mobility scoring, move ordering.
+// Not yet called by production code. Planned consumers:
+//   - Evaluation: king safety (counting attackers near king), mobility
+//     (squares controlled per piece).
+//   - Search: move ordering (captures of undefended pieces, MVV-LVA).
+//
 // PieceType::NONE (index 0) slots are unused; indices 1–6 for PAWN..KING.
 
 struct AttackInfo {
@@ -91,7 +99,11 @@ Bitboard rayBetween(Square s1, Square s2);
 
 // Full line through s1 and s2, extending to both board edges, inclusive of
 // both endpoints. Returns 0 if s1 and s2 are not colinear (different rank,
-// file, and diagonal). Used for pin detection and alignment checks.
+// file, and diagonal).
+// Not yet called by production code. Planned consumers:
+//   - SEE (Static Exchange Evaluation): finds all x-ray attackers behind a
+//     capture target along the full line.
+//   - Advanced alignment/pin detection in evaluation.
 Bitboard lineBB(Square s1, Square s2);
 
 }  // namespace ChessMovegen

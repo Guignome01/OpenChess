@@ -91,7 +91,7 @@ Pure, **stateless** chess logic. All methods are `static` — `ChessRules` has n
 - **Bulk move generation** — `generateAllMoves(bb, mailbox, color, state, moves)` fills a `MoveList&` with all legal moves for the entire position as `Move` structs (from/to/flags). `generateCaptures(...)` is the capture-only variant for quiescence search. Both use the same pin+check mask infrastructure but amortize the cost across all friendly pieces via bitboard serialization. Delegates to `getPseudoLegalMoves` per piece, then filters with pin+check masks. File-local anonymous-namespace helpers in `chess_rules.cpp`: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
 - **Castling** — the `state.castlingRights` bitmask (bit 0 = White kingside, bit 1 = White queenside, bit 2 = Black kingside, bit 3 = Black queenside) is passed in by the caller. `addCastlingMoves()` checks rights, empty intermediate squares, and that the king doesn't pass through or land on an attacked square.
 - **En passant** — the target square (`state.epRow`, `state.epCol`) is passed in by the caller. `hasLegalEnPassantCapture()` checks whether an adjacent pawn can legally execute the capture (used by `ChessBoard` for Zobrist hashing).
-- **Game state checks** — `isSquareUnderAttack(bb, sq, defendingColor)` uses precomputed attack table lookups + bitwise AND per piece type (knight, king, pawn) and classical ray loops (rook, bishop, queen) — takes only the `BitboardSet`, no mailbox needed. `isCheckmate(bb, mailbox, color, state)`, `isStalemate(bb, mailbox, color, state)`, `hasAnyLegalMove(bb, mailbox, color, state)`. Threefold repetition detection takes `const HashHistory&`.
+- **Game state checks** — `isSquareUnderAttack(bb, sq, defendingColor)` uses precomputed attack table lookups + bitwise AND per piece type (knight, king, pawn) and O(1) slider attack functions (rook, bishop, queen via first-rank table + Hyperbola Quintessence) — takes only the `BitboardSet`, no mailbox needed. `isCheckmate(bb, mailbox, color, state)`, `isStalemate(bb, mailbox, color, state)`, `hasAnyLegalMove(bb, mailbox, color, state)`. Threefold repetition detection takes `const HashHistory&`.
 
 `ChessBoard` owns all position state (castling rights, en passant target, halfmove/fullmove clocks) via a `PositionState` struct and passes it to `ChessRules` methods as needed.
 
@@ -121,7 +121,7 @@ The board uses a **dual representation**: a `BitboardSet` (12 piece bitboards + 
 
 **Why not just bitboards?** Bitboards excel at set operations — "which squares have white knights?" is a single `uint64_t`. But the reverse question — "what piece is on e4?" — requires scanning all 12 piece bitboards (`bb.byPiece[i] & squareBB(e4)` for each `i`). The mailbox answers this with a single array read. Concrete callers that need O(1) piece identity: FEN serialization (iterates every square), SAN disambiguation ("which piece is on the source square?"), move application (piece and capture identity), en passant/castling analysis (piece identity at specific squares). 64 bytes of mailbox eliminates an O(12) scan on the hot path.
 
-**Why not just a mailbox?** Attack detection with a mailbox requires walking rays direction by direction, checking each square. With bitboards, `isSquareUnderAttack` is a single `AND` per piece type against precomputed attack tables — e.g., `KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx]` replaces a loop over 8 knight offsets with bounds checking.
+**Why not just a mailbox?** Attack detection with a mailbox requires walking rays direction by direction, checking each square. With bitboards, `isSquareUnderAttack` is a single `AND` per piece type against precomputed attack tables — e.g., `KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx]` replaces a loop over 8 knight offsets with bounds checking. Slider attacks use O(1) Hyperbola Quintessence + first-rank table lookup rather than ray-walking loops.
 
 **Performance in practice**: for LibreChess's current use case (board UI, single-move validation, sensor-driven play), the speed difference is negligible — the ESP32 spends orders of magnitude more time on WiFi, LED updates, and sensor reads. Where bitboards would genuinely matter is in **search** (alpha-beta, millions of `isSquareUnderAttack` calls per second) — if a local engine or puzzle solver is added, the infrastructure is ready. The practical benefits today are: cleaner attack detection code (lookup + AND vs. handwritten sliding loops), industry-standard representation (compatible with any chess programming resource), and correctness tooling (perft with detailed counters validates against known-good reference counts).
 
@@ -594,6 +594,14 @@ The `data/` directory is committed to git so users without npm tools can still b
 
 **`ChessEval`** (`chess_evaluation.h/cpp`) — namespace with tapered position evaluation:
 - `evaluatePosition(bb)` — tapered score in centipawns (MG/EG PSTs + pawn structure, interpolated by game phase)
+
+**`ChessMovegen`** (`chess_movegen.h/cpp`) — namespace with attack tables, slider functions, and geometry helpers:
+- `KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]` — precomputed leaper tables (~2.5 KiB), initialized once via `initAttacks()`
+- `rookAttacks(sq, occ)`, `bishopAttacks(sq, occ)`, `queenAttacks(sq, occ)` — O(1) slider attacks via first-rank lookup table (rank) + Hyperbola Quintessence (file/diagonal/anti-diagonal). Diagonal masks (`DIAG_MASK[64]`, `ANTI_DIAG_MASK[64]`) precomputed at startup (~1 KiB)
+- `xrayRookAttacks(occ, friendly, sq)`, `xrayBishopAttacks(occ, friendly, sq)` — pin detection (used by `ChessRules`)
+- `rayBetween(s1, s2)` — squares strictly between two colinear squares (used by `ChessRules` for check masks)
+- `lineBB(s1, s2)` — full line through two colinear squares, edge-to-edge. **Pre-built infrastructure** — planned consumer: SEE (Static Exchange Evaluation) for x-ray attacker discovery
+- `computeAttackInfo(bb)` → `AttackInfo` — per-piece-type and per-color attack maps from scratch. **Pre-built infrastructure** — planned consumers: evaluation (king safety, mobility) and search (move ordering)
 
 **`ChessUtils`** (`chess_utils.h/cpp`) — namespace with board-level helper functions:
 - `isValidSquare(row, col)` — bounds check for 8×8 board

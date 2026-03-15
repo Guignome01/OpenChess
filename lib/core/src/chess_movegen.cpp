@@ -14,6 +14,17 @@ Bitboard KNIGHT_ATTACKS[64] = {};
 Bitboard KING_ATTACKS[64] = {};
 Bitboard PAWN_ATTACKS[2][64] = {};
 
+// Diagonal masks (a1-h8 direction), one per square, inclusive of the square.
+static Bitboard DIAG_MASK[64];
+
+// Anti-diagonal masks (h1-a8 direction), one per square, inclusive of square.
+static Bitboard ANTI_DIAG_MASK[64];
+
+// First-rank attack table: for each file (0-7) and each 6-bit inner
+// occupancy pattern (bits 1-6 of the rank), stores the 8-bit attack mask
+// on that rank. Used for O(1) rank attack lookup.
+static uint8_t FIRST_RANK_ATTACKS[8][64];
+
 // ---------------------------------------------------------------------------
 // Table initialization
 // ---------------------------------------------------------------------------
@@ -64,6 +75,109 @@ static void initPawnAttacks() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Byte swap for Hyperbola Quintessence
+// ---------------------------------------------------------------------------
+// Reverses byte order of a 64-bit value, which mirrors rank order on the
+// board. Used to compute negative-direction slider attacks by applying the
+// positive-direction subtraction trick on the reversed occupancy.
+// __builtin_bswap64 is available on GCC and Clang (including the Xtensa
+// toolchain for ESP32).
+
+static inline uint64_t byteSwap64(uint64_t v) {
+  return __builtin_bswap64(v);
+}
+
+// ---------------------------------------------------------------------------
+// Hyperbola Quintessence — O(1) line attacks (file/diagonal/anti-diagonal)
+// ---------------------------------------------------------------------------
+// Computes sliding piece attacks along a single line through square `sq`.
+// The mask covers the full line including `sq`; internally excludes sq
+// from the line occupancy via XOR.
+//
+// The o^(o-2r) subtraction trick:
+//   - In the positive direction (toward higher-index squares), subtracting
+//     2*sq_bit from the masked occupancy causes borrow propagation up to
+//     the first blocker, yielding the attacked squares in that direction.
+//   - Byte-swapping reverses rank order, applying the same trick in the
+//     negative direction. The XOR combines both rays.
+//
+// Branchless and O(1) per line — replaces the classical ray-walking loop.
+// Reference: https://www.chessprogramming.org/Hyperbola_Quintessence
+
+static Bitboard lineHQ(Bitboard occ, Square sq, Bitboard mask) {
+  Bitboard piece = squareBB(sq);
+  Bitboard maskEx = mask ^ piece;   // mask excluding piece square
+  Bitboard forward = occ & maskEx;
+  Bitboard reverse = byteSwap64(forward);
+  forward -= 2 * piece;
+  reverse -= 2 * byteSwap64(piece);
+  forward ^= byteSwap64(reverse);
+  return forward & maskEx;
+}
+
+// ---------------------------------------------------------------------------
+// Diagonal/anti-diagonal mask initialization
+// ---------------------------------------------------------------------------
+// Precomputes the full diagonal and anti-diagonal mask for each of the 64
+// squares. A diagonal runs from lower-left to upper-right (constant
+// rank-file difference). An anti-diagonal runs from lower-right to upper-left
+// (constant rank+file sum). Both include the square itself.
+
+static void initDiagMasks() {
+  for (Square sq = 0; sq < 64; ++sq) {
+    int rank = sq / 8, file = sq % 8;
+
+    // Diagonal (rank - file = constant)
+    Bitboard diag = 0;
+    int startR = (rank >= file) ? rank - file : 0;
+    int startF = (file >= rank) ? file - rank : 0;
+    for (int r = startR, f = startF; r < 8 && f < 8; ++r, ++f)
+      diag |= squareBB(r * 8 + f);
+    DIAG_MASK[sq] = diag;
+
+    // Anti-diagonal (rank + file = constant)
+    Bitboard adiag = 0;
+    int sum = rank + file;
+    int startR2 = (sum <= 7) ? 0 : sum - 7;
+    int startF2 = (sum <= 7) ? sum : 7;
+    for (int r = startR2, f = startF2; r < 8 && f >= 0; ++r, --f)
+      adiag |= squareBB(r * 8 + f);
+    ANTI_DIAG_MASK[sq] = adiag;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// First-rank attack table initialization
+// ---------------------------------------------------------------------------
+// For each file (0-7) and each 6-bit inner occupancy (the middle 6 files
+// of a rank, representing 64 possible blocker patterns), computes the
+// sliding attack mask along that rank.
+
+static void initFirstRankAttacks() {
+  for (int file = 0; file < 8; ++file) {
+    for (int occ6 = 0; occ6 < 64; ++occ6) {
+      uint8_t occ = occ6 << 1;  // inner occupancy at bits 1-6
+      uint8_t result = 0;
+      // Walk right (toward file h)
+      for (int f = file + 1; f < 8; ++f) {
+        result |= static_cast<uint8_t>(1 << f);
+        if (occ & (1 << f)) break;
+      }
+      // Walk left (toward file a)
+      for (int f = file - 1; f >= 0; --f) {
+        result |= static_cast<uint8_t>(1 << f);
+        if (occ & (1 << f)) break;
+      }
+      FIRST_RANK_ATTACKS[file][occ6] = result;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Master initialization — must be called before any attack function.
+// ---------------------------------------------------------------------------
+
 void initAttacks() {
   static bool initialized = false;
   if (initialized) return;
@@ -72,62 +186,37 @@ void initAttacks() {
   initKnightAttacks();
   initKingAttacks();
   initPawnAttacks();
+  initDiagMasks();
+  initFirstRankAttacks();
   ChessPieces::initPawnMasks();
 }
 
 // ---------------------------------------------------------------------------
-// Classical ray loops for slider attacks
+// Slider attack functions
 // ---------------------------------------------------------------------------
-// Each function walks one square at a time in each of its 4 directions.
-// The attacked squares include the first blocker (can be captured) but
-// nothing beyond it.
-
-// Walk a single ray direction from `sq`. Returns the attacked squares.
-// `step` is the square-index delta per step (+8 for north, -1 for west, etc).
-// `fileMask` prevents wrapping: the bit is ANDed before each step.
-// For vertical rays (N/S) fileMask is ~0 (no wrapping possible).
-static Bitboard rayAttacks(Square sq, int step, Bitboard fileMask, Bitboard occupied) {
-  Bitboard attacks = 0;
-  Bitboard current = squareBB(sq);
-
-  while (true) {
-    // Apply wrapping guard before stepping
-    current &= fileMask;
-    if (!current) break;
-
-    // Step in the direction
-    if (step > 0)
-      current <<= step;
-    else
-      current >>= (-step);
-
-    if (!current) break;  // shifted off the board
-
-    attacks |= current;
-
-    // Stop if we hit an occupied square (the blocker is included)
-    if (current & occupied) break;
-  }
-
-  return attacks;
-}
+// Rook: rank via first-rank lookup table, file via Hyperbola Quintessence.
+// Bishop: both diagonals via Hyperbola Quintessence.
+// All are O(1) per line — branchless except the rank table lookup which
+// uses a single array index. Replaces the classical 4-direction ray walk.
 
 Bitboard rookAttacks(Square sq, Bitboard occupied) {
-  Bitboard attacks = 0;
-  attacks |= rayAttacks(sq,  8, ~0ULL,      occupied);  // North
-  attacks |= rayAttacks(sq, -8, ~0ULL,      occupied);  // South
-  attacks |= rayAttacks(sq,  1, NOT_FILE_H, occupied);  // East
-  attacks |= rayAttacks(sq, -1, NOT_FILE_A, occupied);  // West
+  int rank = sq / 8;
+  int file = sq % 8;
+
+  // Rank attacks: extract 6 inner occupancy bits, table lookup, place on rank.
+  uint8_t occ6 = static_cast<uint8_t>((occupied >> (rank * 8 + 1)) & 0x3F);
+  Bitboard attacks = static_cast<Bitboard>(FIRST_RANK_ATTACKS[file][occ6])
+                     << (rank * 8);
+
+  // File attacks via Hyperbola Quintessence.
+  attacks |= lineHQ(occupied, sq, FILE_A << file);
+
   return attacks;
 }
 
 Bitboard bishopAttacks(Square sq, Bitboard occupied) {
-  Bitboard attacks = 0;
-  attacks |= rayAttacks(sq,  9, NOT_FILE_H, occupied);  // North-East
-  attacks |= rayAttacks(sq,  7, NOT_FILE_A, occupied);  // North-West
-  attacks |= rayAttacks(sq, -7, NOT_FILE_H, occupied);  // South-East
-  attacks |= rayAttacks(sq, -9, NOT_FILE_A, occupied);  // South-West
-  return attacks;
+  return lineHQ(occupied, sq, DIAG_MASK[sq])
+       | lineHQ(occupied, sq, ANTI_DIAG_MASK[sq]);
 }
 
 // ---------------------------------------------------------------------------
@@ -201,6 +290,9 @@ Bitboard lineBB(Square s1, Square s2) {
 // Pawns use bulk shift (entire bitboard shifted diagonally) — no per-square
 // loop. Leapers (knight, king) use precomputed table lookup per square.
 // Sliders (bishop, rook, queen) use classical ray loops per square.
+//
+// Not yet called by production code — pre-built infrastructure for upcoming
+// evaluation terms (king safety, mobility) and search (move ordering).
 
 AttackInfo computeAttackInfo(const BitboardSet& bb) {
   using namespace ChessPiece;

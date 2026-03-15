@@ -227,6 +227,76 @@ static void test_queen_attacks_e4_empty(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk slider correctness (reference cross-check)
+// ---------------------------------------------------------------------------
+// Verifies rook and bishop attacks for every square against a simple
+// reference implementation. Catches edge-case issues in the optimized
+// Hyperbola Quintessence / first-rank table implementation.
+
+// Reference ray walk — the original classical loop for cross-checking.
+static Bitboard refRay(Square sq, int step, Bitboard fileMask, Bitboard occupied) {
+  Bitboard attacks = 0, current = squareBB(sq);
+  while (true) {
+    current &= fileMask;
+    if (!current) break;
+    if (step > 0) current <<= step; else current >>= (-step);
+    if (!current) break;
+    attacks |= current;
+    if (current & occupied) break;
+  }
+  return attacks;
+}
+
+static Bitboard refRookAttacks(Square sq, Bitboard occ) {
+  return refRay(sq, 8, ~0ULL, occ)     | refRay(sq, -8, ~0ULL, occ)
+       | refRay(sq, 1, NOT_FILE_H, occ) | refRay(sq, -1, NOT_FILE_A, occ);
+}
+
+static Bitboard refBishopAttacks(Square sq, Bitboard occ) {
+  return refRay(sq,  9, NOT_FILE_H, occ) | refRay(sq, 7, NOT_FILE_A, occ)
+       | refRay(sq, -7, NOT_FILE_H, occ) | refRay(sq, -9, NOT_FILE_A, occ);
+}
+
+// Test rook attacks for all 64 squares with several occupancy patterns.
+static void test_rook_attacks_bulk_correctness(void) {
+  initAttacks();
+  // Several occupancy patterns: empty, edges, random-ish, full
+  Bitboard patterns[] = {
+    0,
+    RANK_1 | RANK_8 | FILE_A | FILE_H,
+    0xAA55AA55AA55AA55ULL,
+    0x00FF00FF00FF00FFULL,
+    ~0ULL,
+  };
+  for (auto occ : patterns) {
+    for (Square sq = 0; sq < 64; ++sq) {
+      Bitboard expected = refRookAttacks(sq, occ);
+      Bitboard actual = rookAttacks(sq, occ);
+      TEST_ASSERT_EQUAL_UINT64(expected, actual);
+    }
+  }
+}
+
+// Test bishop attacks for all 64 squares with several occupancy patterns.
+static void test_bishop_attacks_bulk_correctness(void) {
+  initAttacks();
+  Bitboard patterns[] = {
+    0,
+    RANK_1 | RANK_8 | FILE_A | FILE_H,
+    0xAA55AA55AA55AA55ULL,
+    0x00FF00FF00FF00FFULL,
+    ~0ULL,
+  };
+  for (auto occ : patterns) {
+    for (Square sq = 0; sq < 64; ++sq) {
+      Bitboard expected = refBishopAttacks(sq, occ);
+      Bitboard actual = bishopAttacks(sq, occ);
+      TEST_ASSERT_EQUAL_UINT64(expected, actual);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // X-ray attacks
 // ---------------------------------------------------------------------------
 
@@ -449,6 +519,9 @@ void register_chess_movegen_tests() {
   RUN_TEST(test_bishop_attacks_with_blocker);
   RUN_TEST(test_bishop_attacks_a1_empty);
   RUN_TEST(test_queen_attacks_e4_empty);
+
+  RUN_TEST(test_rook_attacks_bulk_correctness);
+  RUN_TEST(test_bishop_attacks_bulk_correctness);
 
   RUN_TEST(test_xray_rook_north_through_blocker);
   RUN_TEST(test_xray_rook_no_friendly_blocker);
