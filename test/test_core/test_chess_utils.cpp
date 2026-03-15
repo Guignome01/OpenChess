@@ -120,6 +120,73 @@ void test_evaluation_empty_board(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Pawn structure evaluation
+// ---------------------------------------------------------------------------
+
+void test_eval_pawn_structure_symmetry(void) {
+  // Symmetric pawn structure → evaluation must be 0.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e2");
+  placePiece(bb, mailbox, Piece::W_PAWN, "f2");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  placePiece(bb, mailbox, Piece::B_PAWN, "d7");
+  placePiece(bb, mailbox, Piece::B_PAWN, "e7");
+  placePiece(bb, mailbox, Piece::B_PAWN, "f7");
+  int eval = ChessEval::evaluatePosition(bb);
+  TEST_ASSERT_EQUAL_INT(0, eval);
+}
+
+void test_eval_passed_pawn_bonus(void) {
+  // Lone white pawn on e5 — passed (no black pawns) and isolated.
+  // Without pawn structure: 100 (material) + 20 (PST) = 120 (king PSTs cancel).
+  // Pawn structure adds: +25 (passed, rank bonus) -15 (isolated) = +10 net.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e5");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  int eval = ChessEval::evaluatePosition(bb);
+  TEST_ASSERT_TRUE(eval > 120);
+}
+
+void test_eval_doubled_pawns_worse(void) {
+  // Position A: two white pawns on separate adjacent files (d4, e4).
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  int separate = ChessEval::evaluatePosition(bb);
+
+  // Position B: doubled pawns on the e-file (e3, e4).
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e3");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  int doubled = ChessEval::evaluatePosition(bb);
+
+  TEST_ASSERT_TRUE(separate > doubled);
+}
+
+void test_eval_isolated_pawns_worse(void) {
+  // Position A: two white pawns on adjacent files (d4, e4) — connected.
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "d4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "e4");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  int connected = ChessEval::evaluatePosition(bb);
+
+  // Position B: two white pawns on distant files (a4, h4) — both isolated.
+  clearBoard(bb, mailbox);
+  placePiece(bb, mailbox, Piece::W_KING, "e1");
+  placePiece(bb, mailbox, Piece::W_PAWN, "a4");
+  placePiece(bb, mailbox, Piece::W_PAWN, "h4");
+  placePiece(bb, mailbox, Piece::B_KING, "e8");
+  int isolated = ChessEval::evaluatePosition(bb);
+
+  TEST_ASSERT_TRUE(connected > isolated);
+}
+
+// ---------------------------------------------------------------------------
 // Additional FEN/helper tests
 // ---------------------------------------------------------------------------
 
@@ -623,6 +690,12 @@ void register_chess_utils_tests() {
   // Additional evaluation
   RUN_TEST(test_evaluation_black_advantage);
   RUN_TEST(test_evaluation_empty_board);
+
+  // Pawn structure evaluation
+  RUN_TEST(test_eval_pawn_structure_symmetry);
+  RUN_TEST(test_eval_passed_pawn_bonus);
+  RUN_TEST(test_eval_doubled_pawns_worse);
+  RUN_TEST(test_eval_isolated_pawns_worse);
 
   // checkEnPassant
   RUN_TEST(test_checkEnPassant_double_push_sets_target);
