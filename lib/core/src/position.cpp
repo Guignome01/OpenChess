@@ -10,54 +10,6 @@ using namespace LibreChess;
 namespace zob = LibreChess::zobrist;
 
 // ---------------------------------------------------------------------------
-// Board transform — move application on BitboardSet + mailbox.
-// Moves the piece, handles castling rook, and removes en-passant captured pawn.
-// Sets capturedPiece to the piece actually captured (including EP captures).
-// Does NOT update PositionState, promotion, or MoveResult — callers handle those.
-// ---------------------------------------------------------------------------
-
-namespace {
-
-void doBoardTransform(BitboardSet& bb, Piece mailbox[],
-                                Square from, Square to,
-                                const utils::EnPassantInfo& ep,
-                                const utils::CastlingInfo& castle,
-                                Piece& capturedPiece) {
-  Piece piece = mailbox[from];
-  capturedPiece = mailbox[to];
-
-  // En passant capture — remove the captured pawn
-  if (ep.isCapture) {
-    Square epSq = squareOf(ep.capturedPawnRow, colOf(to));
-    capturedPiece = mailbox[epSq];
-    bb.removePiece(epSq, capturedPiece);
-    mailbox[epSq] = Piece::NONE;
-  }
-
-  // Remove captured piece at destination (non-EP)
-  if (!ep.isCapture && capturedPiece != Piece::NONE)
-    bb.removePiece(to, capturedPiece);
-
-  // Move the piece
-  bb.movePiece(from, to, piece);
-  mailbox[from] = Piece::NONE;
-  mailbox[to] = piece;
-
-  // Castling — move the rook
-  if (castle.isCastling) {
-    int row = rowOf(to);
-    Piece rook = piece::makePiece(piece::pieceColor(piece), PieceType::ROOK);
-    Square rookFrom = squareOf(row, castle.rookFromCol);
-    Square rookTo = squareOf(row, castle.rookToCol);
-    bb.movePiece(rookFrom, rookTo, rook);
-    mailbox[rookFrom] = Piece::NONE;
-    mailbox[rookTo] = rook;
-  }
-}
-
-}  // anonymous namespace
-
-// ---------------------------------------------------------------------------
 // Initial board layout
 // ---------------------------------------------------------------------------
 
@@ -518,7 +470,7 @@ void Position::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol,
 
   // --- Apply board transform ---
   Piece actualCapture;
-  doBoardTransform(bb_, mailbox_, from, to, ep, castle, actualCapture);
+  utils::applyBoardTransform(bb_, mailbox_, from, to, ep, castle, actualCapture);
   result.isCapture = (actualCapture != Piece::NONE);
 
   // --- Hash: piece movements ---

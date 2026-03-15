@@ -91,6 +91,30 @@ static PinData computePinData(const BitboardSet& bb, Square kingSq, Color sideTo
   return data;
 }
 
+// Pre-computed legality context: checker info + pin data + check mask.
+// Built once per position, shared by move generation and hasAnyLegalMove.
+struct LegalityContext {
+  Square kingSq;
+  Bitboard checkMask;   // ~0ULL if not in check, between(king,checker)|checker if single check
+  PinData pinData;
+  int checkerCount;     // 0 = not in check, 1 = single check, 2+ = double check
+};
+
+// Builds the legality context for `color` in the given position.
+static LegalityContext buildLegalityContext(const BitboardSet& bb, Color color, Square kingSq) {
+  LegalityContext ctx;
+  ctx.kingSq = kingSq;
+  Bitboard checkers = attackersOfSquare(bb, kingSq, ~color);
+  ctx.checkerCount = popcount(checkers);
+  ctx.checkMask = ~0ULL;
+  if (ctx.checkerCount == 1) {
+    Square checker = lsb(checkers);
+    ctx.checkMask = atk::between(kingSq, checker) | squareBB(checker);
+  }
+  ctx.pinData = computePinData(bb, kingSq, color);
+  return ctx;
+}
+
 }  // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -348,19 +372,10 @@ static void generateMovesImpl(const BitboardSet& bb, const Piece mailbox[],
   int kidx = piece::pieceZobristIndex(piece::makePiece(color, PieceType::KING));
   Bitboard kingBB = bb.byPiece[kidx];
   if (!kingBB) return;
-  Square kingSq = lsb(kingBB);
 
-  Bitboard checkers = attackersOfSquare(bb, kingSq, ~color);
-  int checkerCount = popcount(checkers);
-  bool doubleCheck = (checkerCount >= 2);
-
-  Bitboard checkMask = ~0ULL;
-  if (checkerCount == 1) {
-    Square checker = lsb(checkers);
-    checkMask = atk::between(kingSq, checker) | squareBB(checker);
-  }
-
-  PinData pinData = computePinData(bb, kingSq, color);
+  LegalityContext ctx = buildLegalityContext(bb, color, lsb(kingBB));
+  Square kingSq = ctx.kingSq;
+  bool doubleCheck = (ctx.checkerCount >= 2);
 
   // --- King moves (always leavesInCheck, unaffected by pin/check masks) ---
   {
@@ -381,7 +396,7 @@ static void generateMovesImpl(const BitboardSet& bb, const Piece mailbox[],
   Bitboard pieces = friendly & ~squareBB(kingSq);
   while (pieces) {
     Square sq = popLsb(pieces);
-    Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
+    Bitboard legalMask = pinRayFor(ctx.pinData, sq) & ctx.checkMask;
 
     MoveList pseudo;
     getPseudoLegalMoves(bb, mailbox, sq, state, pseudo, false);
@@ -406,24 +421,14 @@ static void generateMovesImpl(const BitboardSet& bb, const Piece mailbox[],
 // hasAnyLegalMove with pre-found king (used by rules and isGameOver).
 static bool hasAnyLegalMoveImpl(const BitboardSet& bb, const Piece mailbox[],
                                 Color color, const PositionState& state, Square kingSq) {
-  Bitboard checkers = attackersOfSquare(bb, kingSq, ~color);
-  int checkerCount = popcount(checkers);
-  bool isDoubleCheck = (checkerCount >= 2);
-
-  Bitboard checkMask = ~0ULL;
-  if (checkerCount == 1) {
-    Square checker = lsb(checkers);
-    checkMask = atk::between(kingSq, checker) | squareBB(checker);
-  }
-
-  PinData pinData = computePinData(bb, kingSq, color);
+  LegalityContext ctx = buildLegalityContext(bb, color, kingSq);
 
   return iterator::somePiece(bb, mailbox, [&](int r, int c, Piece piece) {
     if (piece::pieceColor(piece) != color) return false;
     Square sq = squareOf(r, c);
     bool isKing = piece::pieceType(piece) == PieceType::KING;
 
-    if (isDoubleCheck && !isKing) return false;
+    if (ctx.checkerCount >= 2 && !isKing) return false;
 
     MoveList pseudoMoves;
     getPseudoLegalMoves(bb, mailbox, sq, state, pseudoMoves, true);
@@ -437,7 +442,7 @@ static bool hasAnyLegalMoveImpl(const BitboardSet& bb, const Piece mailbox[],
       return false;
     }
 
-    Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
+    Bitboard legalMask = pinRayFor(ctx.pinData, sq) & ctx.checkMask;
 
     for (int i = 0; i < pseudoMoves.count; i++) {
       Move m = pseudoMoves.moves[i];
@@ -479,16 +484,9 @@ void getPossibleMoves(const BitboardSet& bb, const Piece mailbox[],
     kingSq = lsb(kingBB);
   }
 
-  Bitboard checkers = attackersOfSquare(bb, kingSq, ~color);
-  int checkerCount = popcount(checkers);
+  LegalityContext ctx = buildLegalityContext(bb, color, kingSq);
 
-  if (checkerCount >= 2 && !isKing) return;
-
-  Bitboard checkMask = ~0ULL;
-  if (checkerCount == 1) {
-    Square checker = lsb(checkers);
-    checkMask = atk::between(kingSq, checker) | squareBB(checker);
-  }
+  if (ctx.checkerCount >= 2 && !isKing) return;
 
   MoveList pseudoMoves;
   getPseudoLegalMoves(bb, mailbox, sq, state, pseudoMoves, true);
@@ -502,8 +500,7 @@ void getPossibleMoves(const BitboardSet& bb, const Piece mailbox[],
     return;
   }
 
-  PinData pinData = computePinData(bb, kingSq, color);
-  Bitboard legalMask = pinRayFor(pinData, sq) & checkMask;
+  Bitboard legalMask = pinRayFor(ctx.pinData, sq) & ctx.checkMask;
 
   for (int i = 0; i < pseudoMoves.count; i++) {
     Move m = pseudoMoves.moves[i];
