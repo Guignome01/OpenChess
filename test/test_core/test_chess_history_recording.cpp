@@ -1,11 +1,11 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <chess_board.h>
-#include <chess_game.h>
-#include <chess_history.h>
-#include <game_observer.h>
-#include <game_storage.h>
+#include <position.h>
+#include <game.h>
+#include <history.h>
+#include <observer.h>
+#include <storage.h>
 #include <logger.h>
 #include <types.h>
 
@@ -14,7 +14,7 @@
 #include <vector>
 
 // Shared globals from test_core.cpp
-extern ChessBitboard::BitboardSet bb;
+extern BitboardSet bb;
 extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
@@ -138,7 +138,7 @@ class MockGameObserver : public IGameObserver {
 
 static MockLogger logger;
 static MockGameStorage storage;
-static ChessHistory history(&storage, &logger);
+static History history(&storage, &logger);
 
 // Helper: build a GameHeader for testing
 static GameHeader makeTestHeader(GameModeId mode = GameModeId::CHESS_MOVES,
@@ -157,11 +157,11 @@ static GameHeader makeTestHeader(GameModeId mode = GameModeId::CHESS_MOVES,
 static void setupRecorder() {
   logger = MockLogger();
   storage = MockGameStorage();
-  history = ChessHistory(&storage, &logger);
+  history = History(&storage, &logger);
 }
 
 // ---------------------------------------------------------------------------
-// ChessHistory recording tests
+// History recording tests
 // ---------------------------------------------------------------------------
 
 void test_recorder_set_header(void) {
@@ -237,7 +237,7 @@ void test_recorder_get_active_game_info(void) {
   storage.storedHeader.playerColor = 'b';
   storage.storedHeader.botDepth = 3;
 
-  ChessHistory histWithLive(&storage, &logger);
+  History histWithLive(&storage, &logger);
   GameModeId mode;
   uint8_t color, depth;
   TEST_ASSERT_TRUE(histWithLive.getActiveGameInfo(mode, color, depth));
@@ -258,8 +258,8 @@ void test_recorder_replay_into_board(void) {
   // Record d7d5
   history.addMove(makeEntry(1, 3, 3, 3, Piece::B_PAWN));
 
-  // Now replay into a fresh ChessBoard
-  ChessBoard board;
+  // Now replay into a fresh Position
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_TRUE(ok);
@@ -307,11 +307,11 @@ void test_recorder_replay_rejects_invalid_move(void) {
   history.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
 
   // Inject an illegal move directly into storage (d2d4 — but it's black's turn)
-  uint16_t illegal = ChessHistory::encodeMove(6, 3, 4, 3, ' ');
+  uint16_t illegal = History::encodeMove(6, 3, 4, 3, ' ');
   storage.moveData.push_back(illegal & 0xFF);
   storage.moveData.push_back((illegal >> 8) & 0xFF);
 
-  ChessBoard board;
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_FALSE(ok);  // Replay should fail on the illegal move
@@ -361,7 +361,7 @@ void test_recorder_replay_wrong_version(void) {
   storage.storedHeader.version = 99;
   storage.storedHeader.fenEntryCnt = 1;
 
-  ChessBoard board;
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_FALSE(ok);
@@ -374,16 +374,16 @@ void test_recorder_replay_no_fen_entry(void) {
   storage.storedHeader.version = FORMAT_VERSION;
   storage.storedHeader.fenEntryCnt = 0;
 
-  ChessBoard board;
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_FALSE(ok);
 }
 
 void test_recorder_replay_null_storage(void) {
-  // ChessHistory with null storage — replayInto should return false
-  ChessHistory nullHist(nullptr, &logger);
-  ChessBoard board;
+  // History with null storage — replayInto should return false
+  History nullHist(nullptr, &logger);
+  Position board;
   board.newGame();
   bool ok = nullHist.replayInto(board);
   TEST_ASSERT_FALSE(ok);
@@ -398,7 +398,7 @@ void test_recorder_replay_empty_after_fen(void) {
   history.snapshotPosition(initialFen);
 
   // Replay — should load FEN with no moves to replay
-  ChessBoard board;
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_TRUE(ok);
@@ -416,7 +416,7 @@ void test_recorder_replay_with_promotion(void) {
   history.addMove(makeEntry(1, 4, 0, 4, Piece::W_PAWN, Piece::NONE, Piece::B_QUEEN));  // e7-e8=Q
 
   // Replay and verify promotion
-  ChessBoard board;
+  Position board;
   board.newGame();
   bool ok = history.replayInto(board);
   TEST_ASSERT_TRUE(ok);
@@ -455,18 +455,18 @@ void test_recorder_branch_at_start_truncates_all(void) {
 }
 
 // ---------------------------------------------------------------------------
-// ChessGame recording integration tests
+// Game recording integration tests
 // ---------------------------------------------------------------------------
 
 static MockGameObserver observer;
-static ChessGame* game = nullptr;
+static Game* game = nullptr;
 
 static void setupGame() {
   logger = MockLogger();
   storage = MockGameStorage();
   observer = MockGameObserver();
   delete game;
-  game = new ChessGame(&storage, &observer, &logger);
+  game = new Game(&storage, &observer, &logger);
 }
 
 static void teardownGame() {
@@ -559,9 +559,9 @@ void test_game_load_fen(void) {
 }
 
 void test_game_no_recorder(void) {
-  // ChessGame with nullptr storage — mutations still work, no recording
+  // Game with nullptr storage — mutations still work, no recording
   observer = MockGameObserver();
-  ChessGame noRec(nullptr, &observer);
+  Game noRec(nullptr, &observer);
   noRec.newGame();
   MoveResult r = noRec.makeMove(6, 4, 4, 4);
   TEST_ASSERT_TRUE(r.valid);
@@ -569,10 +569,10 @@ void test_game_no_recorder(void) {
 }
 
 void test_game_no_observer(void) {
-  // ChessGame with nullptr observer — mutations still work, no notification
+  // Game with nullptr observer — mutations still work, no notification
   logger = MockLogger();
   storage = MockGameStorage();
-  ChessGame noObs(&storage, nullptr, &logger);
+  Game noObs(&storage, nullptr, &logger);
   noObs.startNewGame(GameModeId::CHESS_MOVES);
   MoveResult r = noObs.makeMove(6, 4, 4, 4);
   TEST_ASSERT_TRUE(r.valid);
@@ -650,7 +650,7 @@ void test_game_resume_game(void) {
 
   // Now create a new game and resume from storage
   observer = MockGameObserver();
-  ChessGame* game2 = new ChessGame(&storage, &observer, &logger);
+  Game* game2 = new Game(&storage, &observer, &logger);
   bool ok = game2->resumeGame();
   TEST_ASSERT_TRUE(ok);
   TEST_ASSERT_ENUM_EQ(Color::WHITE, game2->currentTurn());
@@ -678,7 +678,7 @@ void test_game_resume_finished_game(void) {
 
   // Resume from storage — game-over state should be restored
   observer = MockGameObserver();
-  ChessGame* game2 = new ChessGame(&storage, &observer, &logger);
+  Game* game2 = new Game(&storage, &observer, &logger);
   bool ok = game2->resumeGame();
   TEST_ASSERT_TRUE(ok);
   TEST_ASSERT_TRUE(game2->isGameOver());
@@ -705,7 +705,7 @@ void test_game_make_move_records_promotion(void) {
   memcpy(&lastEntry, &storage.moveData[storage.moveData.size() - 2], 2);
   int fr, fc, tr, tc;
   char promo;
-  ChessHistory::decodeMove(lastEntry, fr, fc, tr, tc, promo);
+  History::decodeMove(lastEntry, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_CHAR('q', promo);  // compact encoding normalizes to lowercase
   teardownGame();
 }
@@ -754,10 +754,10 @@ void test_game_undo_at_start(void) {
 // ---------------------------------------------------------------------------
 
 void test_encodeMove_rook_promotion(void) {
-  uint16_t encoded = ChessHistory::encodeMove(1, 4, 0, 4, 'r');
+  uint16_t encoded = History::encodeMove(1, 4, 0, 4, 'r');
   int fr, fc, tr, tc;
   char promo;
-  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
+  History::decodeMove(encoded, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_INT(1, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(0, tr);
@@ -766,10 +766,10 @@ void test_encodeMove_rook_promotion(void) {
 }
 
 void test_encodeMove_bishop_promotion(void) {
-  uint16_t encoded = ChessHistory::encodeMove(1, 4, 0, 4, 'b');
+  uint16_t encoded = History::encodeMove(1, 4, 0, 4, 'b');
   int fr, fc, tr, tc;
   char promo;
-  ChessHistory::decodeMove(encoded, fr, fc, tr, tc, promo);
+  History::decodeMove(encoded, fr, fc, tr, tc, promo);
   TEST_ASSERT_EQUAL_INT(1, fr);
   TEST_ASSERT_EQUAL_INT(4, fc);
   TEST_ASSERT_EQUAL_INT(0, tr);
@@ -803,7 +803,7 @@ void test_game_mode_pinned_values(void) {
 
 void test_fen_marker_no_collision(void) {
   TEST_ASSERT_EQUAL_UINT16(0xFFFF, FEN_MARKER);
-  uint16_t maxEncoded = ChessHistory::encodeMove(7, 7, 7, 7, 'n');
+  uint16_t maxEncoded = History::encodeMove(7, 7, 7, 7, 'n');
   TEST_ASSERT_TRUE(maxEncoded < FEN_MARKER);
 }
 
@@ -811,10 +811,10 @@ void test_game_header_size(void) {
   TEST_ASSERT_EQUAL(16, (int)sizeof(GameHeader));
 }
 
-void register_chess_history_recording_tests() {
+void register_history_persistence_tests() {
   needsDefaultKings = false;
 
-  // ChessHistory recording
+  // History recording
   RUN_TEST(test_recorder_set_header);
   RUN_TEST(test_recorder_add_move_persists);
   RUN_TEST(test_recorder_snapshot_position);
@@ -839,7 +839,7 @@ void register_chess_history_recording_tests() {
   RUN_TEST(test_recorder_branch_truncates_storage);
   RUN_TEST(test_recorder_branch_at_start_truncates_all);
 
-  // ChessGame recording integration
+  // Game recording integration
   RUN_TEST(test_game_new_game);
   RUN_TEST(test_game_make_move);
   RUN_TEST(test_game_make_move_auto_finish);

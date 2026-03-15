@@ -1,12 +1,13 @@
-#include "chess_fen.h"
+#include "fen.h"
 
 #include <cctype>
 #include <cstring>
 #include <string>
 
-#include "chess_utils.h"
+#include "utils.h"
 
-namespace ChessFEN {
+namespace LibreChess {
+namespace fen {
 
 // Extract the next space-delimited token from `remaining`, advance past it.
 static std::string nextToken(std::string& remaining) {
@@ -18,7 +19,7 @@ static std::string nextToken(std::string& remaining) {
 }
 
 std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionState* state) {
-  using namespace ChessBitboard;
+  using namespace LibreChess;
   std::string fen;
 
   // Board position — rank 8 first (row 0), rank 1 last (row 7).
@@ -40,7 +41,7 @@ std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionS
           fen += std::to_string(emptyCount);
           emptyCount = 0;
         }
-        fen += ChessPiece::pieceToChar(piece);
+        fen += piece::pieceToChar(piece);
       }
     }
   }
@@ -49,19 +50,19 @@ std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionS
 
   // Active color
   fen += ' ';
-  fen += ChessPiece::colorToChar(currentTurn);
+  fen += piece::colorToChar(currentTurn);
 
   // Castling availability
   if (state != nullptr)
-    fen += " " + ChessUtils::castlingRightsToString(state->castlingRights);
+    fen += " " + utils::castlingRightsToString(state->castlingRights);
   else
     fen += " KQkq";
 
   // En passant target square
   if (state != nullptr && state->epRow >= 0 && state->epCol >= 0) {
     fen += ' ';
-    fen += ChessUtils::fileChar(state->epCol);
-    fen += ChessUtils::rankChar(state->epRow);
+    fen += utils::fileChar(state->epCol);
+    fen += utils::rankChar(state->epRow);
   } else {
     fen += " -";
   }
@@ -81,9 +82,9 @@ std::string boardToFEN(const Piece mailbox[], Color currentTurn, const PositionS
   return fen;
 }
 
-void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece mailbox[],
+void fenToBoard(const std::string& fen, BitboardSet& bb, Piece mailbox[],
                 Color& currentTurn, PositionState* state) {
-  using namespace ChessBitboard;
+  using namespace LibreChess;
   std::string remaining = fen;
   std::string boardPart = nextToken(remaining);
 
@@ -102,8 +103,8 @@ void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece ma
     } else if (c >= '1' && c <= '8') {
       col += c - '0';
     } else {
-      Piece p = ChessPiece::charToPiece(c);
-      if (p != Piece::NONE && ChessUtils::isValidSquare(row, col)) {
+      Piece p = piece::charToPiece(c);
+      if (p != Piece::NONE && utils::isValidSquare(row, col)) {
         Square sq = squareOf(row, col);
         bb.setPiece(sq, p);
         mailbox[sq] = p;
@@ -122,7 +123,7 @@ void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece ma
   // Castling rights
   std::string castlingStr = nextToken(remaining);
   if (!castlingStr.empty() && state != nullptr)
-    state->castlingRights = ChessUtils::castlingRightsFromString(castlingStr);
+    state->castlingRights = utils::castlingRightsFromString(castlingStr);
 
   // En passant target square
   std::string enPassantSquare = nextToken(remaining);
@@ -130,8 +131,8 @@ void fenToBoard(const std::string& fen, ChessBitboard::BitboardSet& bb, Piece ma
     char file = enPassantSquare[0];
     char rankCh = enPassantSquare[1];
     if (file >= 'a' && file <= 'h' && rankCh >= '1' && rankCh <= '8') {
-      int epCol = ChessUtils::fileIndex(file);
-      int epRow = ChessUtils::rankIndex(rankCh);
+      int epCol = utils::fileIndex(file);
+      int epRow = utils::rankIndex(rankCh);
       if (state != nullptr) {
         state->epRow = epRow;
         state->epCol = epCol;
@@ -197,7 +198,7 @@ bool validateFEN(const std::string& fen) {
   if (castlingField != "-") {
     uint8_t seen = 0;
     for (char c : castlingField) {
-      uint8_t bit = ChessUtils::castlingCharToBit(c);
+      uint8_t bit = utils::castlingCharToBit(c);
       if (!bit) return false;
       if (seen & bit) return false;  // duplicate
       seen |= bit;
@@ -232,4 +233,5 @@ bool validateFEN(const std::string& fen) {
   return true;
 }
 
-}  // namespace ChessFEN
+}  // namespace fen
+}  // namespace LibreChess

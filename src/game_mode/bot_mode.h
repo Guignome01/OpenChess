@@ -13,7 +13,7 @@ enum class BotState { PLAYER_TURN, ENGINE_THINKING };
 // The provider runs HTTP in a FreeRTOS task; update() stays non-blocking.
 class BotMode : public GameMode {
  public:
-  BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, EngineProvider* provider,
+  BotMode(BoardDriver* bd, WiFiManagerESP32* wm, Game* cg, EngineProvider* provider,
           ILogger* logger = nullptr);
   ~BotMode() override;
 

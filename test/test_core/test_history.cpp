@@ -1,11 +1,11 @@
 #include <unity.h>
 
 #include "../test_helpers.h"
-#include <chess_history.h>
+#include <history.h>
 #include <types.h>
 
 // Shared globals from test_core.cpp
-extern ChessBitboard::BitboardSet bb;
+extern BitboardSet bb;
 extern Piece mailbox[64];
 extern bool needsDefaultKings;
 
@@ -13,14 +13,14 @@ extern bool needsDefaultKings;
 // Shared state
 // ---------------------------------------------------------------------------
 
-static ChessHistory hist;
+static History hist;
 
 // ---------------------------------------------------------------------------
-// Standalone ChessHistory (move log) tests
+// Standalone History (move log) tests
 // ---------------------------------------------------------------------------
 
 void test_history_initial_empty(void) {
-  ChessHistory h;
+  History h;
   TEST_ASSERT_EQUAL(0, h.moveCount());
   TEST_ASSERT_TRUE(h.empty());
   TEST_ASSERT_FALSE(h.canUndo());
@@ -29,7 +29,7 @@ void test_history_initial_empty(void) {
 }
 
 void test_history_clear(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   TEST_ASSERT_EQUAL(1, hist.moveCount());
 
@@ -40,7 +40,7 @@ void test_history_clear(void) {
 }
 
 void test_history_add_and_get_move(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
 
   TEST_ASSERT_EQUAL(1, hist.moveCount());
@@ -55,7 +55,7 @@ void test_history_add_and_get_move(void) {
 }
 
 void test_history_last_move(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
 
@@ -66,7 +66,7 @@ void test_history_last_move(void) {
 }
 
 void test_history_undo_move(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 0, 4, 0, Piece::W_PAWN));
 
   TEST_ASSERT_TRUE(hist.canUndo());
@@ -81,13 +81,13 @@ void test_history_undo_move(void) {
 }
 
 void test_history_undo_empty(void) {
-  hist = ChessHistory();
+  hist = History();
   const MoveEntry* result = hist.undoMove();
   TEST_ASSERT_NULL(result);
 }
 
 void test_history_redo_after_undo(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   hist.undoMove();
 
@@ -101,7 +101,7 @@ void test_history_redo_after_undo(void) {
 }
 
 void test_history_redo_at_end(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   // No undo — already at end
   const MoveEntry* result = hist.redoMove();
@@ -109,7 +109,7 @@ void test_history_redo_at_end(void) {
 }
 
 void test_history_undo_redo_sequence(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));   // move 0
   hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));   // move 1
   hist.addMove(makeEntry(6, 3, 4, 3, Piece::W_PAWN));   // move 2
@@ -129,7 +129,7 @@ void test_history_undo_redo_sequence(void) {
 }
 
 void test_history_branch_wipes_future(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));   // move 0
   hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));   // move 1
 
@@ -142,7 +142,7 @@ void test_history_branch_wipes_future(void) {
 }
 
 void test_history_multiple_moves(void) {
-  hist = ChessHistory();
+  hist = History();
   for (int i = 0; i < 10; i++) {
     hist.addMove(makeEntry(i % 8, i % 8, (i + 1) % 8, (i + 1) % 8, Piece::W_KNIGHT));
   }
@@ -215,14 +215,14 @@ void test_moveEntry_build_preserves_prev_state(void) {
 // ---------------------------------------------------------------------------
 
 void test_history_empty_returns_true(void) {
-  hist = ChessHistory();
+  hist = History();
   TEST_ASSERT_TRUE(hist.empty());
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   TEST_ASSERT_FALSE(hist.empty());
 }
 
 void test_history_lastMove_content(void) {
-  hist = ChessHistory();
+  hist = History();
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
   hist.addMove(makeEntry(1, 4, 3, 4, Piece::B_PAWN));
   hist.addMove(makeEntry(7, 6, 5, 5, Piece::W_KNIGHT));
@@ -233,7 +233,7 @@ void test_history_lastMove_content(void) {
 }
 
 void test_history_currentMoveIndex_direct(void) {
-  hist = ChessHistory();
+  hist = History();
   TEST_ASSERT_EQUAL_INT(-1, hist.currentMoveIndex());  // before any move
 
   hist.addMove(makeEntry(6, 4, 4, 4, Piece::W_PAWN));
@@ -256,10 +256,10 @@ void test_history_currentMoveIndex_direct(void) {
 // Registration
 // ---------------------------------------------------------------------------
 
-void register_chess_history_tests() {
+void register_history_tests() {
   needsDefaultKings = false;
 
-  // Standalone ChessHistory (move log + undo/redo)
+  // Standalone History (move log + undo/redo)
   RUN_TEST(test_history_initial_empty);
   RUN_TEST(test_history_clear);
   RUN_TEST(test_history_add_and_get_move);

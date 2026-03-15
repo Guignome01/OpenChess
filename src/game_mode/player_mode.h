@@ -3,12 +3,10 @@
 
 #include "game_mode.h"
 
-class ChessGame;
-
 // Human vs human local game mode
 class PlayerMode : public GameMode {
  public:
-  PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger = nullptr);
+  PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, Game* cg, ILogger* logger = nullptr);
   void begin() override;
   void update() override;
 };

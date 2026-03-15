@@ -4,21 +4,22 @@
 #include "board_driver.h"
 #include "led_colors.h"
 #include "logger.h"
+#include "move.h"
 #include "types.h"
 #include <Arduino.h>
 
 // Forward declarations to avoid circular dependencies
 class WiFiManagerESP32;
-class ChessGame;
+class Game;
 
 // Base class for chess game modes (shared state and common functionality).
-// All chess-state mutations flow through `chess_` (ChessGame orchestrator),
+// All chess-state mutations flow through `chess_` (Game orchestrator),
 // which atomically updates the board, records moves, and notifies observers.
 class GameMode {
  protected:
   BoardDriver* boardDriver_;
   WiFiManagerESP32* wifiManager_;
-  ChessGame* chess_;
+  Game* chess_;
   Log logger_;
 
   // --- Resign ---
@@ -27,7 +28,7 @@ class GameMode {
   bool resignPending_ = false;    // Set by web resign endpoint
 
   // Constructor
-  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger = nullptr);
+  GameMode(BoardDriver* bd, WiFiManagerESP32* wm, Game* cg, ILogger* logger = nullptr);
 
   // Common initialization and game flow methods
   void waitForBoardSetup();
@@ -35,7 +36,7 @@ class GameMode {
   MoveResult applyMove(const std::string& move);
   bool tryPlayerMove(Color playerColor, int& fromRow, int& fromCol, int& toRow, int& toCol);
 
-  /// Try to resume a live game from ChessGame. Returns true if resumed.
+  /// Try to resume a live game from Game. Returns true if resumed.
   /// If no live game exists, returns false (caller should start a new game).
   bool tryResumeGame();
 
@@ -72,7 +73,7 @@ class GameMode {
   /// Turn off the resign indicator LED on a square.
   void clearResignFeedback(int row, int col);
 
-  // Hardware-only castling interactions (board already updated by ChessBoard)
+  // Hardware-only castling interactions (board already updated by Position)
   void applyCastlingHardware(int kingFromRow, int kingFromCol, int kingToRow, int kingToCol, Piece kingPiece, bool waitForKingCompletion = false);
   void confirmSquareCompletion(int row, int col);
 

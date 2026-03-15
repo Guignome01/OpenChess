@@ -1,6 +1,6 @@
 ---
 applyTo: "lib/core/**, src/game_mode/**, src/engine/**"
-description: "Core chess library classes — ChessGame, ChessBoard, ChessHistory, ChessRules, ChessPiece, ChessUtils, ChessFEN, ChessNotation, ChessHash, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
+description: "Core chess library classes — Game, Position, History, movegen/rules, piece, utils, fen, notation, zobrist, types, interfaces. Use for any work on lib/core/, game modes, or engine providers including bug fixes, feature additions, refactoring, or test writing."
 ---
 
 # Core Chess Library (`lib/core/`)
@@ -11,20 +11,20 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 
 | Class/Namespace | Role | State |
 |-----------------|------|-------|
-| `ChessGame` | Central orchestrator, sole owner of game lifecycle | Composes ChessBoard + ChessHistory |
-| `ChessBoard` | Position container, move execution, game-end detection | Board array, turn, PositionState, king cache, HashHistory |
-| `ChessHistory` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
-| `ChessPiece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (all constexpr), defined in `chess_pieces.h` |
-| `ChessRules` | Per-piece and bulk move generation, check/checkmate/stalemate detection | Stateless (all static) |
-| `ChessEval` | Tapered evaluation: material + phase-specific PSTs (midgame/endgame for king and pawn, shared for other pieces) + pawn structure (passed, isolated, doubled, backward, connected passers). Game phase from non-pawn material (N=1, B=1, R=2, Q=4; max 24). Returns centipawns (`int`). | Stateless namespace |
-| `ChessUtils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
-| `ChessIterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
-| `ChessBitboard` | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, square-color masks (`DARK_SQUARES`, `LIGHT_SQUARES`), directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
-| `ChessMovegen` | Precomputed leaper tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]`), O(1) slider functions (`rookAttacks` via first-rank table + Hyperbola Quintessence, `bishopAttacks` via HQ on diagonal masks, `queenAttacks` = rook+bishop), x-ray attack functions (`xrayRookAttacks`, `xrayBishopAttacks`), `rayBetween(s1, s2)` (strictly between, exclusive), `lineBB(s1, s2)` (full line through both, inclusive, edge-to-edge; **pre-built** for SEE), `AttackInfo` struct + `computeAttackInfo(bb)` (per-piece-type and per-color attack maps; **pre-built** for king safety, mobility, and move ordering) | Stateless namespace (~3 KiB tables, initialized once via `initAttacks()`) |
-| `ChessPieces` | Pawn-structure masks (`PASSED_PAWN_MASK`, `ISOLATED_PAWN_MASK`, `FORWARD_FILE_MASK`) and helper queries (`isPassed`, `isIsolated`, `isDoubled`, `isBackward`) | Stateless namespace (initialized once via `initPawnMasks()`) |
-| `ChessHash` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
-| `ChessFEN` | FEN parse/serialize/validate | Stateless namespace |
-| `ChessNotation` | Coordinate/SAN/LAN conversion | Stateless namespace |
+| `Game` | Central orchestrator, sole owner of game lifecycle | Composes Position + History |
+| `Position` | Position container, move execution, game-end detection | Board array, turn, PositionState, king cache, HashHistory |
+| `History` | In-memory move log + persistent recording | Cursor-based undo/redo, binary storage |
+| `piece` | Type-safe piece representation: type/color extraction, construction, predicates, color-derived constants, FEN char conversion | Stateless namespace (all constexpr), defined in `piece.h` |
+| `movegen`/`rules` | Per-piece and bulk move generation, check/checkmate/stalemate detection | Stateless (all static) |
+| `eval` | Tapered evaluation: material + phase-specific PSTs (midgame/endgame for king and pawn, shared for other pieces) + pawn structure (passed, isolated, doubled, backward, connected passers). Game phase from non-pawn material (N=1, B=1, R=2, Q=4; max 24). Returns centipawns (`int`). | Stateless namespace |
+| `utils` | Board-level helpers: coordinate helpers, castling/EP analysis, `gameResultName()` | Stateless namespace |
+| `iterator` | Board iteration helpers: `forEachSquare`, `forEachPiece`, `somePiece`, `findPiece` | Stateless namespace (header-only) |
+| `LibreChess` (bitboard) | Bitboard types, LERF square mapping, bit manipulation (`popcount`, `lsb`, `popLsb`), file/rank masks, square-color masks (`DARK_SQUARES`, `LIGHT_SQUARES`), directional shifts, `BitboardSet` (12 piece + 2 color + occupancy bitboards with `setPiece`/`removePiece`/`movePiece`) | Stateless namespace (header-only) |
+| `attacks` | Precomputed leaper tables (`KNIGHT[64]`, `KING[64]`, `PAWN[2][64]`), O(1) slider functions (`rook` via first-rank table + Hyperbola Quintessence, `bishop` via HQ on diagonal masks, `queen` = rook+bishop), x-ray attack functions (`xrayRook`, `xrayBishop`), `between(s1, s2)` (strictly between, exclusive), `line(s1, s2)` (full line through both, inclusive, edge-to-edge; **pre-built** for SEE), `AttackInfo` struct + `computeAll(bb)` (per-piece-type and per-color attack maps; **pre-built** for king safety, mobility, and move ordering), `isSquareUnderAttack(bb, sq, color)` (per-piece-type attack table lookups) | Stateless namespace (~3 KiB tables, initialized once via `init()`) |
+| `eval` | Pawn-structure masks (`pawnPassedMask`, `pawnIsolatedMask`, `pawnForwardMask` — file-scoped) and helper queries (`isPassed`, `isIsolated`, `isDoubled`, `isBackward`), lazy-initialized on first `evaluatePosition()` call via `initPawnMasks()` | Stateless namespace |
+| `zobrist` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
+| `fen` | FEN parse/serialize/validate | Stateless namespace |
+| `notation` | Coordinate/SAN/LAN conversion | Stateless namespace |
 
 ### Interfaces (DI)
 
@@ -39,13 +39,13 @@ All nullable — core classes use `Log` proxy members instead of raw `ILogger*` 
 
 ## Fundamental Concepts
 
-Six independent concepts compose `ChessBoard`'s game state. Understanding these prevents confusion about what each field represents and why they're grouped the way they are.
+Six independent concepts compose `Position`'s game state. Understanding these prevents confusion about what each field represents and why they're grouped the way they are.
 
 | # | Concept | Storage | Role |
 |---|---------|---------|------|
 | 1 | Piece layout | `BitboardSet bb_` + `Piece mailbox_[64]` | Dual representation: 12 piece bitboards + 2 color + occupancy for fast set operations; flat mailbox for O(1) piece identity by square. Both updated in lockstep on every mutation. |
 | 2 | Turn | `Color currentTurn_` | Whose move |
-| 3 | Move-gen context | `PositionState.castlingRights`, `.epRow`, `.epCol` | Input to ChessRules for move generation and Zobrist hashing |
+| 3 | Move-gen context | `PositionState.castlingRights`, `.epRow`, `.epCol` | Input to movegen/rules for move generation and Zobrist hashing |
 | 4 | Game clocks | `PositionState.halfmoveClock`, `.fullmoveClock` | 50-move rule counter, FEN move numbering |
 | 5 | King cache | `Square kingSquare_[2]` | Single LERF square index per color, derived from `bb_`, maintained incrementally for O(1) check detection. `kingRow(c)` / `kingCol(c)` convert via `rowOf()` / `colOf()`. |
 | 6 | Zobrist hash | `uint64_t hash_` | Running Zobrist hash, updated incrementally on every move via XOR deltas (no full recompute). `computeHash()` kept for debug verification. |
@@ -57,20 +57,20 @@ Concepts 3+4 are bundled in `PositionState` because `MoveEntry` stores the full 
 
 Understanding this flow prevents bugs where steps get skipped or reordered:
 
-1. **Firmware** calls `ChessGame::makeMove(from, to, promotion)` — the only entry point for moves
-2. **ChessGame** delegates to `ChessBoard::makeMove()`, which:
-   - Validates via `ChessRules::isValidMove()` (returns invalid `MoveResult` if illegal)
+1. **Firmware** calls `Game::makeMove(from, to, promotion)` — the only entry point for moves
+2. **Game** delegates to `Position::makeMove()`, which:
+   - Validates via `movegen::isValidMove()` (returns invalid `MoveResult` if illegal)
    - Applies the move via `applyMoveToBoard()`: updates `BitboardSet` + `mailbox_` in lockstep (piece movement, captures, castling rook, en passant removal, promotion), incrementally updates Zobrist hash via XOR deltas, updates `kingSquare_[]` cache
    - Updates `PositionState` (castling rights, EP target, halfmove/fullmove clocks)
    - Records position hash in `HashHistory`
-   - Runs `ChessRules::isGameOver()` → sets `MoveResult.gameResult` if checkmate/stalemate/draw
+   - Runs `movegen::isGameOver()` → sets `MoveResult.gameResult` if checkmate/stalemate/draw
    - Invalidates FEN/eval caches
-3. **ChessGame** logs the move description via `ILogger` (piece, type, from/to square, promotion)
-4. **ChessGame** records the move in `ChessHistory` (which auto-persists if recording)
-5. **ChessGame** checks threefold repetition (Zobrist comparison), auto-ends game if detected
-6. **ChessGame** logs game-end events via `ILogger` (in `endGame()`), or logs check/turn if game continues (in `makeMove()`)
-7. **ChessGame** notifies `IGameObserver` with updated FEN + evaluation
-8. **ChessGame** auto-saves recording if the game just ended
+3. **Game** logs the move description via `ILogger` (piece, type, from/to square, promotion)
+4. **Game** records the move in `History` (which auto-persists if recording)
+5. **Game** checks threefold repetition (Zobrist comparison), auto-ends game if detected
+6. **Game** logs game-end events via `ILogger` (in `endGame()`), or logs check/turn if game continues (in `makeMove()`)
+7. **Game** notifies `IGameObserver` with updated FEN + evaluation
+8. **Game** auto-saves recording if the game just ended
 
 **Key invariant**: Steps 2–8 are atomic from the caller's perspective. A valid `makeMove()` always completes all steps.
 
@@ -78,47 +78,47 @@ Understanding this flow prevents bugs where steps get skipped or reordered:
 
 These explain *why* the architecture is the way it is — constraints that code alone doesn't communicate:
 
-- **ChessGame is the only firmware entry point** — firmware (`src/`) must never include `ChessBoard`, `ChessHistory`, `ChessRules`, or `ChessIterator` directly. `ChessGame` re-exports iterator helpers (`forEachSquare`, `forEachPiece`, `somePiece`). This guarantees recording, observer notification, and lifecycle tracking can't be bypassed. Native tests may include internal headers.
+- **Game is the only firmware entry point** — firmware (`src/`) must never include `Position`, `History`, `movegen`/`rules`, or `iterator` directly. `Game` re-exports iterator helpers (`forEachSquare`, `forEachPiece`, `somePiece`). This guarantees recording, observer notification, and lifecycle tracking can't be bypassed. Native tests may include internal headers.
 
-- **ChessBoard has no lifecycle state** — `gameOver_`, `gameResult_`, `winnerColor_` live in `ChessGame`, not `ChessBoard`. This separation means `ChessBoard` is a replayable position container: you can undo past game-end, replay games into a scratch board, or query positions without lifecycle side effects.
+- **Position has no lifecycle state** — `gameOver_`, `gameResult_`, `winnerColor_` live in `Game`, not `Position`. This separation means `Position` is a replayable position container: you can undo past game-end, replay games into a scratch board, or query positions without lifecycle side effects.
 
-- **ChessRules and ChessNotation are stateless** — all context (board, turn, `PositionState`) is passed as parameters. This makes them safe to call from any context (temp boards for check detection, history replay, test assertions) without hidden state coupling.
+- **movegen/rules and notation are stateless** — all context (board, turn, `PositionState`) is passed as parameters. This makes them safe to call from any context (temp boards for check detection, history replay, test assertions) without hidden state coupling.
 
 - **Undo clears game-over** — `undoMove()` re-opens a finished game. This enables the web UI to navigate back through completed games. It means code must re-check `isGameOver()` after undo rather than assuming a game stays finished.
 
-- **History has two concerns in one class** — `ChessHistory` handles both the in-memory move log and persistent recording. These were unified because they share the move cursor and branch-on-undo must truncate both the log and storage atomically.
+- **History has two concerns in one class** — `History` handles both the in-memory move log and persistent recording. These were unified because they share the move cursor and branch-on-undo must truncate both the log and storage atomically.
 
 - **Branch-on-undo wipes future moves** — when you undo 3 moves and make a new one, all undone moves are permanently deleted from both memory and storage. This is intentional: the binary recording format doesn't support branching.
 
-- **Header flushes every full turn** — `ChessHistory` only writes the `GameHeader` to flash after black's move. This halves flash wear while still allowing mid-game resume. If the device loses power on white's move, resumption loses at most one move.
+- **Header flushes every full turn** — `History` only writes the `GameHeader` to flash after black's move. This halves flash wear while still allowing mid-game resume. If the device loses power on white's move, resumption loses at most one move.
 
-- **Bitboard + mailbox dual representation** — `ChessBoard` stores both a `BitboardSet` (12 piece bitboards + 2 color aggregates + occupancy) and a flat `Piece mailbox_[64]`. Both are updated in lockstep on every mutation. Bitboards enable fast set operations (attack detection via bitwise AND, material counting via `popcount`). The mailbox provides O(1) piece identity for any square (needed by FEN serialization, SAN disambiguation, etc.). LERF (Little-Endian Rank-File, a1=0, h8=63) is the square mapping, with `squareOf(row, col)` / `rowOf(sq)` / `colOf(sq)` bridging to the project's row/col coordinate system. See [Chess Programming Wiki — Bitboards](https://www.chessprogramming.org/Bitboards).
+- **Bitboard + mailbox dual representation** — `Position` stores both a `BitboardSet` (12 piece bitboards + 2 color aggregates + occupancy) and a flat `Piece mailbox_[64]`. Both are updated in lockstep on every mutation. Bitboards enable fast set operations (attack detection via bitwise AND, material counting via `popcount`). The mailbox provides O(1) piece identity for any square (needed by FEN serialization, SAN disambiguation, etc.). LERF (Little-Endian Rank-File, a1=0, h8=63) is the square mapping, with `squareOf(row, col)` / `rowOf(sq)` / `colOf(sq)` bridging to the project's row/col coordinate system. See [Chess Programming Wiki — Bitboards](https://www.chessprogramming.org/Bitboards).
 
-- **Optimized slider attacks** — slider attack generation uses two O(1) techniques: **first-rank lookup table** for rank attacks (512-byte `FIRST_RANK_ATTACKS[8][64]` table, indexed by file + 6-bit inner occupancy) and **Hyperbola Quintessence** for file/diagonal/anti-diagonal attacks (branchless `o^(o-2r)` subtraction trick with byte-swap for negative rays). Diagonal masks (`DIAG_MASK[64]`, `ANTI_DIAG_MASK[64]`) are precomputed at startup. Leaper attacks (knight, king, pawn) use precomputed lookup tables (`KNIGHT_ATTACKS[64]`, `KING_ATTACKS[64]`, `PAWN_ATTACKS[2][64]` — ~2.5 KiB total). All tables initialized once via `ChessMovegen::initAttacks()`. Public API unchanged: `rookAttacks(sq, occ)`, `bishopAttacks(sq, occ)`, `queenAttacks(sq, occ)`. `computeAttackInfo(bb)` builds per-piece-type attack maps for both colors in one pass (pawns via bulk shift, leapers via table, sliders via HQ) — pre-built infrastructure for planned king safety, mobility, and move ordering terms (not yet called by production code). Returned as an `AttackInfo` struct: `byPiece[2][7]`, `byColor[2]`, `allAttacks`. `lineBB(s1, s2)` is pre-built for SEE (Static Exchange Evaluation) x-ray attacker discovery. Reference: [Chess Programming Wiki — Hyperbola Quintessence](https://www.chessprogramming.org/Hyperbola_Quintessence).
+- **Optimized slider attacks** — slider attack generation uses two O(1) techniques: **first-rank lookup table** for rank attacks (512-byte `FIRST_RANK_ATTACKS[8][64]` table, indexed by file + 6-bit inner occupancy) and **Hyperbola Quintessence** for file/diagonal/anti-diagonal attacks (branchless `o^(o-2r)` subtraction trick with byte-swap for negative rays). Diagonal masks (`DIAG_MASK[64]`, `ANTI_DIAG_MASK[64]`) are precomputed at startup. Leaper attacks (knight, king, pawn) use precomputed lookup tables (`KNIGHT[64]`, `KING[64]`, `PAWN[2][64]` — ~2.5 KiB total). All tables initialized once via `attacks::init()`. Public API: `rook(sq, occ)`, `bishop(sq, occ)`, `queen(sq, occ)`. `computeAll(bb)` builds per-piece-type attack maps for both colors in one pass (pawns via bulk shift, leapers via table, sliders via HQ) — pre-built infrastructure for planned king safety, mobility, and move ordering terms (not yet called by production code). Returned as an `AttackInfo` struct: `byPiece[2][7]`, `byColor[2]`, `allAttacks`. `line(s1, s2)` is pre-built for SEE (Static Exchange Evaluation) x-ray attacker discovery. Reference: [Chess Programming Wiki — Hyperbola Quintessence](https://www.chessprogramming.org/Hyperbola_Quintessence).
 
-- **Pawn-structure mask module** — `ChessPieces` precomputes pawn-structure masks once (`PASSED_PAWN_MASK`, `ISOLATED_PAWN_MASK`, `FORWARD_FILE_MASK`) and exposes bitboard-only queries (`isPassed`, `isIsolated`, `isDoubled`, `isBackward`). `ChessMovegen::initAttacks()` calls `ChessPieces::initPawnMasks()` so all core bitboard tables are ready from the same initialization entry point.
+- **Pawn-structure mask module** — `eval` precomputes pawn-structure masks lazily on first `evaluatePosition()` call (`pawnPassedMask`, `pawnIsolatedMask`, `pawnForwardMask` — file-scoped arrays) and exposes bitboard-only queries (`isPassed`, `isIsolated`, `isDoubled`, `isBackward`).
 
 - **Incremental Zobrist hashing** — `applyMoveToBoard()` XORs Zobrist key deltas inline (`hash_ ^= pieceKey[from] ^ pieceKey[to]` plus castling/EP/side-to-move changes). `computeHash()` remains for debug verification but is never called in the hot path.
 
-- **FEN validation is two-step** — `validateFEN()` checks format (strict), `fenToBoard()` parses (lenient). `ChessBoard::loadFEN()` calls validate first, returns `false` on failure without modifying state. This means `fenToBoard()` alone will accept some invalid FEN — always validate first when accepting user input.
+- **FEN validation is two-step** — `validateFEN()` checks format (strict), `fenToBoard()` parses (lenient). `Position::loadFEN()` calls validate first, returns `false` on failure without modifying state. This means `fenToBoard()` alone will accept some invalid FEN — always validate first when accepting user input.
 
-- **Check/checkmate suffixes added by caller** — `ChessNotation` output functions omit `+`/`#` suffixes. `ChessGame::getHistory()` appends them by replaying moves on a temp board. This keeps notation logic pure (no need to apply moves to detect check).
+- **Check/checkmate suffixes added by caller** — `notation` output functions omit `+`/`#` suffixes. `Game::getHistory()` appends them by replaying moves on a temp board. This keeps notation logic pure (no need to apply moves to detect check).
 
 - **Fixed-size arrays everywhere** — `MoveEntry[300]`, `HashHistory` (256 entries), `MoveList` (218 entries, stores `Move` structs), no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
 
 ## Key Patterns
 
-- **Dirty-flag caching**: `ChessBoard` caches FEN and evaluation, recomputes only when `fenDirty_`/`evalDirty_` are set by mutations.
-- **Composition over inheritance**: `ChessGame` composes `ChessBoard` + `ChessHistory`. No inheritance hierarchy.
+- **Dirty-flag caching**: `Position` caches FEN and evaluation, recomputes only when `fenDirty_`/`evalDirty_` are set by mutations.
+- **Composition over inheritance**: `Game` composes `Position` + `History`. No inheritance hierarchy.
 - **Nullable DI**: Storage, observer, and logger are pointer-injected. All nullable — storage and observer guard with `if (ptr_)`, logger uses `Log` proxy (no manual guards).
 - **Compact 2-byte move encoding**: `encodeMove()`/`decodeMove()` — bits 15..10 = from (row*8+col), bits 9..4 = to, bits 3..0 = promo code. Used for binary storage.
-- **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `promotionRow()`, `~color` (opponent), `makePiece()` — in `ChessPiece`, use these instead of inline ternaries for color-dependent values.
+- **Color-derived helpers**: `pawnDirection()`, `homeRow()`, `promotionRow()`, `~color` (opponent), `makePiece()` — in `piece`, use these instead of inline ternaries for color-dependent values.
 - **Castling bit mapping**: `castlingCharToBit()` is the single source of truth for K/Q/k/q → bitmask. `hasCastlingRight()` wraps it with color+side semantics. All castling rights logic should use these.
-- **MoveEntry factory**: `MoveEntry::build()` encapsulates captured-piece determination and all field assignments. Both `ChessGame::makeMove()` and `ChessHistory::replayInto()` use it.
-- **Cohesive data types**: `MoveList` stores `Move[218]` + count — used by both per-piece `getPossibleMoves` (with UI adapter accessors `targetRow(i)`/`targetCol(i)`) and bulk `generateAllMoves`/`generateCaptures`. `Move` struct stores compact from/to/flags (3 bytes: capture, EP, castling, promotion + 2-bit promo piece type). Promotions emit 4 `Move` variants per target square (one per piece type). `ScoredMove` pairs a `Move` with `int16_t score` for future move ordering. `HashHistory` bundles Zobrist keys + count. `BitboardSet` bundles 12 piece + 2 color + 1 occupancy bitboards. All defined in `types.h` / `chess_bitboard.h`.
+- **MoveEntry factory**: `MoveEntry::build()` encapsulates captured-piece determination and all field assignments. Both `Game::makeMove()` and `History::replayInto()` use it.
+- **Cohesive data types**: `MoveList` stores `Move[218]` + count — used by both per-piece `getPossibleMoves` (with UI adapter accessors `targetRow(i)`/`targetCol(i)`) and bulk `generateAllMoves`/`generateCaptures`. `Move` struct stores compact from/to/flags (3 bytes: capture, EP, castling, promotion + 2-bit promo piece type). Promotions emit 4 `Move` variants per target square (one per piece type). `ScoredMove` pairs a `Move` with `int16_t score` for future move ordering. `HashHistory` bundles Zobrist keys + count. `BitboardSet` bundles 12 piece + 2 color + 1 occupancy bitboards. All defined in `types.h` / `bitboard.h`.
 - **Bitboard serialization via popLsb**: iterating pieces uses `while (bb) { sq = popLsb(bb); ... }` — the standard pattern for extracting set bits from a bitboard one at a time.
-- **Attack detection via bitwise AND**: `isSquareUnderAttack` checks `KNIGHT_ATTACKS[sq] & bb.byPiece[knightIdx]` etc. — a single AND per piece type replaces ray-walking loops.
-- **Pin-aware move generation**: `ChessRules::getPossibleMoves`, `hasAnyLegalMove(kingSq)`, `generateAllMoves`, and `generateCaptures` compute a `checkMask` and `PinData` (up to 8 pins, one per direction) once per call. Non-king/non-EP moves are filtered via bitwise AND against `pinRayFor(pinData, sq) & checkMask` — no `leavesInCheck` call needed. Only king moves and EP captures still use copy-make (`leavesInCheck`). X-ray helpers (`xrayRookAttacks`, `xrayBishopAttacks`, `rayBetween`) in `ChessMovegen` support pin detection. File-local helpers in `chess_rules.cpp` anonymous namespace: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
+- **Attack detection via bitwise AND**: `attacks::isSquareUnderAttack` checks `attacks::KNIGHT[sq] & bb.byPiece[knightIdx]` etc. — a single AND per piece type replaces ray-walking loops.
+- **Pin-aware move generation**: `movegen::getPossibleMoves`, `movegen::hasAnyLegalMove`, `generateAllMoves`, and `generateCaptures` compute a `checkMask` and `PinData` (up to 8 pins, one per direction) once per call. Non-king/non-EP moves are filtered via bitwise AND against `pinRayFor(pinData, sq) & checkMask` — no `leavesInCheck` call needed. Only king moves and EP captures still use copy-make (`leavesInCheck`). X-ray helpers (`xrayRook`, `xrayBishop`, `between`) in `attacks` support pin detection. File-local helpers in `movegen.cpp + rules.cpp` anonymous namespace: `PinData` struct, `pinRayFor`, `attackersOfSquare`, `computePinData`.
 - **Copy-make for legality check**: `leavesInCheck()` copies `BitboardSet` (~120 bytes), applies the move on the copy, and checks the king square. Used for king moves, EP captures, and `isValidMove`. Lightweight because bitboard copy is a flat struct copy.
 
 ## Completion Checklist

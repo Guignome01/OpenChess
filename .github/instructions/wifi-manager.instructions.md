@@ -5,7 +5,7 @@ description: "WiFiManagerESP32 internals — WiFi state machine, AP lifecycle, r
 
 # WiFiManagerESP32
 
-Manages WiFi connectivity, the async web server, and all HTTP API endpoints. Implements `IGameObserver` for board state push from `ChessGame`.
+Manages WiFi connectivity, the async web server, and all HTTP API endpoints. Implements `IGameObserver` for board state push from `Game`.
 
 ## WiFi State Machine
 
@@ -47,7 +47,7 @@ Up to `MAX_SAVED_NETWORKS` (3) WiFi networks stored in NVS namespace `"wifiNets"
 
 ## Board State Relay (IGameObserver)
 
-`WiFiManagerESP32` implements `IGameObserver`. `ChessGame` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation.
+`WiFiManagerESP32` implements `IGameObserver`. `Game` calls `onBoardStateChanged(fen, evaluation)` automatically after every board mutation.
 
 **Cached state** (populated in `onBoardStateChanged`, served by `GET /board-update`):
 - `currentFen` — current board position
@@ -68,10 +68,10 @@ The web server runs on the async task context, but game mutations must happen on
 | Resign | `hasPendingResign` | `getPendingResign()` | `clearPendingResign()` |
 | Navigation | `pendingNavAction_` | `getPendingNavAction()` | `clearPendingNav()` |
 
-**Important**: Never call `ChessGame` mutation methods from a web handler. Always set a flag and let the main loop consume it.
+**Important**: Never call `Game` mutation methods from a web handler. Always set a flag and let the main loop consume it.
 
 ### Navigation Details
-- `setGameRef(const ChessGame*)` — provides read-only game reference for nav state queries
+- `setGameRef(const Game*)` — provides read-only game reference for nav state queries
 - `setNavigationBlocked(bool)` — bot mode blocks navigation during engine's turn
 - `POST /nav` returns `409 Conflict` when blocked
 
@@ -105,7 +105,7 @@ For the complete HTTP API endpoint reference, see `.github/instructions/api.inst
 
 ## Design Decisions
 
-- **Flag-based relay, not direct mutation** — web handlers run on the async server task context, but `ChessGame` mutations must happen on the main loop (not thread-safe). The flag pattern (`hasPendingResign`, `pendingNavAction_`, etc.) bridges this safely. Never call `ChessGame` methods from a web handler, even if it seems to work — it will eventually corrupt state under load.
+- **Flag-based relay, not direct mutation** — web handlers run on the async server task context, but `Game` mutations must happen on the main loop (not thread-safe). The flag pattern (`hasPendingResign`, `pendingNavAction_`, etc.) bridges this safely. Never call `Game` methods from a web handler, even if it seems to work — it will eventually corrupt state under load.
 
 - **AP stays active during connection attempts** — the AP doesn't shut down until STA is stable for 10s (`AP_STABILIZATION_MS`). This prevents the user from losing access to the config UI if STA connection fails. If STA drops later, AP re-enables immediately.
 

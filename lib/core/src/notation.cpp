@@ -1,15 +1,17 @@
-#include "chess_notation.h"
+#include "notation.h"
 
 #include <cctype>
 
-#include "chess_history.h"  // MoveEntry
-#include "chess_iterator.h"
-#include "chess_rules.h"
-#include "chess_utils.h"
+#include "history.h"  // MoveEntry
+#include "iterator.h"
+#include "movegen.h"
+#include "rules.h"
+#include "utils.h"
 
-using namespace ChessBitboard;
+using namespace LibreChess;
 
-namespace ChessNotation {
+namespace LibreChess {
+namespace notation {
 
 // Strip trailing '+' and '#' check/checkmate suffixes in place.
 static void stripCheckSuffix(std::string& s) {
@@ -27,8 +29,8 @@ static std::string castlingNotation(const MoveEntry& move) {
 // ---------------------------------------------------------------------------
 
 std::string toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  std::string move = ChessUtils::squareName(fromRow, fromCol);
-  move += ChessUtils::squareName(toRow, toCol);
+  std::string move = utils::squareName(fromRow, fromCol);
+  move += utils::squareName(toRow, toCol);
 
   if (promotion != ' ' && promotion != '\0') {
     move += static_cast<char>(tolower(promotion));
@@ -48,26 +50,26 @@ std::string toLAN(const MoveEntry& move) {
   }
 
   std::string result;
-  PieceType type = ChessPiece::pieceType(move.piece);
+  PieceType type = piece::pieceType(move.piece);
 
   // Piece prefix (omit for pawns)
   if (type != PieceType::PAWN) {
-    result += ChessPiece::pieceTypeToChar(type);
+    result += piece::pieceTypeToChar(type);
   }
 
   // Origin square
-  result += ChessUtils::squareName(move.fromRow, move.fromCol);
+  result += utils::squareName(move.fromRow, move.fromCol);
 
   // Separator: 'x' for captures, '-' otherwise
   result += move.isCapture ? 'x' : '-';
 
   // Destination square
-  result += ChessUtils::squareName(move.toRow, move.toCol);
+  result += utils::squareName(move.toRow, move.toCol);
 
   // Promotion suffix
   if (move.isPromotion && move.promotion != Piece::NONE) {
     result += '=';
-    result += ChessPiece::pieceTypeToChar(ChessPiece::pieceType(move.promotion));
+    result += piece::pieceTypeToChar(piece::pieceType(move.promotion));
   }
 
   return result;
@@ -79,8 +81,8 @@ std::string toLAN(const MoveEntry& move) {
 
 // Piece letter for SAN (uppercase, omit for pawns).
 static char sanPieceLetter(Piece piece) {
-  PieceType type = ChessPiece::pieceType(piece);
-  return (type == PieceType::PAWN) ? '\0' : ChessPiece::pieceTypeToChar(type);
+  PieceType type = piece::pieceType(piece);
+  return (type == PieceType::PAWN) ? '\0' : piece::pieceTypeToChar(type);
 }
 
 std::string toSAN(const BitboardSet& bb, const Piece mailbox[],
@@ -91,36 +93,36 @@ std::string toSAN(const BitboardSet& bb, const Piece mailbox[],
   }
 
   std::string result;
-  PieceType type = ChessPiece::pieceType(move.piece);
-  Color color = ChessPiece::pieceColor(move.piece);
+  PieceType type = piece::pieceType(move.piece);
+  Color color = piece::pieceColor(move.piece);
 
   if (type == PieceType::PAWN) {
     // Pawn moves
     if (move.isCapture) {
       // Capture: file of origin + 'x' + destination
-      result += ChessUtils::fileChar(move.fromCol);
+      result += utils::fileChar(move.fromCol);
       result += 'x';
     }
-    result += ChessUtils::squareName(move.toRow, move.toCol);
+    result += utils::squareName(move.toRow, move.toCol);
 
     if (move.isPromotion && move.promotion != Piece::NONE) {
       result += '=';
-      result += ChessPiece::pieceTypeToChar(ChessPiece::pieceType(move.promotion));
+      result += piece::pieceTypeToChar(piece::pieceType(move.promotion));
     }
   } else {
     // Piece moves — may require disambiguation
-    result += ChessPiece::pieceTypeToChar(type);
+    result += piece::pieceTypeToChar(type);
 
     // Find all same-type pieces of the same color that can also move to the target
     bool needFile = false;
     bool needRank = false;
 
-    ChessIterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece other) {
+    iterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece other) {
       if (r == move.fromRow && c == move.fromCol) return;
-      if (ChessPiece::pieceType(other) != type) return;
-      if (ChessPiece::pieceColor(other) != color) return;
+      if (piece::pieceType(other) != type) return;
+      if (piece::pieceColor(other) != color) return;
 
-      if (!ChessRules::isValidMove(bb, mailbox, r, c, move.toRow, move.toCol, state))
+      if (!movegen::isValidMove(bb, mailbox, r, c, move.toRow, move.toCol, state))
         return;
 
       if (c != move.fromCol)
@@ -129,12 +131,12 @@ std::string toSAN(const BitboardSet& bb, const Piece mailbox[],
         needRank = true;
     });
 
-    if (needFile) result += ChessUtils::fileChar(move.fromCol);
-    if (needRank) result += ChessUtils::rankChar(move.fromRow);
+    if (needFile) result += utils::fileChar(move.fromCol);
+    if (needRank) result += utils::rankChar(move.fromRow);
 
     if (move.isCapture) result += 'x';
 
-    result += ChessUtils::squareName(move.toRow, move.toCol);
+    result += utils::squareName(move.toRow, move.toCol);
   }
 
   return result;
@@ -156,12 +158,12 @@ bool parseCoordinate(const std::string& move,
   char toFile = move[2];
   char toRank = move[3];
 
-  fromCol = ChessUtils::fileIndex(fromFile);
-  fromRow = ChessUtils::rankIndex(fromRank);
-  toCol = ChessUtils::fileIndex(toFile);
-  toRow = ChessUtils::rankIndex(toRank);
+  fromCol = utils::fileIndex(fromFile);
+  fromRow = utils::rankIndex(fromRank);
+  toCol = utils::fileIndex(toFile);
+  toRow = utils::rankIndex(toRank);
 
-  if (!ChessUtils::isValidSquare(fromRow, fromCol) || !ChessUtils::isValidSquare(toRow, toCol))
+  if (!utils::isValidSquare(fromRow, fromCol) || !utils::isValidSquare(toRow, toCol))
     return false;
 
   // From and to squares must differ
@@ -171,7 +173,7 @@ bool parseCoordinate(const std::string& move,
   promotion = ' ';
   if (len == 5) {
     char promo = tolower(move[4]);
-    if (!ChessUtils::isValidPromotionChar(promo)) return false;
+    if (!utils::isValidPromotionChar(promo)) return false;
     promotion = move[4];
   }
 
@@ -208,7 +210,7 @@ bool parseLAN(const std::string& move,
   promotion = ' ';
   if (cleaned.size() >= 2 && cleaned[cleaned.size() - 2] == '=') {
     char promo = tolower(cleaned.back());
-    if (ChessUtils::isValidPromotionChar(promo)) {
+    if (utils::isValidPromotionChar(promo)) {
       promotion = cleaned.back();
       cleaned.erase(cleaned.size() - 2, 2);
     }
@@ -256,17 +258,17 @@ static bool findCastlingMove(const BitboardSet& bb, const Piece mailbox[],
                              Color currentTurn, bool kingSide,
                              int& fromRow, int& fromCol, int& toRow, int& toCol,
                              char& promotion) {
-  int row = ChessPiece::homeRow(currentTurn);
+  int row = piece::homeRow(currentTurn);
   Square kingSq = squareOf(row, 4);
   Piece king = mailbox[kingSq];
-  if (ChessPiece::pieceType(king) != PieceType::KING || ChessPiece::pieceColor(king) != currentTurn)
+  if (piece::pieceType(king) != PieceType::KING || piece::pieceColor(king) != currentTurn)
     return false;
-  if (!ChessUtils::hasCastlingRight(state.castlingRights, currentTurn, kingSide))
+  if (!utils::hasCastlingRight(state.castlingRights, currentTurn, kingSide))
     return false;
   fromRow = row; fromCol = 4;
   toRow = row;   toCol = kingSide ? 6 : 2;
   promotion = ' ';
-  return ChessRules::isValidMove(bb, mailbox, fromRow, fromCol, toRow, toCol, state);
+  return movegen::isValidMove(bb, mailbox, fromRow, fromCol, toRow, toCol, state);
 }
 
 bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
@@ -299,7 +301,7 @@ bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
   promotion = ' ';
   if (s.size() >= 2 && s[s.size() - 2] == '=') {
     char promo = s.back();
-    if (ChessUtils::isValidPromotionChar(promo)) {
+    if (utils::isValidPromotionChar(promo)) {
       promotion = tolower(promo);
       s.erase(s.size() - 2, 2);
     }
@@ -313,7 +315,7 @@ bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
   } else {
     pieceTypeChar = 'P';  // pawn
   }
-  PieceType targetType = ChessPiece::charToPieceType(pieceTypeChar);
+  PieceType targetType = piece::charToPieceType(pieceTypeChar);
 
   // Remove capture marker
   std::string stripped;
@@ -330,8 +332,8 @@ bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
   if (destFile < 'a' || destFile > 'h' || destRank < '1' || destRank > '8')
     return false;
 
-  toCol = ChessUtils::fileIndex(destFile);
-  toRow = ChessUtils::rankIndex(destRank);
+  toCol = utils::fileIndex(destFile);
+  toRow = utils::rankIndex(destRank);
 
   // Disambiguation hints (characters before the destination)
   int hintFile = -1;  // 0-7 if file hint given
@@ -339,9 +341,9 @@ bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
   std::string hints = s.substr(0, s.size() - 2);
   for (char c : hints) {
     if (c >= 'a' && c <= 'h') {
-      hintFile = ChessUtils::fileIndex(c);
+      hintFile = utils::fileIndex(c);
     } else if (c >= '1' && c <= '8') {
-      hintRank = ChessUtils::rankIndex(c);
+      hintRank = utils::rankIndex(c);
     }
   }
 
@@ -349,14 +351,14 @@ bool parseSAN(const BitboardSet& bb, const Piece mailbox[],
   int matchRow = -1, matchCol = -1;
   int matchCount = 0;
 
-    ChessIterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece p) {
-      if (ChessPiece::pieceType(p) != targetType) return;
-      if (ChessPiece::pieceColor(p) != currentTurn) return;
+    iterator::forEachPiece(bb, mailbox, [&](int r, int c, Piece p) {
+      if (piece::pieceType(p) != targetType) return;
+      if (piece::pieceColor(p) != currentTurn) return;
 
       if (hintFile >= 0 && c != hintFile) return;
       if (hintRank >= 0 && r != hintRank) return;
 
-      if (!ChessRules::isValidMove(bb, mailbox, r, c, toRow, toCol, state))
+      if (!movegen::isValidMove(bb, mailbox, r, c, toRow, toCol, state))
         return;
 
     matchRow = r;
@@ -384,7 +386,7 @@ static bool looksLikeCoordinate(const std::string& move) {
   if (move[2] < 'a' || move[2] > 'h') return false;
   if (move[3] < '1' || move[3] > '8') return false;
   if (len == 5) {
-    if (!ChessUtils::isValidPromotionChar(move[4])) return false;
+    if (!utils::isValidPromotionChar(move[4])) return false;
   }
   return true;
 }
@@ -434,4 +436,5 @@ bool parseMove(const BitboardSet& bb, const Piece mailbox[],
   return false;
 }
 
-}  // namespace ChessNotation
+}  // namespace notation
+}  // namespace LibreChess

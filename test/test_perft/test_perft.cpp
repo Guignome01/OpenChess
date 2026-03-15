@@ -1,10 +1,14 @@
 #include <unity.h>
 
-#include <chess_board.h>
-#include <chess_history.h>
-#include <chess_rules.h>
+#include <position.h>
+#include <history.h>
+#include <move.h>
+#include <piece.h>
+#include <types.h>
 
 #include <cstdio>
+
+using namespace LibreChess;
 
 // ---------------------------------------------------------------------------
 // Perft — exhaustive move-tree node count for move generator correctness.
@@ -35,7 +39,7 @@ struct PerftResult {
   }
 };
 
-static ChessBoard perftBoard;
+static Position perftBoard;
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -43,24 +47,24 @@ void tearDown(void) {}
 // Recursive perft with detailed move-type counters.
 // Counters are accumulated at leaf depth only (depth == 1),
 // matching the Chess Programming Wiki convention.
-static PerftResult perft(ChessBoard& cb, int depth) {
+static PerftResult perft(Position& pos, int depth) {
   PerftResult result;
   if (depth == 0) {
     result.nodes = 1;
     return result;
   }
 
-  Color turn = cb.currentTurn();
-  PositionState prevState = cb.positionState();
+  Color turn = pos.currentTurn();
+  PositionState prevState = pos.positionState();
 
   for (int row = 0; row < 8; row++) {
     for (int col = 0; col < 8; col++) {
-      Piece piece = cb.getSquare(row, col);
+      Piece piece = pos.getSquare(row, col);
       if (piece == Piece::NONE) continue;
-      if (ChessPiece::pieceColor(piece) != turn) continue;
+      if (piece::pieceColor(piece) != turn) continue;
 
       MoveList moves;
-      cb.getPossibleMoves(row, col, moves);
+      pos.getPossibleMoves(row, col, moves);
 
       for (int i = 0; i < moves.count; i++) {
         int toRow = moves.targetRow(i);
@@ -70,9 +74,9 @@ static PerftResult perft(ChessBoard& cb, int depth) {
         // Map promotion index to character for makeMove
         static constexpr char PROMO_CHARS[] = {'n', 'b', 'r', 'q'};
         char promoPiece = m.isPromotion() ? PROMO_CHARS[m.promoIndex()] : ' ';
-        Piece targetPiece = cb.getSquare(toRow, toCol);
+        Piece targetPiece = pos.getSquare(toRow, toCol);
 
-        MoveResult mr = cb.makeMove(row, col, toRow, toCol, promoPiece);
+        MoveResult mr = pos.makeMove(row, col, toRow, toCol, promoPiece);
         if (!mr.valid) continue;
 
         MoveEntry entry = MoveEntry::build(row, col, toRow, toCol,
@@ -89,10 +93,10 @@ static PerftResult perft(ChessBoard& cb, int depth) {
           if (mr.isCheck) result.checks++;
           if (mr.gameResult == GameResult::CHECKMATE) result.checkmates++;
         } else {
-          result += perft(cb, depth - 1);
+          result += perft(pos, depth - 1);
         }
 
-        cb.reverseMove(entry);
+        pos.reverseMove(entry);
       }
     }
   }
@@ -100,11 +104,11 @@ static PerftResult perft(ChessBoard& cb, int depth) {
 }
 
 // Assert all detailed perft counters for a given depth.
-static void expectPerft(ChessBoard& cb, int depth,
+static void expectPerft(Position& pos, int depth,
                         uint64_t nodes, uint64_t captures, uint64_t ep,
                         uint64_t castles, uint64_t promotions,
                         uint64_t checks, uint64_t checkmates) {
-  PerftResult r = perft(cb, depth);
+  PerftResult r = perft(pos, depth);
   char msg[64];
   snprintf(msg, sizeof(msg), "depth %d nodes", depth);
   TEST_ASSERT_EQUAL_UINT64_MESSAGE(nodes, r.nodes, msg);

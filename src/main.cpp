@@ -5,7 +5,7 @@
 #include "engine/stockfish/stockfish_settings.h"
 #include "engine/lichess/lichess_provider.h"
 #include "engine/lichess/lichess_config.h"
-#include "chess_game.h"
+#include "game.h"
 #include "littlefs_storage.h"
 #include "serial_logger.h"
 #include "system_utils.h"
@@ -39,7 +39,7 @@ BoardDriver boardDriver;
 SerialLogger logger;
 LittleFSStorage storage(&logger);
 WiFiManagerESP32 wifiManager(&boardDriver, &storage);
-ChessGame chess(&storage, &wifiManager, &logger);
+Game chess(&storage, &wifiManager, &logger);
 GameMode* activeGame = nullptr;
 SensorTest* sensorTest = nullptr;
 

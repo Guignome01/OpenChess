@@ -1,8 +1,8 @@
 #include "player_mode.h"
-#include "chess_game.h"
+#include "game.h"
 #include <Arduino.h>
 
-PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, ILogger* logger) : GameMode(bd, wm, cg, logger) {}
+PlayerMode::PlayerMode(BoardDriver* bd, WiFiManagerESP32* wm, Game* cg, ILogger* logger) : GameMode(bd, wm, cg, logger) {}
 
 void PlayerMode::begin() {
   logger_.info("=== Starting Chess Moves Mode ===");

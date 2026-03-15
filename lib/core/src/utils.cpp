@@ -1,14 +1,14 @@
-#include "chess_utils.h"
+#include "utils.h"
 
 #include <string>
 
-namespace ChessUtils {
+namespace LibreChess {
+namespace utils {
 
-void applyBoardTransform(ChessBitboard::BitboardSet& bb, Piece mailbox[],
-                         ChessBitboard::Square from, ChessBitboard::Square to,
+void applyBoardTransform(BitboardSet& bb, Piece mailbox[],
+                         Square from, Square to,
                          const EnPassantInfo& ep, const CastlingInfo& castle,
                          Piece& capturedPiece) {
-  using namespace ChessBitboard;
   Piece piece = mailbox[from];
   capturedPiece = mailbox[to];
 
@@ -32,7 +32,7 @@ void applyBoardTransform(ChessBitboard::BitboardSet& bb, Piece mailbox[],
   // Castling — move the rook
   if (castle.isCastling) {
     int row = rowOf(to);
-    Piece rook = ChessPiece::makePiece(ChessPiece::pieceColor(piece), PieceType::ROOK);
+    Piece rook = piece::makePiece(piece::pieceColor(piece), PieceType::ROOK);
     Square rookFrom = squareOf(row, castle.rookFromCol);
     Square rookTo = squareOf(row, castle.rookToCol);
     bb.movePiece(rookFrom, rookTo, rook);
@@ -47,7 +47,7 @@ std::string boardToText(const Piece mailbox[]) {
     result += rankChar(row);
     result += ' ';
     for (int col = 0; col < 8; ++col) {
-      char c = ChessPiece::pieceToChar(mailbox[ChessBitboard::squareOf(row, col)]);
+      char c = piece::pieceToChar(mailbox[squareOf(row, col)]);
       result += (c == ' ') ? '.' : c;
       result += ' ';
     }
@@ -60,4 +60,5 @@ std::string boardToText(const Piece mailbox[]) {
   return result;
 }
 
-}  // namespace ChessUtils
+}  // namespace utils
+}  // namespace LibreChess

@@ -1,8 +1,8 @@
 #include "chess_evaluation.h"
 
-#include "chess_pieces.h"
-
 namespace {
+
+using namespace LibreChess;
 
 // Material values indexed by piece type offset (P=0 N=1 B=2 R=3 Q=4 K=5).
 // In centipawns to avoid mixing float/int arithmetic in the inner loop.
@@ -140,42 +140,144 @@ constexpr int PHASE_QUEEN  = 4;
 constexpr int MAX_PHASE     = 24;  // 2*(1+1+2*2+4) = 24
 
 // ---------------------------------------------------------------------------
+// Pawn-structure masks (absorbed from chess_pieces.cpp).
+// File-local — initialized lazily.
+// ---------------------------------------------------------------------------
+
+Bitboard pawnPassedMask[2][64] = {};
+Bitboard pawnIsolatedMask[8] = {};
+Bitboard pawnForwardMask[2][64] = {};
+
+Bitboard adjacentFilesMask(int file) {
+  Bitboard mask = 0;
+  if (file > 0) mask |= fileBB(file - 1);
+  if (file < 7) mask |= fileBB(file + 1);
+  return mask;
+}
+
+void initPawnMasksImpl() {
+  static bool initialized = false;
+  if (initialized) return;
+  initialized = true;
+
+  for (int file = 0; file < 8; ++file)
+    pawnIsolatedMask[file] = adjacentFilesMask(file);
+
+  for (Square sq = 0; sq < 64; ++sq) {
+    const int rank = sq / 8;  // 0=rank1, 7=rank8 (LERF)
+    const int file = sq & 7;
+
+    Bitboard sameAndAdjacentFiles = fileBB(file);
+    if (file > 0) sameAndAdjacentFiles |= fileBB(file - 1);
+    if (file < 7) sameAndAdjacentFiles |= fileBB(file + 1);
+
+    Bitboard whitePassed = 0, blackPassed = 0;
+    Bitboard whiteForward = 0, blackForward = 0;
+
+    for (int r = rank + 1; r < 8; ++r) {
+      Bitboard rankMask = rankBB(r);
+      whitePassed |= sameAndAdjacentFiles & rankMask;
+      whiteForward |= fileBB(file) & rankMask;
+    }
+    for (int r = rank - 1; r >= 0; --r) {
+      Bitboard rankMask = rankBB(r);
+      blackPassed |= sameAndAdjacentFiles & rankMask;
+      blackForward |= fileBB(file) & rankMask;
+    }
+
+    pawnPassedMask[raw(Color::WHITE)][sq] = whitePassed;
+    pawnPassedMask[raw(Color::BLACK)][sq] = blackPassed;
+    pawnForwardMask[raw(Color::WHITE)][sq] = whiteForward;
+    pawnForwardMask[raw(Color::BLACK)][sq] = blackForward;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Pawn structure constants — centipawns.
 // Values are initial estimates based on CPW's Simplified Evaluation Function.
 // ---------------------------------------------------------------------------
 
-constexpr int PASSED_PAWN_BASE =  20;  // base bonus for a passed pawn (midgame)
-constexpr int PASSED_PAWN_BASE_EG = 30;  // base bonus for a passed pawn (endgame)
-constexpr int PASSED_PAWN_RANK =   5;  // additional bonus per rank past rank 4
-constexpr int CONNECTED_PASSED =  10;  // bonus per adjacent-file pair of passers
-constexpr int ISOLATED_PENALTY = -15;  // penalty for an isolated pawn
-constexpr int DOUBLED_PENALTY  = -10;  // penalty for the rear pawn in a doubled pair
-constexpr int BACKWARD_PENALTY = -10;  // penalty for a backward pawn
+}  // anonymous namespace
+
+// ===========================================================================
+// ChessEval — public API + internal helpers
+// ===========================================================================
+
+namespace ChessEval {
+
+using namespace LibreChess;
 
 // ---------------------------------------------------------------------------
-// Pawn structure evaluation — centipawns, white-relative.
-// Scores passed, isolated, doubled, backward, and connected passed pawns
-// using the precomputed masks in ChessPieces.
-// Returns separate midgame and endgame scores via out-parameters.
+// Pawn-structure query functions (public for testing).
+// Use the file-local mask arrays initialized by initPawnMasksImpl().
 // ---------------------------------------------------------------------------
 
-void evalPawnStructure(const ChessBitboard::BitboardSet& bb,
-                       int& mgScore, int& egScore) {
-  using namespace ChessBitboard;
-  using namespace ChessPieces;
-  using namespace ChessPiece;
+void initPawnMasks() { initPawnMasksImpl(); }
 
+bool isPassed(Square sq, Color color, Bitboard enemyPawns) {
+  return (enemyPawns & pawnPassedMask[raw(color)][sq]) == 0;
+}
+
+bool isIsolated(Square sq, Bitboard friendlyPawns) {
+  return (friendlyPawns & pawnIsolatedMask[colOf(sq)]) == 0;
+}
+
+bool isDoubled(Square sq, Color color, Bitboard friendlyPawns) {
+  return (friendlyPawns & pawnForwardMask[raw(color)][sq]) != 0;
+}
+
+bool isBackward(Square sq, Color color, Bitboard friendlyPawns, Bitboard enemyPawnAttacks) {
+  const int file = colOf(sq);
+  Bitboard adjacentPawns = friendlyPawns & pawnIsolatedMask[file];
+  if (!adjacentPawns) return false;
+
+  Square nextSq = SQ_NONE;
+  if (color == Color::WHITE) {
+    if (sq >= 56) return false;
+    nextSq = sq + 8;
+  } else {
+    if (sq < 8) return false;
+    nextSq = sq - 8;
+  }
+
+  Bitboard nextSquare = squareBB(nextSq);
+  if ((enemyPawnAttacks & nextSquare) == 0) return false;
+
+  Bitboard adjacentAttacks = (color == Color::WHITE)
+      ? (shiftNE(adjacentPawns) | shiftNW(adjacentPawns))
+      : (shiftSE(adjacentPawns) | shiftSW(adjacentPawns));
+
+  return (adjacentAttacks & nextSquare) == 0;
+}
+
+// ---------------------------------------------------------------------------
+// Pawn structure constants — centipawns.
+// ---------------------------------------------------------------------------
+
+static constexpr int PASSED_PAWN_BASE    =  20;
+static constexpr int PASSED_PAWN_BASE_EG =  30;
+static constexpr int PASSED_PAWN_RANK    =   5;
+static constexpr int CONNECTED_PASSED    =  10;
+static constexpr int ISOLATED_PENALTY    = -15;
+static constexpr int DOUBLED_PENALTY     = -10;
+static constexpr int BACKWARD_PENALTY    = -10;
+
+// ---------------------------------------------------------------------------
+// Pawn structure scoring — centipawns, white-relative.
+// ---------------------------------------------------------------------------
+
+static void evalPawnStructure(const BitboardSet& bb,
+                              int& mgScore, int& egScore) {
   Bitboard whitePawns = bb.byPiece[0];   // pieceZobristIndex(W_PAWN) = 0
   Bitboard blackPawns = bb.byPiece[6];   // pieceZobristIndex(B_PAWN) = 6
 
   if (!whitePawns && !blackPawns) return;
 
-  // Pawn attack spans for backward-pawn detection.
   Bitboard blackPawnAttacks = shiftSE(blackPawns) | shiftSW(blackPawns);
   Bitboard whitePawnAttacks = shiftNE(whitePawns) | shiftNW(whitePawns);
 
   int mg = 0, eg = 0;
-  uint8_t whitePassedFiles = 0;   // bitmask of files with white passed pawns
+  uint8_t whitePassedFiles = 0;
   uint8_t blackPassedFiles = 0;
 
   // --- White pawns ---
@@ -187,7 +289,6 @@ void evalPawnStructure(const ChessBitboard::BitboardSet& bb,
     if (isPassed(sq, Color::WHITE, blackPawns)) {
       int rankBonus = rank > 3 ? (rank - 3) * PASSED_PAWN_RANK : 0;
       mg += PASSED_PAWN_BASE + rankBonus;
-      // Passed pawns are more valuable in endgames.
       eg += PASSED_PAWN_BASE_EG + rankBonus * 2;
       whitePassedFiles |= 1 << (sq & 7);
     }
@@ -247,18 +348,18 @@ void evalPawnStructure(const ChessBitboard::BitboardSet& bb,
   egScore += eg;
 }
 
-}  // namespace
-
-namespace ChessEval {
+// ---------------------------------------------------------------------------
+// Main evaluation entry point
+// ---------------------------------------------------------------------------
 
 int evaluatePosition(const ChessBitboard::BitboardSet& bb) {
-  using namespace ChessBitboard;
+  // Lazy-init pawn structure masks on first call.
+  initPawnMasks();
 
   int mgScore = 0;
   int egScore = 0;
 
   for (int i = 0; i < 6; ++i) {
-    // White pieces — PST indexed directly by LERF square
     Bitboard white = bb.byPiece[i];
     while (white) {
       Square sq = popLsb(white);
@@ -266,7 +367,6 @@ int evaluatePosition(const ChessBitboard::BitboardSet& bb) {
       egScore += MATERIAL[i] + PST_EG[i][sq];
     }
 
-    // Black pieces — mirror rank via (sq ^ 56) for PST lookup
     Bitboard black = bb.byPiece[i + 6];
     while (black) {
       Square sq = popLsb(black);
@@ -275,21 +375,15 @@ int evaluatePosition(const ChessBitboard::BitboardSet& bb) {
     }
   }
 
-  // Pawn structure bonuses/penalties (accumulated into both scores).
   evalPawnStructure(bb, mgScore, egScore);
 
-  // Game phase from non-pawn material (both sides combined).
-  // byPiece indices: 1=W_KNIGHT, 2=W_BISHOP, 3=W_ROOK, 4=W_QUEEN,
-  //                  7=B_KNIGHT, 8=B_BISHOP, 9=B_ROOK, 10=B_QUEEN.
   int phase = popcount(bb.byPiece[1] | bb.byPiece[7])  * PHASE_KNIGHT
             + popcount(bb.byPiece[2] | bb.byPiece[8])  * PHASE_BISHOP
             + popcount(bb.byPiece[3] | bb.byPiece[9])  * PHASE_ROOK
             + popcount(bb.byPiece[4] | bb.byPiece[10]) * PHASE_QUEEN;
 
-  // Clamp to MAX_PHASE (shouldn't exceed it, but be safe).
   if (phase > MAX_PHASE) phase = MAX_PHASE;
 
-  // Tapered interpolation: opening → mg, endgame → eg.
   return (mgScore * phase + egScore * (MAX_PHASE - phase)) / MAX_PHASE;
 }
 

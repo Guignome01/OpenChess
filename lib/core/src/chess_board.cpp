@@ -24,7 +24,7 @@ ChessBoard::ChessBoard()
       cachedEval_(0),
       fenDirty_(true),
       evalDirty_(true) {
-  ChessMovegen::initAttacks();
+  LibreChess::attacks::init();
   bb_.clear();
   memset(mailbox_, 0, sizeof(mailbox_));
   for (int row = 0; row < 8; ++row)

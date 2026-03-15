@@ -1,7 +1,7 @@
 #include <unity.h>
 
-#include <chess_utils.h>
-#include <chess_rules.h>
+#include <utils.h>
+#include <rules.h>
 
 #include "../test_helpers.h"
 
@@ -21,38 +21,38 @@ void setUp(void) {
 void tearDown(void) {}
 
 // Registration functions defined in other translation units
-void register_chess_rules_moves_tests();
-void register_chess_rules_check_tests();
-void register_chess_rules_special_tests();
-void register_chess_utils_tests();
-void register_chess_fen_tests();
-void register_chess_board_tests();
-void register_chess_history_tests();
-void register_chess_history_recording_tests();
-void register_chess_game_tests();
-void register_chess_notation_tests();
-void register_chess_iterator_tests();
-void register_chess_hash_tests();
-void register_chess_bitboard_tests();
-void register_chess_movegen_tests();
-void register_chess_pieces_tests();
+void register_attacks_tests();
+void register_bitboard_tests();
+void register_evaluation_tests();
+void register_fen_tests();
+void register_game_tests();
+void register_history_tests();
+void register_history_persistence_tests();
+void register_iterator_tests();
+void register_movegen_tests();
+void register_notation_tests();
+void register_piece_tests();
+void register_position_tests();
+void register_rules_tests();
+void register_utils_tests();
+void register_zobrist_tests();
 
 int main(int argc, char** argv) {
   UNITY_BEGIN();
-  register_chess_bitboard_tests();
-  register_chess_rules_moves_tests();
-  register_chess_rules_check_tests();
-  register_chess_rules_special_tests();
-  register_chess_utils_tests();
-  register_chess_fen_tests();
-  register_chess_notation_tests();
-  register_chess_iterator_tests();
-  register_chess_hash_tests();
-  register_chess_pieces_tests();
-  register_chess_movegen_tests();
-  register_chess_board_tests();
-  register_chess_history_tests();
-  register_chess_history_recording_tests();
-  register_chess_game_tests();
+  register_bitboard_tests();
+  register_piece_tests();
+  register_utils_tests();
+  register_attacks_tests();
+  register_movegen_tests();
+  register_rules_tests();
+  register_evaluation_tests();
+  register_fen_tests();
+  register_notation_tests();
+  register_iterator_tests();
+  register_zobrist_tests();
+  register_position_tests();
+  register_history_tests();
+  register_history_persistence_tests();
+  register_game_tests();
   return UNITY_END();
 }

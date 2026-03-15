@@ -125,7 +125,7 @@ Submit a resignation request. The board processes it on the next update cycle an
 
 ### `POST /nav`
 
-Navigate the in-game move history. The server applies the action to `ChessGame`'s undo/redo system and the next `GET /board-update` reflects the updated position.
+Navigate the in-game move history. The server applies the action to `Game`'s undo/redo system and the next `GET /board-update` reflects the updated position.
 
 In bot mode, navigation is blocked during the engine's turn (returns `409 Conflict`).
 

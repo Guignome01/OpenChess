@@ -48,7 +48,7 @@ Work through these in order. Skip any that don't apply to the scoped area.
 Cross-reference code against the principles in `copilot-instructions.md` and scoped instruction files:
 - **Separation of concerns** — does each class own a single responsibility? Is hardware mixed with logic? Network with chess rules?
 - **Loose coupling** — pointer injection, no global state, minimal public APIs. Are there hidden dependencies or tight coupling?
-- **ChessGame as sole entry point** — does any firmware code (`src/`) include `ChessBoard`, `ChessHistory`, `ChessRules`, or `ChessIterator` directly?
+- **Game as sole entry point** — does any firmware code (`src/`) include `Position`, `History`, `movegen`, `rules`, or `iterator` directly?
 - **Composition over inheritance** — are there unnecessary inheritance chains? Intermediate classes that add indirection without value?
 - **Design decisions respected** — check each "Design Decisions" section in instruction files against the actual code
 
@@ -167,4 +167,4 @@ End with:
 ## Related Skills
 
 - **optimization** — use to act on findings related to performance, complexity reduction, dead code elimination, or simplification. An audit finding like "these two functions share 90% of their logic" becomes an optimization target.
-- **refactoring** — use to act on findings related to architectural violations, structural problems, or cross-cutting inconsistencies that require multi-file changes. An audit finding like "firmware code bypasses ChessGame and includes ChessBoard directly" becomes a refactoring target.
+- **refactoring** — use to act on findings related to architectural violations, structural problems, or cross-cutting inconsistencies that require multi-file changes. An audit finding like "firmware code bypasses Game and includes Position directly" becomes a refactoring target.

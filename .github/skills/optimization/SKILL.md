@@ -1,7 +1,7 @@
 ---
 name: optimization
 description: "**WORKFLOW SKILL** — Structured code optimization and simplification. USE FOR: performance tuning (memory, speed, flash); reducing code complexity; eliminating dead code and redundancy; simplifying over-engineered abstractions; ESP32 resource optimization (stack, heap, IRAM); streamlining logic without changing behavior. DO NOT USE FOR: adding new features; architecture redesign (use refactoring skill); single-line tweaks; cosmetic formatting. INVOKES: file system tools, terminal (build/test), subagents for codebase exploration."
-argument-hint: "Describe the optimization goal (e.g., 'reduce heap usage in ChessBoard', 'simplify engine provider API', 'eliminate redundant sensor reads')"
+argument-hint: "Describe the optimization goal (e.g., 'reduce heap usage in Position', 'simplify engine provider API', 'eliminate redundant sensor reads')"
 ---
 
 # Code Optimization & Simplification Workflow
@@ -100,7 +100,7 @@ Check for:
 
 **Output**: Summary report with before/after measurements. Be specific:
 - "Flash: 823,456 → 819,200 bytes (−4,256 bytes, −0.5%)"
-- "ChessBoard::makeMove: 85 → 52 lines, max nesting 6 → 3"
+- "Position::makeMove: 85 → 52 lines, max nesting 6 → 3"
 - "makeMove×10000: 148ms → 131ms (−11.5%)"
 - "Removed 3 unused functions (120 lines total)"
 

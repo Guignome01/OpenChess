@@ -1,10 +1,12 @@
-#include "chess_game.h"
+#include "game.h"
 
 #include <cstring>
 
-#include "chess_notation.h"
+#include "notation.h"
 
-ChessGame::ChessGame(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
+namespace utils = LibreChess::utils;
+
+Game::Game(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
     : history_(storage, logger), observer_(observer), logger_(logger), batchDepth_(0),
       batchDirty_(false), gameOver_(false), gameResult_(GameResult::IN_PROGRESS), winnerColor_(' ') {}
 
@@ -15,7 +17,7 @@ static const char* STANDARD_START_FEN =
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-void ChessGame::newGame() {
+void Game::newGame() {
   board_.newGame();
   history_.clear();
   startFen_ = STANDARD_START_FEN;
@@ -25,7 +27,7 @@ void ChessGame::newGame() {
   notifyObserver();
 }
 
-void ChessGame::startNewGame(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
+void Game::startNewGame(GameModeId mode, uint8_t playerColor, uint8_t botDepth) {
   newGame();
 
   // Build header and start recording
@@ -41,7 +43,7 @@ void ChessGame::startNewGame(GameModeId mode, uint8_t playerColor, uint8_t botDe
   history_.snapshotPosition(board_.getFen());  // record initial FEN
 }
 
-void ChessGame::endGame(GameResult result, char winnerColor) {
+void Game::endGame(GameResult result, char winnerColor) {
   if (gameOver_) return;  // Guard against double-call
 
   gameOver_ = true;
@@ -49,16 +51,16 @@ void ChessGame::endGame(GameResult result, char winnerColor) {
   winnerColor_ = winnerColor;
 
   if (winnerColor == ' ' || winnerColor == 'd')
-    logger_.infof("Game over: %s", ChessUtils::gameResultName(result));
+    logger_.infof("Game over: %s", utils::gameResultName(result));
   else
     logger_.infof("Game over: %s \xe2\x80\x94 %s wins!",
-                   ChessUtils::gameResultName(result), ChessPiece::colorName(winnerColor == 'w' ? Color::WHITE : Color::BLACK));
+                   utils::gameResultName(result), LibreChess::piece::colorName(winnerColor == 'w' ? Color::WHITE : Color::BLACK));
 
   history_.save(result, winnerColor);  // no-op if not recording
   notifyObserver();
 }
 
-void ChessGame::discardRecording() {
+void Game::discardRecording() {
   history_.discard();
 }
 
@@ -66,7 +68,7 @@ void ChessGame::discardRecording() {
 // Mutations
 // ---------------------------------------------------------------------------
 
-MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+MoveResult Game::makeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
   if (gameOver_) return invalidMoveResult();
 
   // Save pre-move state for history
@@ -84,11 +86,11 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
                          : result.isEnPassant ? "en passant"
                          : result.isCapture   ? "capture"
                                               : "move";
-  logger_.infof("%s: %c %s -> %s", moveType, ChessPiece::pieceToChar(piece),
-                 ChessUtils::squareName(fromRow, fromCol).c_str(),
-                 ChessUtils::squareName(toRow, toCol).c_str());
+  logger_.infof("%s: %c %s -> %s", moveType, LibreChess::piece::pieceToChar(piece),
+                 utils::squareName(fromRow, fromCol).c_str(),
+                 utils::squareName(toRow, toCol).c_str());
   if (result.isPromotion)
-    logger_.infof("Pawn promoted to %c", ChessPiece::pieceToChar(result.promotedTo));
+    logger_.infof("Pawn promoted to %c", LibreChess::piece::pieceToChar(result.promotedTo));
 
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
@@ -100,24 +102,24 @@ MoveResult ChessGame::makeMove(int fromRow, int fromCol, int toRow, int toCol, c
     endGame(result.gameResult, result.winnerColor);  // calls notifyObserver()
   } else {
     if (result.isCheck) {
-      logger_.infof("%s is in check!", ChessPiece::colorName(board_.currentTurn()));
+      logger_.infof("%s is in check!", LibreChess::piece::colorName(board_.currentTurn()));
     }
-    logger_.infof("It's %s's turn", ChessPiece::colorName(board_.currentTurn()));
+    logger_.infof("It's %s's turn", LibreChess::piece::colorName(board_.currentTurn()));
     notifyObserver();
   }
 
   return result;
 }
 
-MoveResult ChessGame::makeMove(const std::string& move) {
+MoveResult Game::makeMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
-  if (!ChessNotation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion))
+  if (!LibreChess::notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion))
     return invalidMoveResult();
   return makeMove(fromRow, fromCol, toRow, toCol, promotion);
 }
 
-bool ChessGame::loadFEN(const std::string& fen) {
+bool Game::loadFEN(const std::string& fen) {
   if (!board_.loadFEN(fen))
     return false;
 
@@ -136,7 +138,7 @@ bool ChessGame::loadFEN(const std::string& fen) {
 // Undo / Redo
 // ---------------------------------------------------------------------------
 
-bool ChessGame::undoMove() {
+bool Game::undoMove() {
   const MoveEntry* entry = history_.undoMove();
   if (!entry) return false;
   board_.reverseMove(*entry);
@@ -147,7 +149,7 @@ bool ChessGame::undoMove() {
   return true;
 }
 
-bool ChessGame::redoMove() {
+bool Game::redoMove() {
   const MoveEntry* entry = history_.redoMove();
   if (!entry) return false;
   MoveResult result = board_.applyMoveEntry(*entry);
@@ -169,7 +171,7 @@ bool ChessGame::redoMove() {
 // History queries
 // ---------------------------------------------------------------------------
 
-int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
+int Game::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
   int count = history_.moveCount();
   if (count > maxMoves) count = maxMoves;
 
@@ -177,14 +179,14 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
     // Fast path — no board replay needed
     for (int i = 0; i < count; ++i) {
       const MoveEntry& m = history_.getMove(i);
-      char promo = m.isPromotion ? ChessPiece::pieceToChar(m.promotion) : ' ';
-      out[i] = ChessNotation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
+      char promo = m.isPromotion ? LibreChess::piece::pieceToChar(m.promotion) : ' ';
+      out[i] = LibreChess::notation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
     }
     return count;
   }
 
   // SAN / LAN — replay moves through a temporary board for context
-  ChessBoard tempBoard;
+  Position tempBoard;
   if (!startFen_.empty()) {
     tempBoard.loadFEN(startFen_);
   } else {
@@ -196,14 +198,14 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
 
     // Generate notation before applying the move
     if (format == MoveFormat::SAN) {
-      out[i] = ChessNotation::toSAN(tempBoard.bitboards(), tempBoard.mailbox(),
+      out[i] = LibreChess::notation::toSAN(tempBoard.bitboards(), tempBoard.mailbox(),
                                      tempBoard.positionState(), m);
     } else {
-      out[i] = ChessNotation::toLAN(m);
+      out[i] = LibreChess::notation::toLAN(m);
     }
 
     // Apply the move to advance the temp board
-    char promo = m.isPromotion ? ChessPiece::pieceToChar(m.promotion) : ' ';
+    char promo = m.isPromotion ? LibreChess::piece::pieceToChar(m.promotion) : ' ';
     tempBoard.makeMove(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
 
     // Append check/checkmate suffix
@@ -219,18 +221,18 @@ int ChessGame::getHistory(std::string out[], int maxMoves, MoveFormat format) co
 // Notation helpers
 // ---------------------------------------------------------------------------
 
-std::string ChessGame::toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  return ChessNotation::toCoordinate(fromRow, fromCol, toRow, toCol, promotion);
+std::string Game::toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+  return LibreChess::notation::toCoordinate(fromRow, fromCol, toRow, toCol, promotion);
 }
 
-bool ChessGame::parseCoordinate(const std::string& move, int& fromRow, int& fromCol,
+bool Game::parseCoordinate(const std::string& move, int& fromRow, int& fromCol,
                                 int& toRow, int& toCol, char& promotion) {
-  return ChessNotation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion);
+  return LibreChess::notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion);
 }
 
-bool ChessGame::parseMove(const std::string& move, int& fromRow, int& fromCol,
+bool Game::parseMove(const std::string& move, int& fromRow, int& fromCol,
                           int& toRow, int& toCol, char& promotion) const {
-  return ChessNotation::parseMove(board_.bitboards(), board_.mailbox(),
+  return LibreChess::notation::parseMove(board_.bitboards(), board_.mailbox(),
                                   board_.positionState(), board_.currentTurn(),
                                   move, fromRow, fromCol, toRow, toCol, promotion);
 }
@@ -239,7 +241,7 @@ bool ChessGame::parseMove(const std::string& move, int& fromRow, int& fromCol,
 // Replay
 // ---------------------------------------------------------------------------
 
-bool ChessGame::resumeGame() {
+bool Game::resumeGame() {
   bool ok = history_.replayInto(board_);
   if (ok) {
     // Use the FEN that replayInto() loaded as the start position
@@ -262,11 +264,11 @@ bool ChessGame::resumeGame() {
 // Resume queries
 // ---------------------------------------------------------------------------
 
-bool ChessGame::hasActiveGame() {
+bool Game::hasActiveGame() {
   return history_.hasActiveGame();
 }
 
-bool ChessGame::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
+bool Game::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
   return history_.getActiveGameInfo(mode, playerColor, botDepth);
 }
 
@@ -274,11 +276,11 @@ bool ChessGame::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_
 // Batching
 // ---------------------------------------------------------------------------
 
-void ChessGame::beginBatch() {
+void Game::beginBatch() {
   ++batchDepth_;
 }
 
-void ChessGame::endBatch() {
+void Game::endBatch() {
   if (batchDepth_ > 0) --batchDepth_;
   if (batchDepth_ == 0 && batchDirty_) {
     batchDirty_ = false;
@@ -291,7 +293,7 @@ void ChessGame::endBatch() {
 // Internal: observer dispatch
 // ---------------------------------------------------------------------------
 
-void ChessGame::notifyObserver() {
+void Game::notifyObserver() {
   if (batchDepth_ > 0) {
     batchDirty_ = true;
     return;

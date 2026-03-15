@@ -39,7 +39,7 @@ struct BaseTaskContext {
 // Base class for chess engine providers.
 // Manages a single FreeRTOS background task for async move computation.
 // Providers handle all network communication and return data only —
-// they never touch ChessGame, BoardDriver, or any hardware.
+// they never touch Game, BoardDriver, or any hardware.
 class EngineProvider {
  public:
   explicit EngineProvider(ILogger* logger = nullptr) : logger_(logger) {}

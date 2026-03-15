@@ -2,7 +2,7 @@
 #define WIFI_MANAGER_ESP32_H
 
 #include "board_driver.h"
-#include "game_observer.h"
+#include "observer.h"
 #include "engine/stockfish/stockfish_settings.h"
 #include <Arduino.h>
 #include <AsyncTCP.h>
@@ -16,7 +16,7 @@
 // Forward declarations
 struct LichessConfig;
 class LittleFSStorage;
-class ChessGame;
+class Game;
 
 // ---------------------------
 // WiFi Configuration
@@ -85,7 +85,7 @@ class WiFiManagerESP32 : public IGameObserver {
   bool hasPendingResign = false;
 
   // Navigation (set from web interface, consumed by main loop)
-  const ChessGame* game_ = nullptr;
+  const Game* game_ = nullptr;
   uint8_t pendingNavAction_ = 0;  // NavAction value
   bool navigationBlocked_ = false;
   // Cached navigation state (populated by onBoardStateChanged, read by getBoardUpdateJSON)
@@ -182,7 +182,7 @@ class WiFiManagerESP32 : public IGameObserver {
   bool getPendingResign() const { return hasPendingResign; }
   void clearPendingResign() { hasPendingResign = false; }
   // Move navigation (from web interface)
-  void setGameRef(const ChessGame* game) { game_ = game; }
+  void setGameRef(const Game* game) { game_ = game; }
   uint8_t getPendingNavAction() const { return pendingNavAction_; }
   void clearPendingNav() { pendingNavAction_ = 0; }
   void setNavigationBlocked(bool blocked) { navigationBlocked_ = blocked; }

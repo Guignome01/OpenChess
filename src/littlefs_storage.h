@@ -4,7 +4,7 @@
 #include <Arduino.h>
 #include <vector>
 
-#include "game_storage.h"
+#include "storage.h"
 #include "logger.h"
 
 // Concrete IGameStorage implementation backed by LittleFS on ESP32.

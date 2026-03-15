@@ -1,7 +1,5 @@
 #include "chess_movegen.h"
 
-#include "chess_pieces.h"
-
 namespace ChessMovegen {
 
 using namespace ChessBitboard;
@@ -188,7 +186,6 @@ void initAttacks() {
   initPawnAttacks();
   initDiagMasks();
   initFirstRankAttacks();
-  ChessPieces::initPawnMasks();
 }
 
 // ---------------------------------------------------------------------------

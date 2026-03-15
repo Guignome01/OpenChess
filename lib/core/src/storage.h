@@ -1,5 +1,5 @@
-#ifndef CORE_GAME_STORAGE_H
-#define CORE_GAME_STORAGE_H
+#ifndef CORE_STORAGE_H
+#define CORE_STORAGE_H
 
 #include <cstddef>
 #include <cstdint>
@@ -10,7 +10,7 @@
 
 // Abstract persistence interface for game recording.
 // Concrete implementations live in the firmware layer (e.g. LittleFSStorage).
-// ChessHistory depends only on this interface — no filesystem coupling in core.
+// History depends only on this interface — no filesystem coupling in core.
 class IGameStorage {
  public:
   virtual ~IGameStorage() = default;
@@ -61,4 +61,4 @@ class IGameStorage {
   virtual void enforceStorageLimits() = 0;
 };
 
-#endif  // CORE_GAME_STORAGE_H
+#endif  // CORE_STORAGE_H

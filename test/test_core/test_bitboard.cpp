@@ -1,11 +1,11 @@
 #include <unity.h>
 
-#include <chess_bitboard.h>
+#include <bitboard.h>
 
 #include "../test_helpers.h"
 
-using namespace ChessBitboard;
-using namespace ChessPiece;
+using namespace LibreChess;
+using namespace LibreChess::piece;
 
 // ---------------------------------------------------------------------------
 // Square mapping
@@ -212,7 +212,7 @@ static void test_square_color_no_overlap(void) {
 }
 
 
-void register_chess_bitboard_tests() {
+void register_bitboard_tests() {
   // Square mapping
   RUN_TEST(test_squareOf_corners);
   RUN_TEST(test_squareOf_e4);

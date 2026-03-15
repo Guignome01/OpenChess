@@ -1,25 +1,76 @@
-#ifndef CORE_TYPES_H
-#define CORE_TYPES_H
+#ifndef LIBRECHESS_TYPES_H
+#define LIBRECHESS_TYPES_H
+
+// Core type definitions for the LibreChess chess library.
+//
+// Foundation layer — leaf of the dependency tree. No includes beyond <cstdint>.
+// Defines the three fundamental enums (Color, PieceType, Piece) and their
+// raw() unwrap helpers, plus game-level enums (GameResult, GameModeId).
+//
+// PositionState, HashHistory, GameHeader, and recording types are here
+// temporarily — they migrate to position.h and history.h in later phases.
 
 #include <cstdint>
 
-#include "chess_bitboard.h"
+namespace LibreChess {
 
-// Complete position state for chess operations.
-// ChessRules is stateless; the caller supplies a PositionState for
-// position-dependent queries (castling rights, en passant target).
-// ChessBoard owns the authoritative instance and also uses
-// halfmoveClock / fullmoveClock for FEN serialization and draw detection.
-struct PositionState {
-  uint8_t castlingRights = 0x0F;  // KQkq bitmask (bits 0-3)
-  int epRow = -1;                 // en passant target row (-1 if none)
-  int epCol = -1;                 // en passant target col (-1 if none)
-  int halfmoveClock = 0;          // half-move clock (50-move rule)
-  int fullmoveClock = 1;          // full-move counter (starts at 1)
+// ---------------------------------------------------------------------------
+// Core chess enums
+// ---------------------------------------------------------------------------
 
-  // Standard starting position state (identical to default construction).
-  static PositionState initial() { return {}; }
+enum class Color : uint8_t { WHITE = 0, BLACK = 1 };
+
+enum class PieceType : uint8_t {
+  NONE = 0,
+  PAWN = 1,
+  KNIGHT = 2,
+  BISHOP = 3,
+  ROOK = 4,
+  QUEEN = 5,
+  KING = 6
 };
+
+// Unwrap enum to underlying uint8_t — eliminates static_cast noise.
+constexpr uint8_t raw(Color c) { return static_cast<uint8_t>(c); }
+constexpr uint8_t raw(PieceType t) { return static_cast<uint8_t>(t); }
+
+// Color bit offset for Piece composition.
+constexpr uint8_t BLACK_BIT = raw(Color::BLACK) << 3;  // = 8
+
+// Piece = (Color << 3) | PieceType.
+// Values 7, 8, 15 are unused gaps — intentional for bit extraction.
+enum class Piece : uint8_t {
+  NONE = 0,
+  W_PAWN = raw(PieceType::PAWN),
+  W_KNIGHT = raw(PieceType::KNIGHT),
+  W_BISHOP = raw(PieceType::BISHOP),
+  W_ROOK = raw(PieceType::ROOK),
+  W_QUEEN = raw(PieceType::QUEEN),
+  W_KING = raw(PieceType::KING),
+  B_PAWN = BLACK_BIT | raw(PieceType::PAWN),
+  B_KNIGHT = BLACK_BIT | raw(PieceType::KNIGHT),
+  B_BISHOP = BLACK_BIT | raw(PieceType::BISHOP),
+  B_ROOK = BLACK_BIT | raw(PieceType::ROOK),
+  B_QUEEN = BLACK_BIT | raw(PieceType::QUEEN),
+  B_KING = BLACK_BIT | raw(PieceType::KING),
+};
+
+// Deferred definition (needs complete Piece type).
+constexpr uint8_t raw(Piece p) { return static_cast<uint8_t>(p); }
+
+// Color flip operator.
+constexpr Color operator~(Color c) {
+  return static_cast<Color>(raw(c) ^ 1);
+}
+
+// Piece color flip (toggle bit 3). Only meaningful for non-NONE pieces.
+constexpr Piece operator~(Piece p) {
+  return static_cast<Piece>(raw(p) ^ BLACK_BIT);
+}
+
+// ---------------------------------------------------------------------------
+// Game-level enums
+// ---------------------------------------------------------------------------
 
 // Game result codes — stored in game recording binary format.
 // Values 0–5 match the existing on-disk header (FORMAT_VERSION 1).
@@ -37,31 +88,6 @@ enum class GameResult : uint8_t {
   ABORTED = 9
 };
 
-// Carries all information from a completed move so the hardware/UI layer
-// can produce LED feedback, sounds, and network updates without re-reading
-// game state.
-struct MoveResult {
-  bool valid;           // Was the move legal?
-  bool isCapture;       // A piece was captured
-  bool isEnPassant;     // En passant capture
-  int epCapturedRow;    // Row of captured en passant pawn (-1 if N/A)
-  bool isCastling;      // Castling move
-  bool isPromotion;     // Pawn promotion occurred
-  Piece promotedTo;     // Piece the pawn became (Piece::NONE if N/A)
-  bool isCheck;         // Move puts opponent in check
-  GameResult gameResult; // GameResult::IN_PROGRESS if game continues
-  char winnerColor;     // 'w', 'b', 'd' (draw), ' ' (in progress)
-};
-
-// Factory for an invalid (rejected) MoveResult.
-constexpr MoveResult invalidMoveResult() {
-  return {false, false, false, -1, false, false, Piece::NONE, false, GameResult::IN_PROGRESS, ' '};
-}
-
-// ---------------------------------------------------------------------------
-// Game recording types — used by ChessHistory and IGameStorage.
-// ---------------------------------------------------------------------------
-
 // Game mode identifiers stored in the binary game header.
 enum class GameModeId : uint8_t {
   NONE = 0,
@@ -70,93 +96,42 @@ enum class GameModeId : uint8_t {
   LICHESS = 3
 };
 
-// Binary file header for recorded games (on-disk format).
-struct __attribute__((packed)) GameHeader {
-  uint8_t version;        // Format version (currently 1)
-  GameModeId mode;          // Game mode identifier
-  GameResult result;      // Game outcome
-  uint8_t winnerColor;    // 'w', 'b', 'd' (draw), '?' (in-progress)
-  uint8_t playerColor;    // For bot mode: human's color ('w'/'b'), '?' for ChessMoves
-  uint8_t botDepth;       // For bot mode: Stockfish depth, 0 for ChessMoves
-  uint16_t moveCount;     // Number of 2-byte entries (incl. FEN markers)
-  uint16_t fenEntryCnt;   // Number of FEN table entries
-  uint16_t lastFenOffset; // Byte offset of the last FEN entry within the FEN table
-  uint32_t timestamp;     // Unix epoch (from NTP, 0 if unavailable)
-};
-static_assert(sizeof(GameHeader) == 16, "GameHeader must be 16 bytes");
+// Human-readable name for a GameResult value.
+inline const char* gameResultName(GameResult result) {
+  static constexpr const char* NAMES[] = {
+      "In progress",                  // 0 = IN_PROGRESS
+      "Checkmate",                    // 1 = CHECKMATE
+      "Stalemate",                    // 2 = STALEMATE
+      "Draw (50-move rule)",          // 3 = DRAW_50
+      "Draw (threefold repetition)",  // 4 = DRAW_3FOLD
+      "Resignation",                  // 5 = RESIGNATION
+      "Draw (insufficient material)", // 6 = DRAW_INSUFFICIENT
+      "Draw (agreement)",             // 7 = DRAW_AGREEMENT
+      "Timeout",                      // 8 = TIMEOUT
+      "Aborted",                      // 9 = ABORTED
+  };
+  auto idx = static_cast<uint8_t>(result);
+  return (idx < sizeof(NAMES) / sizeof(NAMES[0])) ? NAMES[idx] : "Unknown";
+}
 
-// Recording constants
-static constexpr uint8_t FORMAT_VERSION = 1;
-static constexpr uint16_t FEN_MARKER = 0xFFFF;
-static constexpr int MAX_GAMES = 50;
-static constexpr float MAX_USAGE_PERCENT = 0.80f;
+// ---------------------------------------------------------------------------
+// Position state (temporary location — moves to position.h in Phase 3)
+// ---------------------------------------------------------------------------
 
-// Move flag bits — packed into a single uint8_t.
-static constexpr uint8_t MOVE_CAPTURE   = 1 << 0;
-static constexpr uint8_t MOVE_EP        = 1 << 1;
-static constexpr uint8_t MOVE_CASTLING  = 1 << 2;
-static constexpr uint8_t MOVE_PROMOTION = 1 << 3;
-// Bits 4-5: promotion piece type (only meaningful when MOVE_PROMOTION is set).
-static constexpr int MOVE_PROMO_SHIFT = 4;
+// Complete position state for chess operations.
+// rules:: is stateless; the caller supplies a PositionState for
+// position-dependent queries (castling rights, en passant target).
+// Position owns the authoritative instance and also uses
+// halfmoveClock / fullmoveClock for FEN serialization and draw detection.
+struct PositionState {
+  uint8_t castlingRights = 0x0F;  // KQkq bitmask (bits 0-3)
+  int epRow = -1;                 // en passant target row (-1 if none)
+  int epCol = -1;                 // en passant target col (-1 if none)
+  int halfmoveClock = 0;          // half-move clock (50-move rule)
+  int fullmoveClock = 1;          // full-move counter (starts at 1)
 
-// Compact move: from-square, to-square, flags byte. 3 bytes + 1 padding.
-struct Move {
-  uint8_t from;
-  uint8_t to;
-  uint8_t flags;
-
-  constexpr Move() : from(0), to(0), flags(0) {}
-  constexpr Move(uint8_t f, uint8_t t, uint8_t fl = 0) : from(f), to(t), flags(fl) {}
-
-  constexpr bool isCapture()   const { return flags & MOVE_CAPTURE; }
-  constexpr bool isEP()        const { return flags & MOVE_EP; }
-  constexpr bool isCastling()  const { return flags & MOVE_CASTLING; }
-  constexpr bool isPromotion() const { return flags & MOVE_PROMOTION; }
-
-  // Promotion piece encoding: 0=Knight, 1=Bishop, 2=Rook, 3=Queen.
-  constexpr uint8_t promoIndex() const { return (flags >> MOVE_PROMO_SHIFT) & 0x03; }
-
-  // Build promotion flags: MOVE_PROMOTION | (index << MOVE_PROMO_SHIFT).
-  static constexpr uint8_t promoFlags(uint8_t index) {
-    return MOVE_PROMOTION | (index << MOVE_PROMO_SHIFT);
-  }
-
-  // Map PieceType (KNIGHT..QUEEN) to 2-bit promotion index.
-  static constexpr uint8_t promoIndexFromType(PieceType pt) {
-    return static_cast<uint8_t>(pt) - static_cast<uint8_t>(PieceType::KNIGHT);
-  }
-
-  // Map 2-bit promotion index back to PieceType.
-  static constexpr PieceType promoTypeFromIndex(uint8_t idx) {
-    return static_cast<PieceType>(idx + static_cast<uint8_t>(PieceType::KNIGHT));
-  }
-
-  constexpr bool operator==(const Move& o) const {
-    return from == o.from && to == o.to && flags == o.flags;
-  }
-};
-
-// Move with an attached score for move ordering (MVV-LVA, killers, history).
-struct ScoredMove {
-  Move move;
-  int16_t score = 0;
-};
-
-// Unified move list — used for both per-piece and full-position generation.
-// Stores Move structs with from/to/flags. Capacity 218 = theoretical max legal moves.
-static constexpr int MAX_MOVES = 218;
-
-struct MoveList {
-  Move moves[MAX_MOVES];
-  int count = 0;
-
-  void add(Move m) { moves[count++] = m; }
-  void clear() { count = 0; }
-
-  // UI adapter — extract target coordinates for LED/sensor code
-  int targetRow(int i) const { return ChessBitboard::rowOf(moves[i].to); }
-  int targetCol(int i) const { return ChessBitboard::colOf(moves[i].to); }
-  ChessBitboard::Square target(int i) const { return static_cast<ChessBitboard::Square>(moves[i].to); }
+  // Standard starting position state (identical to default construction).
+  static PositionState initial() { return {}; }
 };
 
 // Fixed-capacity Zobrist hash history for threefold repetition detection.
@@ -168,11 +143,59 @@ struct HashHistory {
   int count = 0;
 };
 
-// Move notation format identifiers — used by ChessGame::getHistory().
+// ---------------------------------------------------------------------------
+// Recording types (temporary location — moves to history.h in Phase 4)
+// ---------------------------------------------------------------------------
+
+// Binary file header for recorded games (on-disk format).
+struct __attribute__((packed)) GameHeader {
+  uint8_t version;        // Format version (currently 1)
+  GameModeId mode;        // Game mode identifier
+  GameResult result;      // Game outcome
+  uint8_t winnerColor;    // 'w', 'b', 'd' (draw), '?' (in-progress)
+  uint8_t playerColor;    // For bot mode: human's color ('w'/'b'), '?' for ChessMoves
+  uint8_t botDepth;       // For bot mode: Stockfish depth, 0 for ChessMoves
+  uint16_t moveCount;     // Number of 2-byte entries (incl. FEN markers)
+  uint16_t fenEntryCnt;   // Number of FEN table entries
+  uint16_t lastFenOffset; // Byte offset of the last FEN entry within the FEN table
+  uint32_t timestamp;     // Unix epoch (from NTP, 0 if unavailable)
+};
+static_assert(sizeof(GameHeader) == 16, "GameHeader must be 16 bytes");
+
+// Recording constants.
+static constexpr uint8_t FORMAT_VERSION = 1;
+static constexpr uint16_t FEN_MARKER = 0xFFFF;
+static constexpr int MAX_GAMES = 50;
+static constexpr float MAX_USAGE_PERCENT = 0.80f;
+
+// Move notation format identifiers — used by Game::getHistory().
+// Temporary location — moves to notation.h in Phase 4.
 enum class MoveFormat : uint8_t {
   COORDINATE = 0,  // "e2e4", "e7e8q"  (UCI protocol notation)
   SAN = 1,         // "e4", "Nxf3", "O-O", "e8=Q+"  (Standard Algebraic)
   LAN = 2          // "e2-e4", "Ng1xf3", "O-O", "e7-e8=Q+"  (Long Algebraic)
 };
 
-#endif  // CORE_TYPES_H
+}  // namespace LibreChess
+
+// ---------------------------------------------------------------------------
+// Backward compatibility — bring core types into global scope.
+// Matches existing convention where Color, Piece, PieceType are unqualified.
+// Removed in Phase 6.
+// ---------------------------------------------------------------------------
+
+using LibreChess::Color;
+using LibreChess::Piece;
+using LibreChess::PieceType;
+using LibreChess::GameResult;
+using LibreChess::GameModeId;
+using LibreChess::PositionState;
+using LibreChess::HashHistory;
+using LibreChess::GameHeader;
+using LibreChess::MoveFormat;
+using LibreChess::FORMAT_VERSION;
+using LibreChess::FEN_MARKER;
+using LibreChess::MAX_GAMES;
+using LibreChess::MAX_USAGE_PERCENT;
+
+#endif  // LIBRECHESS_TYPES_H

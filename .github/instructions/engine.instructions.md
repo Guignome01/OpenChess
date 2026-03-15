@@ -6,7 +6,7 @@ applyTo: "src/engine/**"
 
 ## Overview
 
-`EngineProvider` (abstract base) → `StockfishProvider` | `LichessProvider`. Each provider handles all network communication in FreeRTOS background tasks and returns data only — providers never touch `ChessGame`, `BoardDriver`, or any hardware.
+`EngineProvider` (abstract base) → `StockfishProvider` | `LichessProvider`. Each provider handles all network communication in FreeRTOS background tasks and returns data only — providers never touch `Game`, `BoardDriver`, or any hardware.
 
 Providers are composed into `BotMode` via pointer injection (`BotMode` owns the pointer).
 

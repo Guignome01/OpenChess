@@ -1,9 +1,11 @@
-#include "chess_history.h"
+#include "history.h"
 
 #include <cstring>
 #include <vector>
 
-#include "chess_board.h"
+#include "position.h"
+
+namespace piece = LibreChess::piece;
 
 // --- Compact 2-byte move encoding ---
 
@@ -22,14 +24,14 @@ static char promoCodeToChar(uint8_t code) {
   return (code < PROMO_COUNT) ? PROMO_PIECES[code] : ' ';
 }
 
-uint16_t ChessHistory::encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
+uint16_t History::encodeMove(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
   uint8_t from = (uint8_t)(fromRow * 8 + fromCol);
   uint8_t to = (uint8_t)(toRow * 8 + toCol);
   uint8_t promo = promoCharToCode(promotion);
   return (uint16_t)((from << 10) | (to << 4) | promo);
 }
 
-void ChessHistory::decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
+void History::decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int& toRow, int& toCol, char& promotion) {
   uint8_t from = (encoded >> 10) & 0x3F;
   uint8_t to = (encoded >> 4) & 0x3F;
   uint8_t promo = encoded & 0x0F;
@@ -42,7 +44,7 @@ void ChessHistory::decodeMove(uint16_t encoded, int& fromRow, int& fromCol, int&
 
 // ---------------------------------------------------------------------------
 
-ChessHistory::ChessHistory(IGameStorage* storage, ILogger* logger)
+History::History(IGameStorage* storage, ILogger* logger)
     : moveCount_(0),
       currentIndex_(-1),
       storage_(storage),
@@ -53,7 +55,7 @@ ChessHistory::ChessHistory(IGameStorage* storage, ILogger* logger)
   memset(&header_, 0, sizeof(header_));
 }
 
-void ChessHistory::clear() {
+void History::clear() {
   moveCount_ = 0;
   currentIndex_ = -1;
 }
@@ -62,7 +64,7 @@ void ChessHistory::clear() {
 // Move log with undo/redo
 // ---------------------------------------------------------------------------
 
-void ChessHistory::addMove(const MoveEntry& entry) {
+void History::addMove(const MoveEntry& entry) {
   if (currentIndex_ + 1 >= MAX_MOVES) return;
 
   // Branch point: if cursor is not at the end, wipe future moves
@@ -87,21 +89,21 @@ void ChessHistory::addMove(const MoveEntry& entry) {
     persistMove(entry);
 }
 
-const MoveEntry* ChessHistory::undoMove() {
+const MoveEntry* History::undoMove() {
   if (currentIndex_ < 0) return nullptr;
   return &moves_[currentIndex_--];
 }
 
-const MoveEntry* ChessHistory::redoMove() {
+const MoveEntry* History::redoMove() {
   if (currentIndex_ >= moveCount_ - 1) return nullptr;
   return &moves_[++currentIndex_];
 }
 
-const MoveEntry& ChessHistory::getMove(int index) const {
+const MoveEntry& History::getMove(int index) const {
   return moves_[index];
 }
 
-const MoveEntry& ChessHistory::lastMove() const {
+const MoveEntry& History::lastMove() const {
   static const MoveEntry empty{};
   if (currentIndex_ < 0) return empty;
   return moves_[currentIndex_];
@@ -111,7 +113,7 @@ const MoveEntry& ChessHistory::lastMove() const {
 // Recording (persistent storage)
 // ---------------------------------------------------------------------------
 
-void ChessHistory::setHeader(const GameHeader& header) {
+void History::setHeader(const GameHeader& header) {
   if (!storage_) return;
 
   // If already recording, discard previous game
@@ -125,10 +127,10 @@ void ChessHistory::setHeader(const GameHeader& header) {
   headerInitialized_ = true;
   movesSinceFlush_ = 0;
 
-  logger_.info("ChessHistory: new recording started");
+  logger_.info("History: new recording started");
 }
 
-void ChessHistory::snapshotPosition(const std::string& fen) {
+void History::snapshotPosition(const std::string& fen) {
   if (!storage_ || !recordingActive_) return;
 
   // Write FEN_MARKER to the move stream
@@ -144,7 +146,7 @@ void ChessHistory::snapshotPosition(const std::string& fen) {
   movesSinceFlush_ = 0;
 }
 
-void ChessHistory::save(GameResult result, char winnerColor) {
+void History::save(GameResult result, char winnerColor) {
   if (!storage_ || !recordingActive_) return;
 
   recordingActive_ = false;
@@ -155,10 +157,10 @@ void ChessHistory::save(GameResult result, char winnerColor) {
   storage_->finalizeGame(header_);
   storage_->enforceStorageLimits();
 
-  logger_.infof("ChessHistory: recording saved (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
+  logger_.infof("History: recording saved (result=%d, moves=%d)", static_cast<int>(result), header_.moveCount);
 }
 
-void ChessHistory::discard() {
+void History::discard() {
   recordingActive_ = false;
   headerInitialized_ = false;
   if (storage_) storage_->discardGame();
@@ -168,12 +170,12 @@ void ChessHistory::discard() {
 // State queries (persistent storage)
 // ---------------------------------------------------------------------------
 
-bool ChessHistory::hasActiveGame() {
+bool History::hasActiveGame() {
   if (!storage_) return false;
   return storage_->hasActiveGame();
 }
 
-bool ChessHistory::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
+bool History::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uint8_t& botDepth) {
   if (!storage_) return false;
 
   GameHeader hdr;
@@ -190,18 +192,18 @@ bool ChessHistory::getActiveGameInfo(GameModeId& mode, uint8_t& playerColor, uin
 // Replay
 // ---------------------------------------------------------------------------
 
-bool ChessHistory::replayInto(ChessBoard& board) {
+bool History::replayInto(Position& board) {
   if (!storage_) return false;
 
   // Read header from live file
   GameHeader hdr;
   if (!storage_->readHeader(hdr)) return false;
   if (hdr.version != FORMAT_VERSION) {
-    logger_.error("ChessHistory: incompatible format version");
+    logger_.error("History: incompatible format version");
     return false;
   }
   if (hdr.fenEntryCnt == 0) {
-    logger_.error("ChessHistory: no FEN in live game, cannot resume");
+    logger_.error("History: no FEN in live game, cannot resume");
     return false;
   }
 
@@ -214,7 +216,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   // Read last FEN
   std::string lastFen;
   if (!storage_->readFenAt(hdr.lastFenOffset, lastFen) || lastFen.empty()) {
-    logger_.error("ChessHistory: failed to read last FEN");
+    logger_.error("History: failed to read last FEN");
     return false;
   }
 
@@ -229,19 +231,19 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   }
 
   if (lastFenIdx < 0) {
-    logger_.error("ChessHistory: FEN marker not found in moves");
+    logger_.error("History: FEN marker not found in moves");
     return false;
   }
 
-  logger_.infof("ChessHistory: resuming from FEN: %s", lastFen.c_str());
+  logger_.infof("History: resuming from FEN: %s", lastFen.c_str());
 
   // Load FEN into board, then replay subsequent moves
   if (!board.loadFEN(lastFen)) {
-    logger_.error("ChessHistory: invalid FEN in recording");
+    logger_.error("History: invalid FEN in recording");
     return false;
   }
 
-  // Store the replay FEN for callers (e.g. ChessGame::resumeGame)
+  // Store the replay FEN for callers (e.g. Game::resumeGame)
   replayFen_ = lastFen;
 
   // Clear and repopulate in-memory move log during replay
@@ -261,7 +263,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
 
     MoveResult moveResult = board.makeMove(fromRow, fromCol, toRow, toCol, promotion);
     if (!moveResult.valid) {
-      logger_.errorf("ChessHistory: invalid move at entry %d during replay", i);
+      logger_.errorf("History: invalid move at entry %d during replay", i);
       return false;
     }
 
@@ -282,7 +284,7 @@ bool ChessHistory::replayInto(ChessBoard& board) {
   recordingActive_ = true;
   headerInitialized_ = true;
 
-  logger_.infof("ChessHistory: replayed %d moves from last FEN marker, game resumed", replayed);
+  logger_.infof("History: replayed %d moves from last FEN marker, game resumed", replayed);
 
   return true;
 }
@@ -291,8 +293,8 @@ bool ChessHistory::replayInto(ChessBoard& board) {
 // Internal: persist a single move to storage
 // ---------------------------------------------------------------------------
 
-void ChessHistory::persistMove(const MoveEntry& entry) {
-  char promo = entry.isPromotion ? ChessPiece::pieceToChar(entry.promotion) : ' ';
+void History::persistMove(const MoveEntry& entry) {
+  char promo = entry.isPromotion ? piece::pieceToChar(entry.promotion) : ' ';
   uint16_t encoded = encodeMove(entry.fromRow, entry.fromCol,
                                 entry.toRow, entry.toCol, promo);
   storage_->appendMoveData(reinterpret_cast<const uint8_t*>(&encoded), 2);

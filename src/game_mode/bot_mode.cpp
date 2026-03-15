@@ -1,11 +1,13 @@
 #include "bot_mode.h"
-#include "chess_game.h"
+#include "game.h"
+
+namespace piece = LibreChess::piece;
 #include "led_colors.h"
 #include "system_utils.h"
 #include "wifi_manager_esp32.h"
 #include <Arduino.h>
 
-BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, ChessGame* cg, EngineProvider* provider,
+BotMode::BotMode(BoardDriver* bd, WiFiManagerESP32* wm, Game* cg, EngineProvider* provider,
                  ILogger* logger)
     : GameMode(bd, wm, cg, logger), provider_(provider) {}
 
@@ -40,8 +42,8 @@ void BotMode::begin() {
 
   playerColor_ = initResult.playerColor;
   logger_.infof("Player: %s, Engine: %s",
-                              ChessPiece::colorName(playerColor()),
-                              ChessPiece::colorName(~playerColor()));
+                              piece::colorName(playerColor()),
+                              piece::colorName(~playerColor()));
 
   if (initResult.canResume && tryResumeGame()) {
     // Resumed from flash — skip new game
@@ -84,7 +86,7 @@ void BotMode::update() {
       MoveResult result = applyMove(fromRow, fromCol, toRow, toCol);
 
       // Notify provider (Lichess sends the move to the server)
-      std::string coord = ChessGame::toCoordinate(fromRow, fromCol, toRow, toCol, ChessPiece::pieceToChar(result.promotedTo));
+      std::string coord = Game::toCoordinate(fromRow, fromCol, toRow, toCol, piece::pieceToChar(result.promotedTo));
       if (!provider_->onPlayerMoveApplied(coord)) {
         abortWithError("Failed to send move to server");
         return;
@@ -133,7 +135,7 @@ void BotMode::update() {
 void BotMode::applyEngineMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion;
-  if (!ChessGame::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion)) {
+  if (!Game::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion)) {
     logger_.errorf("BotMode: failed to parse engine move: %s", move.c_str());
     return;
   }
@@ -142,9 +144,9 @@ void BotMode::applyEngineMove(const std::string& move) {
   Piece piece = chess_->getSquare(fromRow, fromCol);
   Color engineColor = ~playerColor();
 
-  if (ChessPiece::isEmpty(piece) || ChessPiece::pieceColor(piece) != engineColor) {
+  if (piece::isEmpty(piece) || piece::pieceColor(piece) != engineColor) {
     logger_.errorf("BotMode: engine move from invalid square (%d,%d) piece='%c'",
-                                 fromRow, fromCol, ChessPiece::pieceToChar(piece));
+                                 fromRow, fromCol, piece::pieceToChar(piece));
     return;
   }
 

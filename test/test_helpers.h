@@ -1,17 +1,18 @@
 #ifndef TEST_HELPERS_H
 #define TEST_HELPERS_H
 
-#include <chess_utils.h>
-#include <chess_fen.h>
-#include <chess_rules.h>
-#include <chess_notation.h>
-#include <chess_board.h>
-#include <chess_game.h>
-#include <chess_bitboard.h>
+#include <bitboard.h>
+#include <utils.h>
+#include <fen.h>
+#include <game.h>
+#include <movegen.h>
+#include <notation.h>
+#include <position.h>
+#include <rules.h>
 
 #include <cstring>
 
-using namespace ChessBitboard;
+using namespace LibreChess;
 
 /// Set up the standard initial chess position.
 inline void setupInitialBoard(BitboardSet& bb, Piece mailbox[]) {
@@ -19,7 +20,7 @@ inline void setupInitialBoard(BitboardSet& bb, Piece mailbox[]) {
   memset(mailbox, 0, 64);
   for (int row = 0; row < 8; ++row)
     for (int col = 0; col < 8; ++col) {
-      Piece p = ChessBoard::INITIAL_BOARD[row][col];
+      Piece p = Position::INITIAL_BOARD[row][col];
       if (p != Piece::NONE) {
         Square sq = squareOf(row, col);
         bb.setPiece(sq, p);
@@ -35,7 +36,6 @@ inline void clearBoard(BitboardSet& bb, Piece mailbox[]) {
 }
 
 /// Place a single piece on a cleared board at the given algebraic position.
-/// Example: placePiece(bb, mailbox, Piece::W_KING, "e1")
 inline void placePiece(BitboardSet& bb, Piece mailbox[], Piece piece, const char* square) {
   int col = square[0] - 'a';
   int row = 8 - (square[1] - '0');
@@ -51,7 +51,7 @@ inline void placePiece(BitboardSet& bb, Piece mailbox[], Piece piece, const char
 /// Return whether a given move exists in the rules's possible-move list.
 inline bool moveExists(const BitboardSet& bb, const Piece mailbox[], int fromRow, int fromCol, int toRow, int toCol, const PositionState& state = {}) {
   MoveList moves;
-  ChessRules::getPossibleMoves(bb, mailbox, fromRow, fromCol, state, moves);
+  movegen::getPossibleMoves(bb, mailbox, fromRow, fromCol, state, moves);
   for (int i = 0; i < moves.count; i++) {
     if (moves.targetRow(i) == toRow && moves.targetCol(i) == toCol)
       return true;
