@@ -42,7 +42,9 @@ test/
     ├── test_position.cpp                Position: moves, special moves, draws, FEN, reverseMove, king cache, MoveList, HashHistory
     ├── test_rules.cpp                   rules: check/checkmate/stalemate detection, pin-aware generation, castling, en passant, promotion, isDraw, isGameOver
     ├── test_utils.cpp                   utils: 50-move rule, castling rights strings, coordinate helpers, board transforms, special-move analysis
-    └── test_zobrist.cpp                 Zobrist hashing: key determinism, computeHash, position sensitivity
+    ├── test_zobrist.cpp                 Zobrist hashing: key determinism, computeHash, position sensitivity
+    ├── test_search.cpp                  search: mate-in-1, captures, quiescence, stalemate avoidance, iterative deepening, time/stop, TT, move ordering
+    └── test_uci.cpp                     uci: id/isready, position startpos/fen/moves, go depth/info, newgame, quit, unknown, loop
 ```
 
 ## File Mirroring Convention
@@ -64,6 +66,8 @@ Each `lib/core/src/` source file has a corresponding `test/test_core/test_*.cpp`
 | `attacks.h/cpp` | `test_attacks.cpp` |
 | `iterator.h` | `test_iterator.cpp` |
 | `zobrist.h/cpp` | `test_zobrist.cpp` |
+| `search.h/cpp` | `test_search.cpp` |
+| `uci.h/cpp` | `test_uci.cpp` |
 
 Place tests in the file that mirrors the tested functionality. When creating a new `lib/core/src/` file, create a matching test file and register its test functions in `test_core.cpp`.
 
@@ -109,6 +113,12 @@ Persistence lifecycle with MockGameStorage. Header flush timing. Game replay fro
 
 ### Evaluation (`test_evaluation.cpp`)
 Material evaluation scoring. Pawn structure evaluation (symmetry, passed pawn bonus, doubled/isolated penalties). Tapered evaluation (opening symmetry, endgame king centralization, phase-dependent king PST blend). Pawn-structure analysis functions: `isPassed`, `isIsolated`, `isDoubled`, `isBackward`.
+
+### Search (`test_search.cpp`)
+Mate-in-1 (white, black). Captures hanging piece. Quiescence avoids blunder. Stalemate avoidance. Symmetric position. Knight fork tactics. Legal move from random position. Checkmate no legal moves. Iterative deepening (deeper depth finds mate, info callback reports iterations). Time limit control. Stop flag. Mate stops early. TT store/probe exact, probe miss, clear, pack/unpack move, reduces nodes, mate score round-trip. Move ordering reduces nodes and finds tactics.
+
+### UCI (`test_uci.cpp`)
+UCI identification output. Isready/readyok. Position startpos, startpos + moves, FEN, FEN + moves. Go depth (bestmove output). Info output (depth/score/nodes). Newgame resets position. Quit returns false. Unknown commands silently ignored. Full loop integration.
 
 ### FEN (`test_fen.cpp`)
 Round-trip: board → FEN → board. `boardToFEN()` output correctness. `fenToBoard()` parsing. `validateFEN()`: valid positions, invalid rank structure, bad piece chars, wrong turn field, invalid castling, bad en passant, bad clocks.

@@ -73,6 +73,7 @@ class WiFiManagerESP32 : public IGameObserver {
 
   StockfishSettings stockfishSettings = StockfishSettings::medium();
   char botPlayerColor = 'w'; // 'w' or 'b' — color the local player controls in bot mode
+  String botEngine = "stockfish"; // "stockfish" or "librechess"
 
   LittleFSStorage* storage_;
   BoardDriver* boardDriver;
@@ -171,6 +172,7 @@ class WiFiManagerESP32 : public IGameObserver {
   // Bot configuration
   StockfishSettings getStockfishSettings() { return stockfishSettings; }
   char getBotPlayerColor() { return botPlayerColor; }
+  String getBotEngine() { return botEngine; }
   // Lichess configuration
   LichessConfig getLichessConfig();
   String getLichessToken() { return lichessToken; }

@@ -51,7 +51,7 @@ Api.saveBoardSettings(b,d) → POST /board-settings
 Api.calibrate()            → POST /board-calibrate
 Api.getLichessInfo()       → GET  /lichess
 Api.saveLichessToken(t)    → POST /lichess
-Api.selectGame(m, c, d)   → POST /gameselect
+Api.selectGame(m, c, d, e)   → POST /gameselect
 Api.resign()               → POST /resign
 Api.nav(action)            → POST /nav
 Api.getGames()             → GET  /games
@@ -94,8 +94,9 @@ Returns cached board state (populated by `onBoardStateChanged()`):
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `gamemode` | Yes | `1` (HvH), `2` (Bot), `3` (Lichess), `4` (Sensor Test) |
-| `playerColor` | Bot only | `1` (White) or `2` (Black) |
+| `playerColor` | Bot only | `"white"` or `"black"` |
 | `difficulty` | Bot only | Difficulty level (1–8) |
+| `engine` | Bot only | `"stockfish"` (default) or `"librechess"` |
 
 ### `POST /nav`
 | Parameter | Required | Description |

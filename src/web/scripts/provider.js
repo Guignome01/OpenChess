@@ -21,8 +21,8 @@ window.Api = {
     saveLichessToken: (token) => postApi('/lichess', `token=${encodeURIComponent(token)}`),
 
     // --- Game ---
-    selectGame: (mode, playerColor, difficulty) =>
-        postApi('/gameselect', `gamemode=${mode}${mode === 2 ? `&playerColor=${playerColor}&difficulty=${difficulty}` : ''}`).then((r) => r.json()),
+    selectGame: (mode, playerColor, difficulty, engine) =>
+        postApi('/gameselect', `gamemode=${mode}${mode === 2 ? `&playerColor=${playerColor}&difficulty=${difficulty}&engine=${engine}` : ''}`).then((r) => r.json()),
     resign: () => postApi('/resign').then((r) => r.json()),
     nav: (action) => postApi('/nav', `action=${action}`).then((r) => r.json()),
     getGames: () => getApi('/games').then((r) => r.json()),

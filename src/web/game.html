@@ -22,7 +22,7 @@
             <div class="game-mode available mode-2" onclick="showBotConfig()">
                 <h3>Chess Bot</h3>
                 <p>Human vs AI</p>
-                <p>(Stockfish)</p>
+                <p>Multiple engines</p>
             </div>
             <div class="game-mode available mode-3" onclick="selectGame(3)">
                 <h3>Lichess</h3>
@@ -38,6 +38,14 @@
         <!-- Bot Configuration Panel (hidden by default) -->
         <div id="botConfigPanel" class="config-panel anim-panel">
             <h3>Bot Configuration</h3>
+
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold;">Engine:</label><br>
+                <select id="botEngine" style="padding: 8px; font-size: 16px; margin-top: 5px; width: 100%;">
+                    <option value="stockfish" selected>Stockfish (Cloud API)</option>
+                    <option value="librechess">LibreChess (On-board)</option>
+                </select>
+            </div>
 
             <div style="margin-bottom: 15px;">
                 <label style="font-weight: bold;">Your Color:</label><br>
@@ -87,7 +95,8 @@
             if (mode === 1 || mode === 2 || mode === 3 || mode === 4) {
                 const playerColor = mode === 2 ? document.getElementById('botPlayerColor').value : undefined;
                 const difficulty = mode === 2 ? document.getElementById('botDifficulty').value : undefined;
-                Api.selectGame(mode, playerColor, difficulty)
+                const engine = mode === 2 ? document.getElementById('botEngine').value : undefined;
+                Api.selectGame(mode, playerColor, difficulty, engine)
                     .then(response => {
                     if (!response.ok) {
                         if (mode === 3) {

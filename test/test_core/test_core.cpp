@@ -34,6 +34,8 @@ void register_notation_tests();
 void register_piece_tests();
 void register_position_tests();
 void register_rules_tests();
+void register_search_tests();
+void register_uci_tests();
 void register_utils_tests();
 void register_zobrist_tests();
 
@@ -54,5 +56,7 @@ int main(int argc, char** argv) {
   register_history_tests();
   register_history_persistence_tests();
   register_game_tests();
+  register_search_tests();
+  register_uci_tests();
   return UNITY_END();
 }

@@ -18,7 +18,8 @@ Firmware (src/):
 
   EngineProvider (base class, src/engine/)
    ├─ StockfishProvider (src/engine/stockfish/)
-   └─ LichessProvider (src/engine/lichess/)
+   ├─ LichessProvider (src/engine/lichess/)
+   └─ LibreChessProvider (src/engine/librechess/)
 
   SensorTest (standalone, does not inherit GameMode)
 ```
@@ -32,6 +33,8 @@ Firmware (src/):
 `StockfishProvider` extends `EngineProvider` by spawning a one-shot FreeRTOS task per move that calls the Stockfish API. The task performs the HTTP GET with retry logic, parses the JSON response, and stores the result in its `TaskContext` (extends `BaseTaskContext` with FEN, depth, and evaluation fields).
 
 `LichessProvider` extends `EngineProvider`. Its `initialize()` blocks during game discovery (token verification + polling for active games). Its `requestMove()` spawns a FreeRTOS task that opens a persistent NDJSON stream via `LichessAPI::connectGameStream()` and reads events via `readStreamEvent()`. On connection loss, it reconnects with exponential backoff (1s→2s→4s→8s, up to 5 attempts) — the game stays paused during reconnection; if all attempts are exhausted the game is aborted.
+
+`LibreChessProvider` extends `EngineProvider`. It runs the on-board chess engine entirely in-process — no network required. Each `requestMove()` spawns a FreeRTOS task (16 KiB stack) that creates a `UCIHandler` with a TT sized to fit available heap (capped at 128 KiB, minimum 64 entries), sends `position fen` + `go depth N` commands via a `StringUCIStream`, and extracts the `bestmove` response. Cancellation is cooperative: `ctx->cancel` is wired to the search's `SearchLimits::stop` via `UCIHandler::setExternalStop()`. `initialize()` always succeeds, reports `gameModeId = BOT`, `canResume = true`.
 
 `SensorTest` follows the same `begin()`/`update()`/`isComplete()` lifecycle but is not a `GameMode` subclass — it doesn't need chess logic, FEN state, or move history.
 
@@ -439,6 +442,16 @@ All menu layout data lives in `menu_config.h/cpp`:
 
 `StockfishSettings::fromLevel(int)` is a factory that selects by 1-based level. `StockfishProvider` is constructed with a `StockfishSettings` and player color, then passed to `BotMode` as an `EngineProvider*`.
 
+### LibreChess (On-Board Engine)
+
+The on-board engine runs entirely within `lib/core/` — no network, no external API. Two namespaces:
+
+- **`search`** (`search.h/cpp`) — Negamax with alpha-beta pruning, quiescence search, iterative deepening, transposition table (12-byte entries), and move ordering (TT move → MVV-LVA captures → killer moves → history heuristic). `findBestMove(pos, limits, timeFunc, infoCallback, tt)` is the single public entry point. `SearchLimits` controls depth, time, and external stop flag. `SearchState` holds per-search heuristics (killers, history table) and TT pointer.
+
+- **`uci`** (`uci.h/cpp`) — Transport-agnostic UCI protocol handler. `UCIStream` is the abstract I/O interface (Serial, string buffer). `UCIHandler` owns a `Position`, `TranspositionTable`, and stop flag; dispatches standard UCI commands (`uci`, `isready`, `ucinewgame`, `position`, `go`, `stop`, `quit`). Simple time management from game clocks (remaining/30 + increment/2). `StringUCIStream` provides in-memory I/O for testing and in-process use.
+
+`LibreChessProvider` is constructed with depth, moveTimeMs, and player color, then passed to `BotMode` as an `EngineProvider*`. `SerialUCIStream` enables external UCI GUIs (Arena, CuteChess) to drive the engine over the ESP32's UART.
+
 ### Lichess
 
 `LichessAPI` (in `engine/lichess/lichess_api.h/cpp`) handles HTTPS requests to `lichess.org`:
@@ -627,5 +640,17 @@ The `data/` directory is committed to git so users without npm tools can still b
 **`fen`** (`fen.h/cpp`) — namespace with FEN string handling:
 - `boardToFEN(board, turn, state)` / `fenToBoard(fen, board, turn, state)` — FEN ↔ board array conversion with full state restoration (castling rights, en passant, clocks) via `PositionState*`
 - `validateFEN(fen)` — format validation: rank structure, piece chars, turn, castling, en passant, clocks
+
+**`search`** (`search.h/cpp`) — namespace with on-board chess search engine:
+- `findBestMove(pos, limits, timeFunc, infoCallback, tt)` — iterative-deepening negamax with alpha-beta pruning, quiescence search, transposition table, and move ordering (TT move → MVV-LVA → killers → history). Returns `SearchResult` (bestMove, score, depth, nodes)
+- `SearchLimits` — search constraints: `maxDepth`, `maxTimeMs`, `stop` (external cancellation flag)
+- `SearchState` — per-search heuristics: killer moves, history table, TT pointer, node counter
+- `TranspositionTable` — hash table of `TTEntry` (12 bytes: key32 + score + packed move + depth + flag). `resize()`, `clear()`, `probe()`, `store()`
+- Constants: `MATE_SCORE=30000`, `INF_SCORE=31000`, `MAX_PLY=128`, `DEFAULT_TT_SIZE=8192`
+
+**`uci`** (`uci.h/cpp`) — namespace with UCI protocol handler:
+- `UCIStream` — abstract line-based I/O interface
+- `UCIHandler` — engine controller: owns `Position`, `TranspositionTable`, stop flag. `loop(stream)` for blocking mode, `processCommand(line, out)` for single-command dispatch. Supports `setExternalStop()` for wiring FreeRTOS cancellation flags
+- `StringUCIStream` — in-memory I/O for testing and in-process use (`addInput()`, `output()`, `clearOutput()`)
 
 **`grid_scan_test.cpp`** — standalone hardware debugging utility at the repo root (not compiled in normal builds). Tests shift register column scanning and row GPIO reads. Useful for verifying sensor wiring before running the full firmware.

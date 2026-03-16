@@ -23,6 +23,8 @@ Pure C++ chess library with no hardware dependencies. Natively compilable for un
 | `attacks` | Precomputed leaper tables (`KNIGHT[64]`, `KING[64]`, `PAWN[2][64]`), O(1) slider functions (`rook` via first-rank table + Hyperbola Quintessence, `bishop` via HQ on diagonal masks, `queen` = rook+bishop), x-ray attack functions (`xrayRook`, `xrayBishop`), `between(s1, s2)` (strictly between, exclusive), `line(s1, s2)` (full line through both, inclusive, edge-to-edge; **pre-built** for SEE), `AttackInfo` struct + `computeAll(bb)` (per-piece-type and per-color attack maps; **pre-built** for king safety, mobility, and move ordering), `isSquareUnderAttack(bb, sq, color)` (per-piece-type attack table lookups) | Stateless namespace (~3 KiB tables, initialized once via `init()`) |
 | `eval` | Pawn-structure masks (`pawnPassedMask`, `pawnIsolatedMask`, `pawnForwardMask` — file-scoped) and helper queries (`isPassed`, `isIsolated`, `isDoubled`, `isBackward`), lazy-initialized on first `evaluatePosition()` call via `initPawnMasks()` | Stateless namespace |
 | `zobrist` | Zobrist key generation (constexpr xorshift64), piece-index mapping, full-board hash computation | Stateless namespace (header-only) |
+| `search` | On-board chess engine: negamax + alpha-beta + quiescence, iterative deepening, transposition table, move ordering (TT move → MVV-LVA → killers → history) | Stateless namespace (search state passed in/out) |
+| `uci` | Transport-agnostic UCI protocol handler: `UCIStream` (abstract I/O), `UCIHandler` (owns Position + TT + stop flag), `StringUCIStream` (in-memory for testing) | `UCIHandler` is stateful |
 | `fen` | FEN parse/serialize/validate | Stateless namespace |
 | `notation` | Coordinate/SAN/LAN conversion | Stateless namespace |
 
@@ -105,6 +107,14 @@ These explain *why* the architecture is the way it is — constraints that code 
 - **Check/checkmate suffixes added by caller** — `notation` output functions omit `+`/`#` suffixes. `Game::getHistory()` appends them by replaying moves on a temp board. This keeps notation logic pure (no need to apply moves to detect check).
 
 - **Fixed-size arrays everywhere** — `MoveEntry[300]`, `HashHistory` (256 entries), `MoveList` (218 entries, stores `Move` structs), no `std::vector`. This is for ESP32: heap fragmentation from repeated vector growth is a real problem with 320KB RAM.
+
+- **Search is a stateless namespace** — `search::findBestMove()` takes a `Position` (by const ref), `SearchLimits`, and optional TT pointer. All per-search state (killers, history table, node counter) lives in `SearchState`, allocated on the stack or task stack. The search does not own the position — it creates temporary copies for make/unmake. This makes search safe to run from any context (FreeRTOS task, test, UCI handler).
+
+- **UCI handler owns search infrastructure** — `UCIHandler` owns a `Position`, `TranspositionTable`, and stop flag. The search runs synchronously inside `handleGo()` — threading is the caller's responsibility (FreeRTOS task in `LibreChessProvider`, blocking loop for Serial UCI). `setExternalStop()` wires an external cancellation flag (e.g. `ctx->cancel`) to `SearchLimits::stop` so the search cooperatively unwinds on cancellation.
+
+- **TT entry is 12 bytes** — `TTEntry` stores `key32` (upper 32 bits of Zobrist), `int16_t score`, `PackedMove` (uint16_t from/to/flags), `int8_t depth`, `TTFlag`. Mate scores are adjusted relative to search ply on store/probe (`scoreToTT`/`scoreFromTT`) so TT entries are ply-independent. TT size is always rounded down to a power of two for fast modular indexing.
+
+- **Move ordering during search** — four-tier ordering: TT move (30000) → MVV-LVA captures (10000 + victim*100 - attacker) → killer moves (9000/8000, 2 per ply) → history heuristic (depth² bonus, capped at 7000). `assignScores()` + `pickBest()` (selection sort — O(N) per move, avoids full sort since alpha-beta prunes most branches).
 
 ## Key Patterns
 

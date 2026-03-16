@@ -5,6 +5,7 @@
 #include "engine/stockfish/stockfish_settings.h"
 #include "engine/lichess/lichess_provider.h"
 #include "engine/lichess/lichess_config.h"
+#include "engine/librechess/librechess_provider.h"
 #include "game.h"
 #include "littlefs_storage.h"
 #include "serial_logger.h"
@@ -33,6 +34,7 @@ enum class AppMode {
 
 StockfishSettings stockfishSettings = StockfishSettings::medium();
 char playerColor = 'w';
+String botEngine = "stockfish";
 LichessConfig lichessConfig = {""};
 
 BoardDriver boardDriver;
@@ -188,6 +190,7 @@ void loop() {
         currentMode = AppMode::BOT;
         stockfishSettings = wifiManager.getStockfishSettings();
         playerColor = wifiManager.getBotPlayerColor();
+        botEngine = wifiManager.getBotEngine();
         break;
       case 3:
         currentMode = AppMode::LICHESS;
@@ -387,11 +390,18 @@ void initializeSelectedMode(AppMode mode) {
       activeGame = new PlayerMode(&boardDriver, &wifiManager, &chess, &logger);
       activeGame->begin();
       break;
-    case AppMode::BOT:
-      Serial.printf("Starting 'Chess Bot' (Depth: %d, Player is %s)...\n", stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
-      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new StockfishProvider(stockfishSettings, playerColor, &logger), &logger);
+    case AppMode::BOT: {
+      Serial.printf("Starting 'Chess Bot' (Engine: %s, Depth: %d, Player is %s)...\n", botEngine.c_str(), stockfishSettings.depth, playerColor == 'w' ? "White" : "Black");
+      EngineProvider* provider;
+      if (botEngine == "librechess") {
+        provider = new LibreChessProvider(stockfishSettings.depth, stockfishSettings.timeoutMs, playerColor, &logger);
+      } else {
+        provider = new StockfishProvider(stockfishSettings, playerColor, &logger);
+      }
+      activeGame = new BotMode(&boardDriver, &wifiManager, &chess, provider, &logger);
       activeGame->begin();
       break;
+    }
     case AppMode::LICHESS:
       Serial.println("Starting 'Lichess Mode'...");
       activeGame = new BotMode(&boardDriver, &wifiManager, &chess, new LichessProvider(lichessConfig, &logger), &logger);

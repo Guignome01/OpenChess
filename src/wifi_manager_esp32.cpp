@@ -670,7 +670,10 @@ void WiFiManagerESP32::handleGameSelection(AsyncWebServerRequest* request) {
       int diffLevel = request->arg("difficulty").toInt();
       botPlayerColor = (request->arg("playerColor") == "white") ? 'w' : 'b';
       stockfishSettings = StockfishSettings::fromLevel(diffLevel);
-      Serial.printf("Bot configuration received: Depth=%d, Player is %s\n", stockfishSettings.depth, botPlayerColor == 'w' ? "White" : "Black");
+      botEngine = request->hasArg("engine") ? request->arg("engine") : "stockfish";
+      Serial.printf("Bot configuration received: Engine=%s, Depth=%d, Player is %s\n",
+                     botEngine.c_str(), stockfishSettings.depth,
+                     botPlayerColor == 'w' ? "White" : "Black");
     } else {
       sendJsonError(request, 400, "Missing bot parameters");
       return;

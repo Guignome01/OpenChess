@@ -6,7 +6,7 @@ applyTo: "src/engine/**"
 
 ## Overview
 
-`EngineProvider` (abstract base) → `StockfishProvider` | `LichessProvider`. Each provider handles all network communication in FreeRTOS background tasks and returns data only — providers never touch `Game`, `BoardDriver`, or any hardware.
+`EngineProvider` (abstract base) → `StockfishProvider` | `LichessProvider` | `LibreChessProvider`. Each provider handles all computation/communication in FreeRTOS background tasks and returns data only — providers never touch `Game`, `BoardDriver`, or any hardware.
 
 Providers are composed into `BotMode` via pointer injection (`BotMode` owns the pointer).
 
@@ -43,6 +43,22 @@ Configuration via `StockfishSettings` — `depth` (1–15), `timeoutMs`, `maxRet
 Streaming provider. Constructor: `LichessProvider(config, logger)`. Forwards `logger` to `EngineProvider`. Holds a `LichessAPI api_` instance member for main-thread calls. `initialize()` blocks during game discovery (token verification + active game search). `requestMove()` spawns a persistent NDJSON streaming task that reads opponent moves and game-end events. The `TaskContext` carries a `LichessConfig` copy by value; the task creates a local `LichessAPI(ctx->config, ctx->logger)` instance for thread-safe stream operations. `checkResult()` uses `peekResult()` + `finishTask()` to read extra fields from the derived context. `onPlayerMoveApplied()` sends moves to Lichess via HTTP POST.
 
 Configuration via `LichessConfig` — just an OAuth `apiToken`.
+
+## LibreChessProvider
+
+On-board engine provider. Constructor: `LibreChessProvider(depth, moveTimeMs, playerColor, logger)`. Forwards `logger` to `EngineProvider`. Runs entirely in-process using the `search` and `uci` modules from `lib/core/` — no network required. `initialize()` always succeeds (no handshake needed), sets `gameModeId = BOT`, `canResume = true`.
+
+Each `requestMove()` spawns a FreeRTOS task (16 KiB stack) that:
+1. Sizes the TT based on available heap (`heap_caps_get_free_size / 4`, capped at 128 KiB, minimum 64 entries)
+2. Creates a `UCIHandler` with the computed TT size, sets `millis` as the time function
+3. Wires `ctx->cancel` → `handler.setExternalStop()` for cooperative cancellation
+4. Sends `position fen <fen>` and `go depth N` (or `go movetime N`) via `StringUCIStream`
+5. Runs `handler.loop()` which processes the commands synchronously
+6. Extracts `bestmove` and last `info` evaluation from `StringUCIStream` output
+
+`checkResult()` uses `peekResult()` + `finishTask()` to read the evaluation before cleanup. `getEvaluation()` returns the last search score for the web UI eval bar.
+
+`SerialUCIStream` (in `librechess_serial.h`) implements `UCIStream` over hardware UART, enabling external UCI GUIs (Arena, CuteChess) to drive the engine over the ESP32's USB-UART bridge.
 
 ## API Layer
 
