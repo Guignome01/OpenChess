@@ -7,6 +7,8 @@
 #include <atomic>
 #include <string>
 
+using namespace LibreChess;
+
 // Result from engine initialization (populated by the provider during begin()).
 struct EngineInitResult {
   char playerColor = 'w';       // Discovered at runtime (Lichess) or passed in (Stockfish)

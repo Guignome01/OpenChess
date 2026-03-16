@@ -198,11 +198,4 @@ struct BitboardSet {
 
 }  // namespace LibreChess
 
-// Bring commonly-used types into global scope.
-using LibreChess::Bitboard;
-using LibreChess::BitboardSet;
-using LibreChess::squareBB;
-using LibreChess::popcount;
-using LibreChess::lsb;
-
 #endif  // LIBRECHESS_BITBOARD_H

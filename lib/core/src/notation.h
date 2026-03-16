@@ -6,7 +6,7 @@
 #include "bitboard.h"
 #include "types.h"
 
-struct MoveEntry;  // forward declaration
+namespace LibreChess { struct MoveEntry; }  // forward declaration
 
 // ---------------------------------------------------------------------------
 // Move notation conversion — transforms between internal array coordinates

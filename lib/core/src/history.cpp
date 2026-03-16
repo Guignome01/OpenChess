@@ -5,7 +5,7 @@
 
 #include "position.h"
 
-namespace piece = LibreChess::piece;
+namespace LibreChess {
 
 // --- Compact 2-byte move encoding ---
 
@@ -307,3 +307,5 @@ void History::persistMove(const MoveEntry& entry) {
     movesSinceFlush_ = 0;
   }
 }
+
+}  // namespace LibreChess

@@ -11,6 +11,8 @@
 // Abstract persistence interface for game recording.
 // Concrete implementations live in the firmware layer (e.g. LittleFSStorage).
 // History depends only on this interface — no filesystem coupling in core.
+namespace LibreChess {
+
 class IGameStorage {
  public:
   virtual ~IGameStorage() = default;
@@ -60,5 +62,7 @@ class IGameStorage {
   // Delete oldest games until count/size limits are satisfied.
   virtual void enforceStorageLimits() = 0;
 };
+
+}  // namespace LibreChess
 
 #endif  // CORE_STORAGE_H

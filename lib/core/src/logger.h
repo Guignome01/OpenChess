@@ -6,6 +6,8 @@
 
 // Abstract logging interface — allows core library classes to emit diagnostic
 // output without depending on Arduino Serial or any other concrete I/O.
+namespace LibreChess {
+
 class ILogger {
  public:
   virtual ~ILogger() = default;
@@ -71,5 +73,7 @@ struct Log {
 
   explicit operator bool() const { return ptr != nullptr; }
 };
+
+}  // namespace LibreChess
 
 #endif  // CORE_LOGGER_H

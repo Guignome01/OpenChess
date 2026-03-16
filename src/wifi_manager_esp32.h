@@ -14,9 +14,11 @@
 #include <string>
 
 // Forward declarations
+namespace LibreChess { class Game; }
+using namespace LibreChess;
+
 struct LichessConfig;
 class LittleFSStorage;
-class Game;
 
 // ---------------------------
 // WiFi Configuration

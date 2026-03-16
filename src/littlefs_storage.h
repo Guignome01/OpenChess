@@ -7,6 +7,8 @@
 #include "storage.h"
 #include "logger.h"
 
+using namespace LibreChess;
+
 // Concrete IGameStorage implementation backed by LittleFS on ESP32.
 // Manages binary game files under /games/ with crash-recovery semantics.
 class LittleFSStorage : public IGameStorage {

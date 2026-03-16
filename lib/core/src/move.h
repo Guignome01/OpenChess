@@ -120,21 +120,4 @@ constexpr MoveResult invalidMoveResult() {
 
 }  // namespace LibreChess
 
-// ---------------------------------------------------------------------------
-// Backward compatibility — bring move types into global scope.
-// Removed in Phase 6.
-// ---------------------------------------------------------------------------
-
-using LibreChess::Move;
-using LibreChess::ScoredMove;
-using LibreChess::MoveList;
-using LibreChess::MoveResult;
-using LibreChess::invalidMoveResult;
-using LibreChess::MOVE_CAPTURE;
-using LibreChess::MOVE_EP;
-using LibreChess::MOVE_CASTLING;
-using LibreChess::MOVE_PROMOTION;
-using LibreChess::MOVE_PROMO_SHIFT;
-using LibreChess::MAX_MOVES;
-
 #endif  // LIBRECHESS_MOVE_H

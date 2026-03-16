@@ -4,6 +4,8 @@
 #include "led_colors.h"
 #include "piece.h"
 
+using namespace LibreChess;
+
 namespace SystemUtils {
 
 /// Map a player Color to an LED color.

@@ -15,7 +15,7 @@
 namespace LibreChess {
 namespace piece {
 
-using LibreChess::raw;  // make raw() overloads available unqualified
+using LibreChess::raw;  // expose raw() overloads as piece::raw()
 
 // ---------------------------------------------------------------------------
 // Bit extraction (constexpr, O(1))

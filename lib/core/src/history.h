@@ -10,6 +10,8 @@
 #include "piece.h"
 #include "types.h"
 
+namespace LibreChess {
+
 class Position;  // forward declaration for replayInto()
 
 // ---------------------------------------------------------------------------
@@ -151,5 +153,7 @@ class History {
   void persistMove(const MoveEntry& entry);
   std::string replayFen_;
 };
+
+}  // namespace LibreChess
 
 #endif  // CORE_HISTORY_H

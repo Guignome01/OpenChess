@@ -8,9 +8,11 @@
 #include "types.h"
 #include <Arduino.h>
 
-// Forward declarations to avoid circular dependencies
+namespace LibreChess { class Game; }
+using namespace LibreChess;
+
+// Forward declaration to avoid circular dependency
 class WiFiManagerESP32;
-class Game;
 
 // Base class for chess game modes (shared state and common functionality).
 // All chess-state mutations flow through `chess_` (Game orchestrator),

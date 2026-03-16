@@ -3,6 +3,8 @@
 
 #include "logger.h"
 
+using namespace LibreChess;
+
 // Concrete ILogger implementation that writes to Arduino Serial.
 class SerialLogger : public ILogger {
  public:

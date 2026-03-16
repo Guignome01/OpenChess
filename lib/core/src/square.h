@@ -50,11 +50,4 @@ constexpr int colOf(Square sq) {
 
 }  // namespace LibreChess
 
-// Bring commonly-used types into global scope.
-using LibreChess::Square;
-using LibreChess::SQ_NONE;
-using LibreChess::squareOf;
-using LibreChess::rowOf;
-using LibreChess::colOf;
-
 #endif  // LIBRECHESS_SQUARE_H

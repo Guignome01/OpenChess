@@ -5,10 +5,8 @@
 //
 // Foundation layer — leaf of the dependency tree. No includes beyond <cstdint>.
 // Defines the three fundamental enums (Color, PieceType, Piece) and their
-// raw() unwrap helpers, plus game-level enums (GameResult, GameModeId).
-//
-// PositionState, HashHistory, GameHeader, and recording types are here
-// temporarily — they migrate to position.h and history.h in later phases.
+// raw() unwrap helpers, plus game-level enums (GameResult, GameModeId),
+// PositionState, HashHistory, GameHeader, and recording types.
 
 #include <cstdint>
 
@@ -115,7 +113,7 @@ inline const char* gameResultName(GameResult result) {
 }
 
 // ---------------------------------------------------------------------------
-// Position state (temporary location — moves to position.h in Phase 3)
+// Position state
 // ---------------------------------------------------------------------------
 
 // Complete position state for chess operations.
@@ -144,7 +142,7 @@ struct HashHistory {
 };
 
 // ---------------------------------------------------------------------------
-// Recording types (temporary location — moves to history.h in Phase 4)
+// Recording types
 // ---------------------------------------------------------------------------
 
 // Binary file header for recorded games (on-disk format).
@@ -169,7 +167,6 @@ static constexpr int MAX_GAMES = 50;
 static constexpr float MAX_USAGE_PERCENT = 0.80f;
 
 // Move notation format identifiers — used by Game::getHistory().
-// Temporary location — moves to notation.h in Phase 4.
 enum class MoveFormat : uint8_t {
   COORDINATE = 0,  // "e2e4", "e7e8q"  (UCI protocol notation)
   SAN = 1,         // "e4", "Nxf3", "O-O", "e8=Q+"  (Standard Algebraic)
@@ -177,25 +174,5 @@ enum class MoveFormat : uint8_t {
 };
 
 }  // namespace LibreChess
-
-// ---------------------------------------------------------------------------
-// Backward compatibility — bring core types into global scope.
-// Matches existing convention where Color, Piece, PieceType are unqualified.
-// Removed in Phase 6.
-// ---------------------------------------------------------------------------
-
-using LibreChess::Color;
-using LibreChess::Piece;
-using LibreChess::PieceType;
-using LibreChess::GameResult;
-using LibreChess::GameModeId;
-using LibreChess::PositionState;
-using LibreChess::HashHistory;
-using LibreChess::GameHeader;
-using LibreChess::MoveFormat;
-using LibreChess::FORMAT_VERSION;
-using LibreChess::FEN_MARKER;
-using LibreChess::MAX_GAMES;
-using LibreChess::MAX_USAGE_PERCENT;
 
 #endif  // LIBRECHESS_TYPES_H

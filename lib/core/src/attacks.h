@@ -25,9 +25,6 @@
 namespace LibreChess {
 namespace attacks {
 
-using LibreChess::Bitboard;
-using LibreChess::Square;
-
 // ---------------------------------------------------------------------------
 // Precomputed leaper tables (initialized by init())
 // ---------------------------------------------------------------------------

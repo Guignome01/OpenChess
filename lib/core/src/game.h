@@ -31,6 +31,8 @@
 //   MoveResult r = game.makeMove(6, 4, 4, 4);  // e2e4
 //   if (game.isGameOver()) { ... }
 // ---------------------------------------------------------------------------
+namespace LibreChess {
+
 class Game {
  public:
   Game(IGameStorage* storage = nullptr,
@@ -87,7 +89,7 @@ class Game {
 
   // --- Board pass-throughs ---
 
-  const LibreChess::BitboardSet& bitboards() const { return board_.bitboards(); }
+  const BitboardSet& bitboards() const { return board_.bitboards(); }
   const Piece* mailbox() const { return board_.mailbox(); }
   Piece getSquare(int row, int col) const { return board_.getSquare(row, col); }
   Color currentTurn() const { return board_.currentTurn(); }
@@ -128,26 +130,26 @@ class Game {
 
   template <typename Fn>
   void forEachSquare(Fn&& fn) const {
-    LibreChess::iterator::forEachSquare(board_.mailbox(), static_cast<Fn&&>(fn));
+    iterator::forEachSquare(board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   void forEachPiece(Fn&& fn) const {
-    LibreChess::iterator::forEachPiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
+    iterator::forEachPiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   bool somePiece(Fn&& fn) const {
-    return LibreChess::iterator::somePiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
+    return iterator::somePiece(board_.bitboards(), board_.mailbox(), static_cast<Fn&&>(fn));
   }
 
   int moveNumber() const { return board_.moveNumber(); }
 
-  LibreChess::utils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
+  utils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
     return board_.checkEnPassant(fromRow, fromCol, toRow, toCol);
   }
 
-  LibreChess::utils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
+  utils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
     return board_.checkCastling(fromRow, fromCol, toRow, toCol);
   }
 
@@ -178,5 +180,7 @@ class Game {
 
   void notifyObserver();
 };
+
+}  // namespace LibreChess
 
 #endif  // CORE_GAME_H

@@ -34,9 +34,9 @@
 #include "types.h"
 #include "zobrist.h"
 
-struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
-
 namespace LibreChess {
+
+struct MoveEntry;  // forward declaration for reverseMove/applyMoveEntry
 
 // ---------------------------------------------------------------------------
 // UndoInfo — saved state for unmake().  Returned by make(), passed to unmake().
@@ -49,10 +49,6 @@ struct UndoInfo {
   Square capturedSquare;  // where the capture occurred (differs from `to` for EP)
   int historyCount;       // hashHistory_.count before the move
 };
-
-}  // namespace LibreChess
-
-using LibreChess::UndoInfo;
 
 // ---------------------------------------------------------------------------
 // Position class
@@ -93,9 +89,9 @@ class Position {
   Color currentTurn() const { return currentTurn_; }
   Color sideToMove() const { return currentTurn_; }
 
-  int kingRow(Color c) const { return rowOf(kingSquare_[LibreChess::piece::raw(c)]); }
-  int kingCol(Color c) const { return colOf(kingSquare_[LibreChess::piece::raw(c)]); }
-  Square kingSquare(Color c) const { return kingSquare_[LibreChess::piece::raw(c)]; }
+  int kingRow(Color c) const { return rowOf(kingSquare_[piece::raw(c)]); }
+  int kingCol(Color c) const { return colOf(kingSquare_[piece::raw(c)]); }
+  Square kingSquare(Color c) const { return kingSquare_[piece::raw(c)]; }
 
   uint8_t getCastlingRights() const { return state_.castlingRights; }
   const PositionState& positionState() const { return state_; }
@@ -108,67 +104,67 @@ class Position {
   const Piece* mailbox() const { return mailbox_; }
 
   uint64_t hash() const { return hash_; }
-  bool isRepetition() const { return LibreChess::rules::isThreefoldRepetition(hashHistory_); }
+  bool isRepetition() const { return rules::isThreefoldRepetition(hashHistory_); }
 
   // --- Convenience wrappers (delegate to movegen:: / utils::) ---
 
   void getPossibleMoves(int row, int col, MoveList& moves) const {
-    LibreChess::movegen::getPossibleMoves(bb_, mailbox_, row, col, state_, moves);
+    movegen::getPossibleMoves(bb_, mailbox_, row, col, state_, moves);
   }
 
   bool isCheck(Color kingColor) const {
-    return LibreChess::attacks::isSquareUnderAttack(bb_, kingSquare_[LibreChess::piece::raw(kingColor)], kingColor);
+    return attacks::isSquareUnderAttack(bb_, kingSquare_[piece::raw(kingColor)], kingColor);
   }
 
   bool inCheck() const {
-    return LibreChess::attacks::isSquareUnderAttack(bb_, kingSquare_[LibreChess::piece::raw(currentTurn_)], currentTurn_);
+    return attacks::isSquareUnderAttack(bb_, kingSquare_[piece::raw(currentTurn_)], currentTurn_);
   }
 
   bool isCheckmate() const {
-    return LibreChess::rules::isCheckmate(bb_, mailbox_, currentTurn_, state_);
+    return rules::isCheckmate(bb_, mailbox_, currentTurn_, state_);
   }
 
   bool isStalemate() const {
-    return LibreChess::rules::isStalemate(bb_, mailbox_, currentTurn_, state_);
+    return rules::isStalemate(bb_, mailbox_, currentTurn_, state_);
   }
 
   bool isInsufficientMaterial() const {
-    return LibreChess::rules::isInsufficientMaterial(bb_);
+    return rules::isInsufficientMaterial(bb_);
   }
 
   bool isFiftyMoves() const {
-    return LibreChess::rules::isFiftyMoveRule(state_);
+    return rules::isFiftyMoveRule(state_);
   }
 
   bool isThreefoldRepetition() const {
-    return LibreChess::rules::isThreefoldRepetition(hashHistory_);
+    return rules::isThreefoldRepetition(hashHistory_);
   }
 
   bool isDraw() const {
-    return LibreChess::rules::isDraw(bb_, mailbox_, currentTurn_, state_, hashHistory_);
+    return rules::isDraw(bb_, mailbox_, currentTurn_, state_, hashHistory_);
   }
 
   bool isAttacked(int row, int col, Color byColor) const {
     Color defendingColor = ~byColor;
-    return LibreChess::attacks::isSquareUnderAttack(bb_, row, col, defendingColor);
+    return attacks::isSquareUnderAttack(bb_, row, col, defendingColor);
   }
 
   int findPiece(Piece target, int positions[][2], int maxPositions) const {
-    return LibreChess::iterator::findPiece(bb_, target, positions, maxPositions);
+    return iterator::findPiece(bb_, target, positions, maxPositions);
   }
 
   std::string boardToText() const;
 
   int moveNumber() const { return state_.fullmoveClock; }
 
-  LibreChess::utils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
-    return LibreChess::utils::checkEnPassant(fromRow, fromCol, toRow, toCol,
+  utils::EnPassantInfo checkEnPassant(int fromRow, int fromCol, int toRow, int toCol) const {
+    return utils::checkEnPassant(fromRow, fromCol, toRow, toCol,
                                       mailbox_[squareOf(fromRow, fromCol)],
                                       mailbox_[squareOf(toRow, toCol)]);
   }
 
-  LibreChess::utils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
-    return LibreChess::utils::checkCastling(fromRow, fromCol, toRow, toCol,
+  utils::CastlingInfo checkCastling(int fromRow, int fromCol, int toRow, int toCol) const {
+    return utils::checkCastling(fromRow, fromCol, toRow, toCol,
                                      mailbox_[squareOf(fromRow, fromCol)]);
   }
 
@@ -176,17 +172,17 @@ class Position {
 
   template <typename Fn>
   void forEachSquare(Fn&& fn) const {
-    LibreChess::iterator::forEachSquare(mailbox_, static_cast<Fn&&>(fn));
+    iterator::forEachSquare(mailbox_, static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   void forEachPiece(Fn&& fn) const {
-    LibreChess::iterator::forEachPiece(bb_, mailbox_, static_cast<Fn&&>(fn));
+    iterator::forEachPiece(bb_, mailbox_, static_cast<Fn&&>(fn));
   }
 
   template <typename Fn>
   bool somePiece(Fn&& fn) const {
-    return LibreChess::iterator::somePiece(bb_, mailbox_, static_cast<Fn&&>(fn));
+    return iterator::somePiece(bb_, mailbox_, static_cast<Fn&&>(fn));
   }
 
   // --- Constants ---
@@ -212,5 +208,7 @@ class Position {
   void applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol, char promotion, MoveResult& result);
   void advanceTurn();
 };
+
+}  // namespace LibreChess
 
 #endif  // LIBRECHESS_POSITION_H

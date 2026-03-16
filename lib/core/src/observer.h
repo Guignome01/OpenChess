@@ -9,6 +9,8 @@
 // any concrete implementation.
 //
 // WiFiManagerESP32 implements this to keep the web dashboard in sync.
+namespace LibreChess {
+
 class IGameObserver {
  public:
   virtual ~IGameObserver() = default;
@@ -17,5 +19,7 @@ class IGameObserver {
   // evaluation is in centipawns (positive = White advantage).
   virtual void onBoardStateChanged(const std::string& fen, int evaluation) = 0;
 };
+
+}  // namespace LibreChess
 
 #endif  // CORE_OBSERVER_H

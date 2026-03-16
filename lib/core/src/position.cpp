@@ -5,9 +5,9 @@
 #include "fen.h"
 #include "history.h"
 
-using namespace LibreChess;
+namespace LibreChess {
 
-namespace zob = LibreChess::zobrist;
+namespace zob = zobrist;
 
 // ---------------------------------------------------------------------------
 // Initial board layout
@@ -34,7 +34,7 @@ Position::Position()
       cachedEval_(0),
       fenDirty_(true),
       evalDirty_(true) {
-  LibreChess::attacks::init();
+  attacks::init();
   bb_.clear();
   memset(mailbox_, 0, sizeof(mailbox_));
   for (int row = 0; row < 8; ++row)
@@ -77,9 +77,9 @@ void Position::newGame() {
 }
 
 bool Position::loadFEN(const std::string& fen) {
-  if (!LibreChess::fen::validateFEN(fen)) return false;
+  if (!fen::validateFEN(fen)) return false;
 
-  LibreChess::fen::fenToBoard(fen, bb_, mailbox_, currentTurn_, &state_);
+  fen::fenToBoard(fen, bb_, mailbox_, currentTurn_, &state_);
   hashHistory_.count = 0;
 
   // Locate king positions from bitboards
@@ -108,7 +108,7 @@ MoveResult Position::makeMove(int fromRow, int fromCol, int toRow, int toCol, ch
 
   Square from = squareOf(fromRow, fromCol);
   Square to = squareOf(toRow, toCol);
-  if (!LibreChess::movegen::isValidMove(bb_, mailbox_, from, to, state_, kingSquare_[piece::raw(currentTurn_)]))
+  if (!movegen::isValidMove(bb_, mailbox_, from, to, state_, kingSquare_[piece::raw(currentTurn_)]))
     return invalidMoveResult();
 
   MoveResult result;
@@ -118,7 +118,7 @@ MoveResult Position::makeMove(int fromRow, int fromCol, int toRow, int toCol, ch
   advanceTurn();
   recordPosition();
   char winner = ' ';
-  GameResult endResult = LibreChess::rules::isGameOver(
+  GameResult endResult = rules::isGameOver(
       bb_, mailbox_, currentTurn_, state_, hashHistory_, winner);
   result.gameResult = endResult;
   result.winnerColor = winner;
@@ -127,7 +127,7 @@ MoveResult Position::makeMove(int fromRow, int fromCol, int toRow, int toCol, ch
   if (endResult == GameResult::CHECKMATE) {
     result.isCheck = true;
   } else if (endResult == GameResult::IN_PROGRESS &&
-             LibreChess::attacks::isSquareUnderAttack(bb_, kingSquare_[piece::raw(currentTurn_)], currentTurn_)) {
+             attacks::isSquareUnderAttack(bb_, kingSquare_[piece::raw(currentTurn_)], currentTurn_)) {
     result.isCheck = true;
   }
 
@@ -218,7 +218,7 @@ UndoInfo Position::make(Move m) {
   // --- Hash: remove old state keys ---
   hash_ ^= zob::KEYS.castling[state_.castlingRights];
   if (state_.epRow >= 0 && state_.epCol >= 0 &&
-      LibreChess::movegen::hasLegalEnPassantCapture(bb_, mailbox_, currentTurn_, state_))
+      movegen::hasLegalEnPassantCapture(bb_, mailbox_, currentTurn_, state_))
     hash_ ^= zob::KEYS.enPassant[state_.epCol];
 
   // --- Determine captured piece ---
@@ -312,7 +312,7 @@ UndoInfo Position::make(Move m) {
   // New EP key (checking with the next side to move = opponent)
   Color nextSide = ~currentTurn_;
   if (state_.epRow >= 0 && state_.epCol >= 0 &&
-      LibreChess::movegen::hasLegalEnPassantCapture(bb_, mailbox_, nextSide, state_))
+      movegen::hasLegalEnPassantCapture(bb_, mailbox_, nextSide, state_))
     hash_ ^= zob::KEYS.enPassant[state_.epCol];
 
   // --- Update king cache ---
@@ -393,7 +393,7 @@ void Position::unmake(Move m, const UndoInfo& undo) {
 
 std::string Position::getFen() const {
   if (fenDirty_) {
-    cachedFen_ = LibreChess::fen::boardToFEN(mailbox_, currentTurn_, &state_);
+    cachedFen_ = fen::boardToFEN(mailbox_, currentTurn_, &state_);
     fenDirty_ = false;
   }
   return cachedFen_;
@@ -401,7 +401,7 @@ std::string Position::getFen() const {
 
 int Position::getEvaluation() const {
   if (evalDirty_) {
-    cachedEval_ = LibreChess::eval::evaluatePosition(bb_);
+    cachedEval_ = eval::evaluatePosition(bb_);
     evalDirty_ = false;
   }
   return cachedEval_;
@@ -455,7 +455,7 @@ void Position::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol,
   // --- Hash: remove old state keys ---
   hash_ ^= zob::KEYS.castling[state_.castlingRights];
   if (state_.epRow >= 0 && state_.epCol >= 0 &&
-      LibreChess::movegen::hasLegalEnPassantCapture(bb_, mailbox_, currentTurn_, state_))
+      movegen::hasLegalEnPassantCapture(bb_, mailbox_, currentTurn_, state_))
     hash_ ^= zob::KEYS.enPassant[state_.epCol];
 
   // --- Update EP state ---
@@ -526,7 +526,7 @@ void Position::applyMoveToBoard(int fromRow, int fromCol, int toRow, int toCol,
   // New EP key (checking with the next side to move = opponent)
   Color nextSide = ~currentTurn_;
   if (state_.epRow >= 0 && state_.epCol >= 0 &&
-      LibreChess::movegen::hasLegalEnPassantCapture(bb_, mailbox_, nextSide, state_))
+      movegen::hasLegalEnPassantCapture(bb_, mailbox_, nextSide, state_))
     hash_ ^= zob::KEYS.enPassant[state_.epCol];
 
   // --- Update king cache ---
@@ -551,3 +551,5 @@ void Position::recordPosition() {
   if (hashHistory_.count < HashHistory::MAX_SIZE)
     hashHistory_.keys[hashHistory_.count++] = hash_;
 }
+
+}  // namespace LibreChess

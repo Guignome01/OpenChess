@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include <WiFiClientSecure.h>
 
+using namespace LibreChess;
+
 // Lichess API Configuration
 #define LICHESS_API_HOST "lichess.org"
 #define LICHESS_API_PORT 443

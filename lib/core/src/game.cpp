@@ -4,7 +4,7 @@
 
 #include "notation.h"
 
-namespace utils = LibreChess::utils;
+namespace LibreChess {
 
 Game::Game(IGameStorage* storage, IGameObserver* observer, ILogger* logger)
     : history_(storage, logger), observer_(observer), logger_(logger), batchDepth_(0),
@@ -54,7 +54,7 @@ void Game::endGame(GameResult result, char winnerColor) {
     logger_.infof("Game over: %s", utils::gameResultName(result));
   else
     logger_.infof("Game over: %s \xe2\x80\x94 %s wins!",
-                   utils::gameResultName(result), LibreChess::piece::colorName(winnerColor == 'w' ? Color::WHITE : Color::BLACK));
+                   utils::gameResultName(result), piece::colorName(winnerColor == 'w' ? Color::WHITE : Color::BLACK));
 
   history_.save(result, winnerColor);  // no-op if not recording
   notifyObserver();
@@ -86,11 +86,11 @@ MoveResult Game::makeMove(int fromRow, int fromCol, int toRow, int toCol, char p
                          : result.isEnPassant ? "en passant"
                          : result.isCapture   ? "capture"
                                               : "move";
-  logger_.infof("%s: %c %s -> %s", moveType, LibreChess::piece::pieceToChar(piece),
+  logger_.infof("%s: %c %s -> %s", moveType, piece::pieceToChar(piece),
                  utils::squareName(fromRow, fromCol).c_str(),
                  utils::squareName(toRow, toCol).c_str());
   if (result.isPromotion)
-    logger_.infof("Pawn promoted to %c", LibreChess::piece::pieceToChar(result.promotedTo));
+    logger_.infof("Pawn promoted to %c", piece::pieceToChar(result.promotedTo));
 
   // Build MoveEntry and record in history (addMove handles both in-memory log
   // and persistent recording automatically)
@@ -102,9 +102,9 @@ MoveResult Game::makeMove(int fromRow, int fromCol, int toRow, int toCol, char p
     endGame(result.gameResult, result.winnerColor);  // calls notifyObserver()
   } else {
     if (result.isCheck) {
-      logger_.infof("%s is in check!", LibreChess::piece::colorName(board_.currentTurn()));
+      logger_.infof("%s is in check!", piece::colorName(board_.currentTurn()));
     }
-    logger_.infof("It's %s's turn", LibreChess::piece::colorName(board_.currentTurn()));
+    logger_.infof("It's %s's turn", piece::colorName(board_.currentTurn()));
     notifyObserver();
   }
 
@@ -114,7 +114,7 @@ MoveResult Game::makeMove(int fromRow, int fromCol, int toRow, int toCol, char p
 MoveResult Game::makeMove(const std::string& move) {
   int fromRow, fromCol, toRow, toCol;
   char promotion = ' ';
-  if (!LibreChess::notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion))
+  if (!notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion))
     return invalidMoveResult();
   return makeMove(fromRow, fromCol, toRow, toCol, promotion);
 }
@@ -179,8 +179,8 @@ int Game::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
     // Fast path — no board replay needed
     for (int i = 0; i < count; ++i) {
       const MoveEntry& m = history_.getMove(i);
-      char promo = m.isPromotion ? LibreChess::piece::pieceToChar(m.promotion) : ' ';
-      out[i] = LibreChess::notation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
+      char promo = m.isPromotion ? piece::pieceToChar(m.promotion) : ' ';
+      out[i] = notation::toCoordinate(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
     }
     return count;
   }
@@ -198,14 +198,14 @@ int Game::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
 
     // Generate notation before applying the move
     if (format == MoveFormat::SAN) {
-      out[i] = LibreChess::notation::toSAN(tempBoard.bitboards(), tempBoard.mailbox(),
+      out[i] = notation::toSAN(tempBoard.bitboards(), tempBoard.mailbox(),
                                      tempBoard.positionState(), m);
     } else {
-      out[i] = LibreChess::notation::toLAN(m);
+      out[i] = notation::toLAN(m);
     }
 
     // Apply the move to advance the temp board
-    char promo = m.isPromotion ? LibreChess::piece::pieceToChar(m.promotion) : ' ';
+    char promo = m.isPromotion ? piece::pieceToChar(m.promotion) : ' ';
     tempBoard.makeMove(m.fromRow, m.fromCol, m.toRow, m.toCol, promo);
 
     // Append check/checkmate suffix
@@ -222,17 +222,17 @@ int Game::getHistory(std::string out[], int maxMoves, MoveFormat format) const {
 // ---------------------------------------------------------------------------
 
 std::string Game::toCoordinate(int fromRow, int fromCol, int toRow, int toCol, char promotion) {
-  return LibreChess::notation::toCoordinate(fromRow, fromCol, toRow, toCol, promotion);
+  return notation::toCoordinate(fromRow, fromCol, toRow, toCol, promotion);
 }
 
 bool Game::parseCoordinate(const std::string& move, int& fromRow, int& fromCol,
                                 int& toRow, int& toCol, char& promotion) {
-  return LibreChess::notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion);
+  return notation::parseCoordinate(move, fromRow, fromCol, toRow, toCol, promotion);
 }
 
 bool Game::parseMove(const std::string& move, int& fromRow, int& fromCol,
                           int& toRow, int& toCol, char& promotion) const {
-  return LibreChess::notation::parseMove(board_.bitboards(), board_.mailbox(),
+  return notation::parseMove(board_.bitboards(), board_.mailbox(),
                                   board_.positionState(), board_.currentTurn(),
                                   move, fromRow, fromCol, toRow, toCol, promotion);
 }
@@ -301,3 +301,5 @@ void Game::notifyObserver() {
   if (observer_)
     observer_->onBoardStateChanged(board_.getFen(), board_.getEvaluation());
 }
+
+}  // namespace LibreChess
